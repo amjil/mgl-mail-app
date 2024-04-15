@@ -2,7 +2,12 @@
  :deps {tensegritics/clojuredart
         {:git/url "https://github.com/tensegritics/ClojureDart.git"
          :sha "a6bff55cb69298d79869362e8026c65dafb4d417"}
-        }
+        amjil/mongol-virtual-keyboard
+        {:git/url "https://github.com/amjil/mongol-virtual-keyboard.git"
+         :sha "f8816e92c8d2f01459cc23491e21fad11eaffb69"}
+        amjil/mongol-menu-bar
+        {:git/url "https://github.com/amjil/mongol-menu-bar.git"
+         :sha "d070ea149db29bed57a77eee09af3f865462c4ac"}}
        
  :aliases {:cljd {:main-opts ["-m" "cljd.build"]}}
  :cljd/opts {:kind :flutter

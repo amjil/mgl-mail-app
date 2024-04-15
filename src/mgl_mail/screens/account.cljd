@@ -1,0 +1,17 @@
+(ns mgl-mail.screens.account
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:mongol/mongol.dart" :as mgl]
+   [cljd.flutter :as f]))
+
+(defn email-step
+  [state]
+  (f/widget
+   (m/Step
+    .title (m/SizedBox)
+    .content (m/Column
+              .children [(mgl/MongolTextField
+                          .onChanged (fn [v] (swap! state :email v))
+                          .decoration (m/InputDecoration
+                                       .hintText "Decoration"))]))))
+                                       

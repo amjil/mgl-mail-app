@@ -1,6 +1,7 @@
 (ns mgl-mail.main
   (:require
    ["package:flutter/material.dart" :as m]
+   [mgl-mail.widgets.stepper :as stepper]
    [cljd.flutter :as f]))
 
 (defn main []
@@ -16,7 +17,4 @@
              .title (m/Text "Welcome to ClojureDart")))
    .body
    m/Center
-   (m/Text "Let's get coding!"
-           .style (m/TextStyle
-                   .color m.Colors/red
-                   .fontSize 32.0))))
+   (stepper/view (atom 0))))
