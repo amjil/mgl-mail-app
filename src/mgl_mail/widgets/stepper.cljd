@@ -1,0 +1,36 @@
+(ns mgl-mail.widgets.stepper
+  (:require 
+   ["package:flutter/material.dart" :as m]
+   ["package:mongol/mongol.dart" :as mgl]
+   [cljd.flutter :as f]))
+   
+(defn view [curr]
+  (f/widget
+   :watch [current-step curr]
+   (m/Stepper
+    .type m.StepperType/vertical
+    .currentStep current-step
+    .onStepContinue (fn [] (when (> 2 current-step) (swap! curr inc)))
+    .onStepCancel (fn [] (if (zero? current-step) nil (swap! curr dec)))
+    .controlsBuilder (fn [_ ^m/ControlsDetails details]
+                       (m/Column
+                        .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+                        .crossAxisAlignment m.CrossAxisAlignment/stretch
+                        .children [(mgl/MongolTextButton
+                                    .onPressed (.-onStepContinue details)
+                                    .child (mgl/MongolText "Next"))
+                                   (mgl/MongolTextButton
+                                    .onPressed (.-onStepCancel details)
+                                    .child (mgl/MongolText "Cancel"))]))
+    .steps [(m/Step
+             .title (m/SizedBox)
+             .content (m/Container
+                       .alignment m.Alignment/centerLeft
+                       .child (mgl/MongolText "Content for Step 1")))
+            (m/Step
+             .title (m/SizedBox)
+             .content (m/Text "Content for Step 2"))
+            (m/Step
+             .title (m/SizedBox)
+             .content (m/Text "Content for Step 3"))])))
+             
