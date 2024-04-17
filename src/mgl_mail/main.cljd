@@ -1,11 +1,14 @@
 (ns mgl-mail.main
   (:require
    ["package:flutter/material.dart" :as m]
-   [mgl-mail.widgets.stepper :as stepper]
+   [mgl-mail.screens.account :as account]
+   [virtual-keyboard.input-control :as control]
+   [mgl-mail.screens.introduction :as intro]
    [cljd.flutter :as f]))
 
 (defn main []
   (m.WidgetsFlutterBinding/ensureInitialized)
+  (control/set-control)
 
   (f/run
    (m/MaterialApp
@@ -15,6 +18,4 @@
    (m/Scaffold
     .appBar (m/AppBar
              .title (m/Text "Welcome to ClojureDart")))
-   .body
-   m/Center
-   (stepper/view (atom 0))))
+   .body (intro/screen)))

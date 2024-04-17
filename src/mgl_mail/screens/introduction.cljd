@@ -1,0 +1,36 @@
+(ns mgl-mail.screens.introduction
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:mongol/mongol.dart" :as mgl]
+   ["package:introduction_screen/introduction_screen.dart" :as intro]
+   [cljd.flutter :as f]))
+   
+(defn screen 
+  []
+  (f/widget 
+   (intro/IntroductionScreen
+    .globalBackgroundColor m.Colors/white
+    .allowImplicitScrolling true
+    .autoScrollDuration 3000
+    .infiniteAutoScroll true
+    .globalFooter (m/SizedBox 
+                   .height 60)
+    .pages [(intro/PageViewModel
+             .titleWidget (m/SizedBox)
+             .bodyWidget  (mgl/MongolText "Instead of having to buy an entire share, invest any amount you want."))
+            (intro/PageViewModel
+             .titleWidget (m/SizedBox)
+             .bodyWidget (mgl/MongolText "Download the Stockpile app and master the market with our mini-lesson."))
+            (intro/PageViewModel
+             .titleWidget (m/SizedBox)
+             .bodyWidget (mgl/MongolText "Pages can be full screen as well."))]
+    .showSkipButton true
+    .skipOrBackFlex 0
+    .nextFlex 0
+    .showBackButton false
+    .back (m/Icon m.Icons/arrow_back)
+    .skip (mgl/MongolText "Skip")
+    .next (m/Icon m.Icons/arrow_forward)
+    .done (mgl/MongolText "Done")
+    .onDone (fn [] (prn "onDone"))
+    .onSkip (fn [] (prn "onSkip")))))
