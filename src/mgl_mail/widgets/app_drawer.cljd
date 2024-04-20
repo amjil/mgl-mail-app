@@ -1,0 +1,46 @@
+(ns mgl-mail.widgets.app-drawer
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:mongol/mongol.dart" :as mgl]
+   [cljd.flutter :as f]))
+   
+(declare account-header)
+
+(defn view
+  []
+  (f/widget
+   (m/Drawer)
+   (m/SafeArea)
+   (m/Row
+    .children [(m/Material
+                .elevation 18
+                .child (m/Padding
+                        .padding (m.EdgeInsets/all 8)
+                        .child (account-header)))])))
+   
+(defn account-header
+  []
+  (f/widget
+   :get {{secondary-header-color .-secondaryHeaderColor} m/Theme}
+   (mgl/MongolListTile
+    .onTap (fn []
+            ;; 
+             (prn "xxxx"))
+    .title
+   ;; (m.SizedBox/shrink)
+    (m/Column
+     .children [(m/CircleAvatar
+                 .backgroundColor secondary-header-color
+                 .backgroundImage nil
+                ;;  (m/NetworkImage "url")
+                 .radius 30)
+                (m/Padding
+                 .padding (m.EdgeInsets/only .top 8))
+                (m/Expanded
+                 .child (m/Row 
+                         .mainAxisAlignment m.MainAxisAlignment/center
+                         .crossAxisAlignment m.CrossAxisAlignment/center
+                         .children [(mgl/MongolText
+                                     "Username"
+                                     .style (m/TextStyle .fontStyle m.FontStyle/italic
+                                                         .fontSize 14))]))]))))
