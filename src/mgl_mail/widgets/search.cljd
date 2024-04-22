@@ -1,0 +1,56 @@
+(ns mgl-mail.widgets.search
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:mongol/mongol.dart" :as mgl]
+   [cljd.flutter :as f]
+   [virtual-keyboard.keyboard :as keyboard]
+   [virtual-keyboard.options :as keyboard-options]
+   [virtual-keyboard.keyboard-action :as keyboard-action]
+   [virtual-keyboard.input-control :as control]
+   [menu-bar.menu :as menu]
+   [mgl-mail.states.global :as gs]))
+   
+
+(defn input-view 
+  []
+  (f/widget
+   :get [:state :info m/MediaQuery]
+   :let [{:flds [width]} (.-size media-query)]
+   :watch [{candidates-list :keyboard/candidates-list} state
+           visible control/visible]
+   (m/Stack
+    .children
+    [(m/Column
+      .children
+      [(m/Expanded
+        .child (m/Container
+                .padding (.all m/EdgeInsets 5)
+                .decoration (m/BoxDecoration
+                             .borderRadius
+                             (.all m/BorderRadius (.circular m/Radius 10))
+                             .border (.all m/Border .width 0.1))
+                .child
+                (mgl/MongolTextField
+                 .style (m/TextStyle .fontSize 22)
+                 .decoration (m/InputDecoration
+                              .border m.InputBorder/none))))
+
+       (m/Visibility
+        .visible visible
+        .child
+        (m/FocusScope
+         .canRequestFocus false
+         .child
+         (m/TextFieldTapRegion
+          .child
+          (m/Container
+           .color (-> m/Colors .grey .-shade300)
+           .child
+           (keyboard/keyboard)))))])
+     (m/Positioned
+      .bottom (+ keyboard-options/keyboard-default-height (* 4 (+ 4 (:keyboard/row-vertical-padding info))))
+      .right (/ width 4)
+      .child
+      (menu/menu {:bar {:elavation 10}
+                  :item {:on-tap (fn [x] (keyboard-action/on-candidates-clicked x state))}}
+                 candidates-list))])))
