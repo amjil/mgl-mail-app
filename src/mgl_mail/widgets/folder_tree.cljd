@@ -1,0 +1,74 @@
+(ns mgl-mail.widgets.folder-tree
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:mongol/mongol.dart" :as mgl]
+   [cljd.flutter :as f]))
+
+(declare list-item)
+
+(defn tree-view [items]
+  (let [expanded-value (atom false)]
+    (f/widget
+     :context ctx
+     :get [m/MediaQuery]
+     :let [{:flds [width]} (.-size media-query)]
+     (m.ListView/separated
+      .shrinkWrap true
+      .scrollDirection m.Axis/horizontal
+      .separatorBuilder (fn [_ _]
+                          (m/VerticalDivider
+                           .color (-> m/Theme (.of ctx) .-colorScheme .-primary)))
+      .itemCount (count items)
+      .itemBuilder (fn [_ i]
+                     (list-item (nth items i)))))))
+
+(defn ^m/Widget list-item [item]
+  (let [expanded-value (atom false)]
+    (f/widget
+     :context ctx
+     :get [m/Navigator m/MediaQuery]
+     :let [{:flds [width]} (.-size media-query)]
+     :watch [expanded expanded-value]
+     (m/Container
+      .height 40)
+     (m/RotatedBox
+      .quarterTurns 3)
+     (m/ExpansionTile
+      .onExpansionChanged (fn [x] (reset! expanded-value x))
+      .children (map #(m/RotatedBox
+                       .quarterTurns 1
+                       .child
+                       (mgl/MongolListTile
+                        .title
+                        (list-item %))) (get item "children"))
+      .title (m/RotatedBox
+              .quarterTurns 0
+              .child (m/Icon (if (true? expanded)
+                               m.Icons/arrow_drop_down_circle
+                               m.Icons/arrow_drop_down)))
+      .trailing (m/GestureDetector
+                 .onTap (fn []
+                          (prn "xxxx")
+                          (.pop navigator)
+                          nil)
+                 .child (m/RotatedBox
+                         .quarterTurns 2
+                         .child
+                         (m/Container
+                          .width width
+                          .child
+                          (m/Row
+                           .children
+                           [(m/RotatedBox
+                             .quarterTurns -1
+                             .child (m/Icon
+                                     m.Icons/folder
+                                     .color (-> m/Theme (.of ctx) .-colorScheme .-outlineVariant)))
+                            (m/Text
+                             (str "" (get item "name"))
+                             .maxLines 1
+                             .softWrap true
+                             .overflow m.TextOverflow/ellipsis
+                             .style (m/TextStyle
+                                     .color (-> m/Theme (.of ctx) .-colorScheme .-primary)
+                                     .fontSize 20))]))))))))
