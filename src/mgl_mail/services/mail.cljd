@@ -1,6 +1,7 @@
 (ns mgl-mail.services.mail
   (:require 
-   ["package:enough_mail/enough_mail.dart" :as em]))
+   ["package:enough_mail/enough_mail.dart" :as em]
+   ["package:enough_mail_html/enough_mail_html.dart" :as emh]))
    
 (defn mail-client 
   [email password]
@@ -14,3 +15,14 @@
                      .config config)
             mail-client (em/MailClient account .isLogEnabled true)]
         mail-client))))
+        
+(defn build-mime-message 
+  [m from to]
+  (let [builder (doto (em/MessageBuilder)
+                  (.from from)
+                  (.to to)
+                  (.addMultipartAlternative .plainText
+                                            (emh.HtmlToPlainTextConverter/convert m)
+                                            .htmlText
+                                            m))]
+    (.buildMimeMessage builder)))
