@@ -1,0 +1,13 @@
+(ns mgl-mail.services.mail
+  (:require 
+   ["package:enough_mail/enough_mail.dart" :as em]))
+   
+(defn mail-client 
+  [email]
+  (let [config (await (em.Discover/discover email))]
+    (if (nil? config)
+      (dart:core/print (str "Unable to auto-discover settings for " email))
+      (let [account (await (em.MailAccount/fromDiscoveredSettings
+                            "my account" email "password" config))
+            mail-client (em/MailClient account .isLogEnabled true)]
+        mail-client))))
