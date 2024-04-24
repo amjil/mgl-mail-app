@@ -7,18 +7,19 @@
    [mgl-mail.services.mail :as mail]))
 
 (defn mailbox-item
-  [^em/Mailbox x level current]
+  [^#/(em/TreeElement em/Mailbox) x level current]
   (f/widget
    :get [:state]
-   :let [children (.-children x)
+   :let [mailbox (.-value x)
+         children (.-children x)
          title (m/Padding
                 .padding (m.EdgeInsets/only .top (* level 8.0))
-                .child (mgl/MongolText (.-name x)))]
+                .child (mgl/MongolText (.-name mailbox)))]
    (if (nil? children)
      (mgl/MongolListTile
       .title title
       .onTap (fn [] (dart:core/print "xxx"))
-      .selected (= current (:mailbox @state)))
+      .selected (= current mailbox))
      (m/Material
       .child
       (m/RotatedBox
