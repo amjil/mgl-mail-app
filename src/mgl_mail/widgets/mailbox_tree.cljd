@@ -1,0 +1,30 @@
+(ns mgl-mail.widgets.mailbox-tree
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:mongol/mongol.dart" :as mgl]
+   ["package:enough_mail/enough_mail.dart" :as em]
+   [cljd.flutter :as f]
+   [mgl-mail.services.mail :as mail]))
+
+(defn mailbox-item
+  [^em/Mailbox x level is-current]
+  (mgl/MongolListTile
+   .title (m/Padding
+           .padding (m.EdgeInsets/only .top (* level 8.0))
+           .child (mgl/MongolText (.-name x)))
+   .onTap (fn [] (dart:core/print "xxx"))
+   .selected is-current))
+
+(defn mailbox-list 
+  []
+  (f/widget
+   :let [^#/(em/Tree em/Mailbox)
+         mail-boxes-tree (await (mail/mail-inboxes @mail/client))
+         ^#/(List em/TreeElement) 
+         mail-boxes-tree-elements (.-children (.-root mail-boxes-tree))]
+   (m/Row
+    .crossAxisAlignment m.CrossAxisAlignment/start
+    .children (if (nil? mail-boxes-tree-elements)
+                (m.SizedBox/shrink)
+                (map (fn [x]
+                       (mailbox-item x 0 0)))))))

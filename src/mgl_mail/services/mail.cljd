@@ -10,11 +10,18 @@
       (dart:core/print (str "Unable to auto-discover settings for " email))
       (let [account (em.MailAccount/fromDiscoveredSettings
                      .name "my account" 
+                     .userName "my account"
                      .email email 
                      .password password 
                      .config config)
             mail-client (em/MailClient account .isLogEnabled true)]
         mail-client))))
+
+(def client (atom nil))
+
+(defn set-mail-client 
+  [email password]
+  (reset! client (await (mail-client email password))))
         
 (defn build-mime-message 
   [m from to]
@@ -26,3 +33,28 @@
                                             .htmlText
                                             m))]
     (.buildMimeMessage builder)))
+    
+(defn mail-inboxes
+  [^em/MailClient client]
+  ^#/(em/Tree em/Mailbox)
+  (await (.listMailboxesAsTree client .createIntermediate false)))
+  
+(defn select-box
+  [^em/MailClient client ^em/Mailbox box]
+  (await (.selectMailbox client box)))
+  
+(defn is-connected?
+  [^em/MailClient client]
+  (.-isConnected client))
+  
+(defn connect
+  [^em/MailClient client]
+  (await (.connect client)))
+  
+(defn reconnect 
+  [^em/MailClient client]
+  (await (.reconnect client)))
+  
+(defn disconnect 
+  [^em/MailClient client]
+  (await (.disconnect)))
