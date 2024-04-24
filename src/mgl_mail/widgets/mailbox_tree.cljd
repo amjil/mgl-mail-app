@@ -7,13 +7,26 @@
    [mgl-mail.services.mail :as mail]))
 
 (defn mailbox-item
-  [^em/Mailbox x level is-current]
-  (mgl/MongolListTile
-   .title (m/Padding
-           .padding (m.EdgeInsets/only .top (* level 8.0))
-           .child (mgl/MongolText (.-name x)))
-   .onTap (fn [] (dart:core/print "xxx"))
-   .selected is-current))
+  [^em/Mailbox x level current]
+  (f/widget
+   :get [:state]
+   :let [children (.-children x)
+         title (m/Padding
+                .padding (m.EdgeInsets/only .top (* level 8.0))
+                .child (mgl/MongolText (.-name x)))]
+   (if (nil? children)
+     (mgl/MongolListTile
+      .title title
+      .onTap (fn [] (dart:core/print "xxx"))
+      .selected (= current (:mailbox @state)))
+     (m/Material
+      .child
+      (m/RotatedBox
+       .quarterTurns 3
+       .child
+       (m/ExpansionTile
+        .title title
+        .children (map #(mailbox-item % (inc level) current))))))))
 
 (defn mailbox-list 
   []
