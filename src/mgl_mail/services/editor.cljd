@@ -1,0 +1,11 @@
+(ns mgl-mail.services.editor
+  (:require
+   ["package:appflowy_editor/appflowy_editor.dart" :as appeditor]))
+
+(defn from-html
+  [html]
+  (appeditor/htmlToDocument html))
+
+(defn to-html
+  [document]
+  (appeditor/documentToHTML document))

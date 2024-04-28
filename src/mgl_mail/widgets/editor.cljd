@@ -17,7 +17,7 @@
          info (merge options/keyboard-option {} {:keyboard/width width})
          state (atom (merge options/keyboard-state))
          editor-state (appeditor/EditorState
-                       .document (appeditor.Document/fromJson content))]
+                       .document content)]
    :managed [scroll-controll (appeditor/EditorScrollController
                               .editorState editor-state
                               .shrinkWrap false)]
@@ -29,22 +29,24 @@
     [(m/Column
       .children
       [(m/Expanded
-        .child (appeditor/AppFlowyEditor
-                .editorStyle (appeditor.EditorStyle/mobile
-                              .textScaleFactor 1.0
-                              .cursorColor (.fromARGB m/Color 255 134 46 247)
-                              .dragHandleColor (.fromARGB m/Color 255 134 46 247)
-                              .selectionColor (.fromARGB m/Color 50 134 46 247)
-                              .textStyleConfiguration (appeditor/TextStyleConfiguration
-                                                       .text (m/TextStyle
-                                                              .fontSize 20
-                                                              .color m.Colors/black
-                                                              .fontFamily "MongolianBaiZheng"))
-                              .padding (.symmetric m/EdgeInsets .horizontal 0 .vertical 24)
-                              .magnifierSize (m/Size 48 72)
-                              .mobileDragHandleBallSize (m/Size 12 12))
-                .editorState editor-state
-                .editorScrollController scroll-controll))
+        .child (m/Padding
+                .padding (m.EdgeInsets/symmetric .horizontal 14)
+                .child (appeditor/AppFlowyEditor
+                        .editorStyle (appeditor.EditorStyle/mobile
+                                      .textScaleFactor 1.0
+                                      .cursorColor (.fromARGB m/Color 255 134 46 247)
+                                      .dragHandleColor (.fromARGB m/Color 255 134 46 247)
+                                      .selectionColor (.fromARGB m/Color 50 134 46 247)
+                                      .textStyleConfiguration (appeditor/TextStyleConfiguration
+                                                               .text (m/TextStyle
+                                                                      .fontSize 20
+                                                                      .color m.Colors/black
+                                                                      .fontFamily "MongolianBaiZheng"))
+                                      .padding (.symmetric m/EdgeInsets .horizontal 0 .vertical 0)
+                                      .magnifierSize (m/Size 48 72)
+                                      .mobileDragHandleBallSize (m/Size 12 12))
+                        .editorState editor-state
+                        .editorScrollController scroll-controll)))
        (appeditor/MobileToolbar
         .toolbarHeight 48
         .toolbarItems [appeditor/textDecorationMobileToolbarItemV2
