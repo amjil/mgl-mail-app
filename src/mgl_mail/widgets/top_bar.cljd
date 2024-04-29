@@ -1,0 +1,36 @@
+(ns mgl-mail.widgets.top-bar
+  (:require
+   ["package:flutter/material.dart" :as m]
+   [cljd.flutter :as f]))
+
+(defn compose 
+  []
+  (f/widget
+   (m/SafeArea .bottom false)
+   (m/Row
+    .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+    .children
+    [(m/IconButton
+      .padding (m.EdgeInsets/all 10)
+      .constraints (m/BoxConstraints)
+      .onPressed (fn [] (prn "xxx"))
+      .icon (m/Icon m.Icons/arrow_back_ios_new))
+      (m/Row
+       .children [(m/IconButton
+                   .padding (m.EdgeInsets/all 10)
+                   .constraints (m/BoxConstraints)
+                   .onPressed (fn [] (prn "xxx"))
+                   .icon (m/Icon m.Icons/add))
+                  (m/SizedBox .width 20)
+                  (m/IconButton
+                   .padding (m.EdgeInsets/all 10)
+                   .constraints (m/BoxConstraints)
+                   .onPressed (fn [] (prn "xxx"))
+                   .icon (m/Icon m.Icons/send))
+                  (m/SizedBox .width 20)
+                  (m/IconButton
+                   .padding (m.EdgeInsets/all 10)
+                   .constraints (m/BoxConstraints)
+                   .onPressed (fn [] (prn "xxx"))
+                   .icon (m/Icon m.Icons/more_vert))])
+     ])))
