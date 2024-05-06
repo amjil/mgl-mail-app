@@ -7,7 +7,8 @@
    [virtual-keyboard.options :as options]
    [virtual-keyboard.input-control :as control]
    [menu-bar.menu :as menu]
-   [cljd.flutter :as f]))
+   [cljd.flutter :as f]
+   [mgl-mail.services.editor :as edit-service]))
    
 (defn view
   [content]
@@ -17,7 +18,11 @@
          info (merge options/keyboard-option {} {:keyboard/width width})
          state (atom (merge options/keyboard-state))
          editor-state (appeditor/EditorState
-                       .document content)]
+                             .document content)
+         _ (doto editor-state 
+             (-> .-transactionStream (.listen (fn [event] 
+                                                (dart:core/print "event on editor-state")
+                                                (dart:core/print (.-document editor-state))))))]
    :managed [scroll-controll (appeditor/EditorScrollController
                               .editorState editor-state
                               .shrinkWrap false)]
@@ -29,24 +34,23 @@
     [(m/Column
       .children
       [(m/Expanded
-        .child (m/Padding
-                .padding (m.EdgeInsets/symmetric .horizontal 14)
-                .child (appeditor/AppFlowyEditor
-                        .editorStyle (appeditor.EditorStyle/mobile
-                                      .textScaleFactor 1.0
-                                      .cursorColor (.fromARGB m/Color 255 134 46 247)
-                                      .dragHandleColor (.fromARGB m/Color 255 134 46 247)
-                                      .selectionColor (.fromARGB m/Color 50 134 46 247)
-                                      .textStyleConfiguration (appeditor/TextStyleConfiguration
-                                                               .text (m/TextStyle
-                                                                      .fontSize 20
-                                                                      .color m.Colors/black
-                                                                      .fontFamily "MongolianBaiZheng"))
-                                      .padding (.symmetric m/EdgeInsets .horizontal 0 .vertical 0)
-                                      .magnifierSize (m/Size 48 72)
-                                      .mobileDragHandleBallSize (m/Size 12 12))
-                        .editorState editor-state
-                        .editorScrollController scroll-controll)))
+        .child (appeditor/AppFlowyEditor
+                .editorStyle (appeditor.EditorStyle/mobile
+                              .textScaleFactor 1.0
+                              .cursorColor (.fromARGB m/Color 255 134 46 247)
+                              .dragHandleColor (.fromARGB m/Color 255 134 46 247)
+                              .selectionColor (.fromARGB m/Color 50 134 46 247)
+                              .textStyleConfiguration (appeditor/TextStyleConfiguration
+                                                       .text (m/TextStyle
+                                                              .fontSize 20
+                                                              .color m.Colors/black
+                                                              .fontFamily "MongolianBaiZheng"))
+                              .padding (.symmetric m/EdgeInsets .horizontal 0 .vertical 10)
+                              .magnifierSize (m/Size 48 72)
+                              .mobileDragHandleBallSize (m/Size 12 12))
+                .autoFocus true
+                .editorState editor-state
+                .editorScrollController scroll-controll))
        (appeditor/MobileToolbar
         .toolbarHeight 48
         .toolbarItems [appeditor/textDecorationMobileToolbarItemV2
