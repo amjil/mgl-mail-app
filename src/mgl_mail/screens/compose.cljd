@@ -45,8 +45,8 @@
            [(m/Expanded
              .child (m/Row
                      .children
-                     [(text-input/view to)
-                      (text-input/view title)
+                     [(text-input/view to "Recipient email")
+                      (text-input/view title "Subject")
                       ;; (mgl/MongolTextField
                       ;;  .onChanged (fn [x] (dart:core/print "xxxx222"))
                       ;;  .style (m/TextStyle .fontSize 22)

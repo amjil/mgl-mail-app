@@ -4,7 +4,7 @@
    ["package:mongol/mongol.dart" :as mgl]
    [cljd.flutter :as f]))
 
-(defn view [v]
+(defn view [v hint]
   (f/widget
    :watch [val v]
    (m/Container 
@@ -20,7 +20,7 @@
          (m/Align
           .alignment m.Alignment/topCenter
           .child
-          (mgl/MongolText "hint text"))))
+          (mgl/MongolText hint))))
        (m/SizedBox))
      (mgl/MongolTextField
       .onChanged (fn [x]
