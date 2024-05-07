@@ -1,0 +1,32 @@
+(ns mgl-mail.widgets.text-input
+  (:require 
+   ["package:flutter/material.dart" :as m]
+   ["package:mongol/mongol.dart" :as mgl]
+   [cljd.flutter :as f]))
+
+(defn view [v]
+  (f/widget
+   :watch [val v]
+   (m/Container 
+    .height double/infinity)
+   (m/Stack
+    .children
+    [(if (empty? val)
+       (m.Positioned/fill
+        .child
+        (m/Padding
+         .padding (m.EdgeInsets/symmetric .vertical 14)
+         .child
+         (m/Align
+          .alignment m.Alignment/topCenter
+          .child
+          (mgl/MongolText "hint text"))))
+       (m/SizedBox))
+     (mgl/MongolTextField
+      .onChanged (fn [x]
+                   (reset! v x))
+      .style (m/TextStyle .fontSize 22)
+      .decoration (m/InputDecoration
+                   .fillColor m.Colors/transparent
+                   .filled true
+                   .isDense true))])))

@@ -2,8 +2,12 @@
   (:require
    ["package:flutter/material.dart" :as m]
    [mgl-mail.screens.account :as account]
+   [virtual-keyboard.keyboard :as keyboard]
+   [virtual-keyboard.keyboard-action :as keyboard-action]
+   [virtual-keyboard.options :as options]
    [virtual-keyboard.input-control :as control]
    [mgl-mail.screens.introduction :as intro]
+   [mgl-mail.screens.compose :as compose]
    [cljd.flutter :as f]))
 
 (defn main []
@@ -11,11 +15,13 @@
   (control/set-control)
 
   (f/run
-   (m/MaterialApp
-    .title "Welcome to Flutter"
-    .theme (m/ThemeData .primarySwatch m.Colors/pink))
-   .home
-   (m/Scaffold
-    .appBar (m/AppBar
-             .title (m/Text "Welcome to ClojureDart")))
-   .body (intro/screen)))
+   (f/widget
+    :context ctx
+    :let [width  (-> m/MediaQuery (.of ctx) .-size .-width)
+          info (merge options/keyboard-option {} {:keyboard/width width})
+          state (atom (merge options/keyboard-state))]
+    :bind {:state state :info info}
+    (m/MaterialApp
+     .theme (m/ThemeData .primarySwatch m.Colors/pink)
+     .home
+     (compose/screen)))))
