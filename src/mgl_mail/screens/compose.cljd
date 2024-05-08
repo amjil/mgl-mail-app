@@ -9,6 +9,7 @@
    [virtual-keyboard.options :as options]
    [virtual-keyboard.input-control :as control]
    [menu-bar.menu :as menu]
+   [mgl-mail.widgets.editor :as editor]
    [mgl-mail.widgets.text-input :as text-input]
    [mgl-mail.widgets.top-bar :as top-bar]
    [cljd.flutter :as f]))
@@ -19,14 +20,10 @@
         title (atom "")]
     (f/widget
      :get [:state :info]
-     :let [editor-state (appeditor/EditorState
-                         .document (edit-service/from-html "<p></p>"))]
      :watch [{candidates-list :keyboard/candidates-list} state
              visible control/visible]
-     :managed [scroll-controll (doto (appeditor/EditorScrollController
-                                      .editorState editor-state
-                                      .shrinkWrap false)
-                                 (.shouldDisposeScrollController false))]
+     :managed [editor-state (appeditor/EditorState
+                             .document (edit-service/from-html "<p></p>"))]
      (m/Scaffold)
      .body
      (m/SafeArea)
@@ -47,38 +44,13 @@
                      .children
                      [(text-input/view to "Recipient email")
                       (text-input/view title "Subject")
-                      ;; (mgl/MongolTextField
-                      ;;  .onChanged (fn [x] (dart:core/print "xxxx222"))
-                      ;;  .style (m/TextStyle .fontSize 22)
-                      ;;  .decoration (m/InputDecoration
-                      ;;               .isDense true))
-                      (m/Expanded
-                       .child (appeditor/AppFlowyEditor
-                               .editorStyle (appeditor.EditorStyle/mobile
-                                             .textScaleFactor 1.0
-                                             .cursorColor (.fromARGB m/Color 255 134 46 247)
-                                             .dragHandleColor (.fromARGB m/Color 255 134 46 247)
-                                             .selectionColor (.fromARGB m/Color 50 134 46 247)
-                                             .textStyleConfiguration (appeditor/TextStyleConfiguration
-                                                                      .text (m/TextStyle
-                                                                             .fontSize 20
-                                                                             .color m.Colors/black
-                                                                             .fontFamily "MongolianBaiZheng"))
-                                             .padding (.symmetric m/EdgeInsets .horizontal 0 .vertical 10)
-                                             .magnifierSize (m/Size 48 72)
-                                             .mobileDragHandleBallSize (m/Size 12 12))
-                               .autoFocus true
-                               .editorState editor-state
-                               .editorScrollController scroll-controll))]))
-
-            (appeditor/MobileToolbar
-             .toolbarHeight 48
-             .toolbarItems [appeditor/textDecorationMobileToolbarItemV2
-                            (appeditor/buildTextAndBackgroundColorMobileToolbarItem)
-                            appeditor/blocksMobileToolbarItem
-                            appeditor/linkMobileToolbarItem
-                            appeditor/dividerMobileToolbarItem]
-             .editorState editor-state)
+                      (f/widget
+                       :managed [scroll-controll (appeditor/EditorScrollController
+                                                  .editorState editor-state
+                                                  .shrinkWrap false)]
+                       (m/Expanded
+                        .child (editor/editor editor-state scroll-controll (editor/mobile-style))))]))
+            (editor/mobile-toolbar editor-state)
             (m/Visibility
              .visible visible
              .child
