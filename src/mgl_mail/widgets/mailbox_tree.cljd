@@ -9,7 +9,6 @@
 (defn mailbox-item
   [^#/(em/TreeElement em/Mailbox) x level current]
   (f/widget
-   :get [:state]
    :let [mailbox (.-value x)
          children (.-children x)
          title (m/Padding
@@ -32,13 +31,14 @@
 (defn mailbox-list 
   []
   (f/widget
+   :get [:state]
    :let [^#/(em/Tree em/Mailbox)
          mail-boxes-tree (await (mail/mail-inboxes @mail/client))
-         ^#/(List em/TreeElement) 
+         ^#/(List em/TreeElement)
          mail-boxes-tree-elements (.-children (.-root mail-boxes-tree))]
    (m/Row
     .crossAxisAlignment m.CrossAxisAlignment/start
     .children (if (nil? mail-boxes-tree-elements)
                 (m.SizedBox/shrink)
                 (map (fn [x]
-                       (mailbox-item x 0 0)))))))
+                       (mailbox-item x 0 (:mailbox @state))))))))

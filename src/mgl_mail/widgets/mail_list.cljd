@@ -1,0 +1,33 @@
+(ns mgl-mail.widgets.mail-list
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:enough_mail/enough_mail.dart" :as em]
+   ["package:mongol/mongol.dart" :as mgl]
+   [cljd.flutter :as f]))
+
+(defn list-item [^em/MimeMessage item]
+  (m/GestureDetector
+   .onTap (fn []
+            (dart:core/print "xxx")
+            nil)
+   .child
+   (mgl/MongolListTile
+    .title (or (.decodeSubject item) "No Subject")
+    .onTap (fn [] (dart:core/print "xxx")))))
+
+(defn list-view
+  []
+  (f/widget
+   :context ctx
+   :get [:state]
+   :watch [models (:mails @state)]
+   (m.ListView/separated
+    .scrollDirection m.Axis/horizontal
+    .physics (m/NeverScrollableScrollPhysics)
+    .separatorBuilder (fn [context i]
+                        (m/VerticalDivider
+                         .color (-> m/Theme (.of ctx) .-colorScheme .-primary)))
+    .itemCount (count models)
+    .itemBuilder (fn [context i]
+                   (list-item (nth models i)))
+    .shrinkWrap true)))

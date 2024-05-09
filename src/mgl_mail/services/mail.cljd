@@ -26,8 +26,8 @@
 (defn build-mime-message 
   [m from to]
   (let [builder (doto (em/MessageBuilder)
-                  (.from from)
-                  (.to to)
+                  (-> .-from (set! from))
+                  (-> .to (set! to))
                   (.addMultipartAlternative .plainText
                                             (emh.HtmlToPlainTextConverter/convert m)
                                             .htmlText
@@ -43,6 +43,10 @@
   [^em/MailClient client ^em/Mailbox box]
   (await (.selectMailbox client box)))
   
+(defn select-inbox 
+  [^em/MailClient client]
+  (await (.selectInbox client)))
+  
 (defn is-connected?
   [^em/MailClient client]
   (.-isConnected client))
@@ -57,4 +61,4 @@
   
 (defn disconnect 
   [^em/MailClient client]
-  (await (.disconnect)))
+  (await (.disconnect client)))

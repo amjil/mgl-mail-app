@@ -18,7 +18,11 @@
    (f/widget
     :context ctx
     :let [width  (-> m/MediaQuery (.of ctx) .-size .-width)
-          info (merge options/keyboard-option {} {:keyboard/width width})
+          info (merge options/keyboard-option 
+                      {:keyboard/key-cap-border-radius 6
+                       :keyboard/action-keys-container-color (-> m.Colors/blueGrey .-shade200)
+                       :keyboard/action-text-color m.Colors/black} 
+                      {:keyboard/width width})
           state (atom (merge options/keyboard-state))]
     :bind {:state state :info info}
     (m/MaterialApp
