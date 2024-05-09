@@ -47,6 +47,11 @@
   [^em/MailClient client]
   (await (.selectInbox client)))
   
+(defn fetch-messages 
+  [^em/MailClient client page perpage]
+  ^#/(List em/MimeMessage)
+  (await (.fetchMessages client .count perpage .page page)))
+  
 (defn is-connected?
   [^em/MailClient client]
   (.-isConnected client))
