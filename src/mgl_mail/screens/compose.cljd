@@ -19,9 +19,6 @@
   (let [to (atom "")
         title (atom "")]
     (f/widget
-     :get [:state :info]
-     :watch [{candidates-list :keyboard/candidates-list} state
-             visible control/visible]
      :managed [editor-state (appeditor/EditorState
                              .document (edit-service/from-html "<p></p>"))]
      (m/Scaffold)
@@ -51,22 +48,5 @@
                        (m/Expanded
                         .child (editor/editor editor-state scroll-controll (editor/mobile-style))))]))
             (editor/mobile-toolbar editor-state)
-            (m/Visibility
-             .visible visible
-             .child
-             (m/FocusScope
-              .canRequestFocus false
-              .child
-              (m/TextFieldTapRegion
-               .child
-               (m/Container
-                .color (-> m/Colors .grey .-shade300)
-                .child
-                (keyboard/keyboard)))))])
-          (m/Positioned
-           .bottom (+ options/keyboard-default-height 48 (* 4 (+ 4 (:keyboard/row-vertical-padding info))))
-           .right (/ (:keyboard/width info) 4)
-           .child
-           (menu/menu {:bar {:elavation 10}
-                       :item {:on-tap (fn [x] (keyboard-action/on-candidates-clicked x state))}}
-                      candidates-list))]))]))))
+            (editor/keyboard)])
+          (editor/candidates)]))]))))
