@@ -1,0 +1,91 @@
+(ns mgl-mail.utils.util
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:mongol/mongol.dart" :as mgl]
+   ["package:flutter_styled_toast/flutter_styled_toast.dart" :as styled-toast]
+   [cljd.flutter :as f]))
+   
+(defn show-indicator [ctx]
+  (m/showDialog
+   .context ctx
+   .barrierDismissible false
+   .builder (f/build
+             (f/widget
+              :context ctx
+              :get [m/Navigator]
+              (m/WillPopScope
+               .onWillPop ^:async (fn [] false)
+               .child (m/SimpleDialog
+                       .children
+                       [(m/Center
+                         .child (m/Column
+                                 .mainAxisSize m.MainAxisSize/min
+                                 .children [(m/Padding .padding (.only m/EdgeInsets .left 16 .top 16 .right 16)
+                                                       .child (m/CircularProgressIndicator))
+                                            (m/Padding .padding (.all m/EdgeInsets 16)
+                                                       .child (mgl/MongolText "ᠠᠴᠢᠶᠠᠯᠠᠵᠤ ᠪᠠᠢᠨ᠎ᠠ..."))]))]))))))
+
+
+(defn show-toast [ctx msg]
+  (styled-toast/showToastWidget
+   (m/Container
+    .padding (m.EdgeInsets/all 18)
+    .decoration (m/BoxDecoration
+                 .borderRadius (.all m/BorderRadius (.circular m/Radius 20))
+                 .color m.Colors/blueAccent)
+    .child
+    (mgl/MongolText msg))
+   .context ctx
+   .reverseAnimation styled-toast.StyledToastAnimation/fade
+   .animation styled-toast.StyledToastAnimation/fade
+   .position styled-toast.StyledToastPosition/center))
+   
+(defn show-confirm-dialog [ctx msg callback]
+  (m/showDialog
+   .context ctx
+   .builder (f/build
+             (f/widget
+              :context ctx
+              :get [m/Navigator]
+              (m/WillPopScope
+               .onWillPop ^:async (fn [] false)
+               .child
+               (mgl/MongolAlertDialog
+                .content (mgl/MongolText msg)
+                .actions [(mgl/MongolTextButton .child (mgl/MongolText "ᠲᠡᠢᠮᠦ")
+                                                .onPressed (fn [] 
+                                                             (callback)
+                                                             (.pop navigator)))
+                          (mgl/MongolTextButton .child (mgl/MongolText "ᠦᠭᠡᠢ")
+                                                .onPressed (fn []
+                                                             (.pop navigator)))]))))))
+                                                             
+
+(defn show-general-dialog [ctx child]
+  (m/showGeneralDialog
+   .barrierLabel "Label"
+   .barrierDismissible true
+   .barrierColor (-> m/Colors .-black (.withOpacity 0.1))
+   .transitionDuration (dart:core/Duration .milliseconds 250)
+   .context ctx
+   .pageBuilder (fn [context anim1 anim2]
+                  (m/Align
+                   .alignment m.Alignment/topRight
+                   .child
+                   (m/SafeArea
+                    .bottom false
+                    .child
+                    (m/Container
+                     .margin (m.EdgeInsets/only .top 40)
+                     .height 300
+                     .decoration (m/BoxDecoration
+                                  .color (-> m/Theme (.of ctx) .-colorScheme .-primaryContainer)
+                                  .borderRadius (.circular m/BorderRadius 20))
+                     .child (m.SizedBox/expand
+                             .child child)))))
+   .transitionBuilder (fn [context anim1 anim2 child]
+                        (m/SlideTransition
+                         .position (.animate (m/Tween .begin (m/Offset 0.5 0) .end (m/Offset 0 0))
+                                             anim1)
+                         .child child))))
+                         

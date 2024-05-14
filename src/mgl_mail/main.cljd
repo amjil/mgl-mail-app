@@ -2,12 +2,12 @@
   (:require
    ["package:flutter/material.dart" :as m]
    [mgl-mail.screens.account :as account]
-   [virtual-keyboard.keyboard :as keyboard]
-   [virtual-keyboard.keyboard-action :as keyboard-action]
    [virtual-keyboard.options :as options]
    [virtual-keyboard.input-control :as control]
    [mgl-mail.screens.introduction :as intro]
-   [mgl-mail.screens.compose :as compose]
+   [mgl-mail.screens.compose :as compose] 
+   [mgl-mail.screens.home :as home] 
+   [mgl-mail.screens.message-source :as message-source] 
    [cljd.flutter :as f]))
 
 (defn main []
@@ -28,4 +28,8 @@
     (m/MaterialApp
      .theme (m/ThemeData .primarySwatch m.Colors/pink)
      .home
-     (compose/screen)))))
+    ;;  (compose/screen)
+    ;;  (account/screen)
+     (home/screen)
+    ;; (message-source/screen)
+     ))))

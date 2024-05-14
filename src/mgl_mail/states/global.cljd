@@ -1,0 +1,3 @@
+(ns mgl-mail.states.global)
+
+(defonce state (atom {}))

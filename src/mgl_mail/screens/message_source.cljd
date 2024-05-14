@@ -1,0 +1,18 @@
+(ns mgl-mail.screens.message-source
+  (:require
+   ["package:flutter/material.dart" :as m]
+   [cljd.flutter :as f]
+   [mgl-mail.widgets.mail-list :as mail-list]
+   [mgl-mail.services.mail :as mail-service]
+   [mgl-mail.states.global :refer [state]]))
+
+
+(defn screen
+  []
+  (f/widget
+   (m/Scaffold)
+   .body
+   (m/SafeArea)
+   (m/Column
+    .children [(mail-list/list-view)])))
+   

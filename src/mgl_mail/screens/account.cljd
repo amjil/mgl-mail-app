@@ -2,16 +2,44 @@
   (:require
    ["package:flutter/material.dart" :as m]
    ["package:mongol/mongol.dart" :as mgl]
-   [cljd.flutter :as f]))
+   [cljd.flutter :as f]
+   [mgl-mail.widgets.text-input :as text-input]
+   [mgl-mail.widgets.editor :as editor]
+   [mgl-mail.services.mail :as mail-service]))
 
-(defn email-step
-  [state]
-  (f/widget
-   (m/Step
-    .title (m/SizedBox)
-    .content (m/Column
-              .children [(mgl/MongolTextField
-                          .onChanged (fn [v] (swap! state :email v))
-                          .decoration (m/InputDecoration
-                                       .hintText "Decoration"))]))))
+(defn screen
+  []
+  (let [email (atom "")
+        password (atom "")]
+    (f/widget
+     :context ctx
+     :get [:state m/Navigator]
+     (m/Scaffold)
+     .body
+     (m/SafeArea)
+     (m/Column
+      .mainAxisAlignment m.MainAxisAlignment/center
+      .crossAxisAlignment m.CrossAxisAlignment/start
+      .children [(m/Expanded
+                  .child (m/Stack
+                          .children
+                          [(m/Column
+                            .children [(m/Expanded
+                                        .child (m/Row
+                                                .children [(text-input/view email "Email")
+                                                           (m/SizedBox .width 10)
+                                                           (text-input/view password "password")
+                                                           (m/Column
+                                                            .children [(mgl/MongolTextButton
+                                                                        .child (mgl/MongolText "ᠲᠡᠢᠮᠦ")
+                                                                        .onPressed (fn []
+                                                                                     (mail-service/login ctx
+                                                                                                         navigator
+                                                                                                         {:email "sqbh@sina.com"
+                                                                                                          :password "DNfvR4hWgbQpgB"})))
+                                                                       (mgl/MongolTextButton
+                                                                        .child (mgl/MongolText "ᠦᠭᠡᠢ")
+                                                                        .onPressed (fn [] (dart:core/print "xxx")))])]))
+                                       (editor/keyboard)])
+                           (editor/candidates)]))]))))
                                        

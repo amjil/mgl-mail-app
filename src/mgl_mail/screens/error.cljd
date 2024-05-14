@@ -6,9 +6,9 @@
    
 
 (defn screen
-  [message]
+  []
   (f/widget
    (m/Center)
    (m/Padding
     .padding (m.EdgeInsets/all 8))
-   (mgl/MongolText message)))
+   (mgl/MongolText "error")))
