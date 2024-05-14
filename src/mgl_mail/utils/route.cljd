@@ -1,0 +1,9 @@
+(ns mgl-mail.utils.route
+  (:require
+   ["package:flutter/material.dart" :as m]
+   [cljd.flutter :as f]))
+   
+(defn open-screen [^m/NavigatorState navigator screen]
+  (.push navigator
+         (#/(m/MaterialPageRoute Object)
+          .builder (f/build screen))))

@@ -2,13 +2,7 @@
   (:require
    ["package:flutter/material.dart" :as m]
    ["package:appflowy_editor/appflowy_editor.dart" :as appeditor]
-   ["package:mongol/mongol.dart" :as mgl]
    [mgl-mail.services.editor :as edit-service]
-   [virtual-keyboard.keyboard :as keyboard]
-   [virtual-keyboard.keyboard-action :as keyboard-action]
-   [virtual-keyboard.options :as options]
-   [virtual-keyboard.input-control :as control]
-   [menu-bar.menu :as menu]
    [mgl-mail.widgets.editor :as editor]
    [mgl-mail.widgets.text-input :as text-input]
    [mgl-mail.widgets.top-bar :as top-bar]

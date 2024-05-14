@@ -1,29 +1,49 @@
 (ns mgl-mail.services.mail
-  (:require 
+  (:require
    ["package:enough_mail/enough_mail.dart" :as em]
-   ["package:enough_mail_html/enough_mail_html.dart" :as emh]))
-   
-(defn mail-client 
+   ["package:enough_mail_html/enough_mail_html.dart" :as emh]
+   ["package:flutter/widgets.dart" :as widgets]
+   ["dart:convert" :as convert]
+   [mgl-mail.states.global :refer [state]]
+   [mgl-mail.services.pref :as pref]
+   [mgl-mail.utils.util :as util]))
+
+(defn mail-client
   [email password]
   (let [config (await (em.Discover/discover email))]
+    (dart:core/print "xxx")
     (if (nil? config)
       (dart:core/print (str "Unable to auto-discover settings for " email))
       (let [account (em.MailAccount/fromDiscoveredSettings
-                     .name "my account" 
-                     .userName "my account"
-                     .email email 
-                     .password password 
+                     .name email
+                     .userName email
+                     .email email
+                     .password password
                      .config config)
+            ^em/MailClient
             mail-client (em/MailClient account .isLogEnabled true)]
         mail-client))))
 
+(defn save-account-to-local-storage
+  [email password]
+  (await
+   (pref/set-string
+    "account"
+    (convert/jsonEncode {"email" email "password" password}))))
+
+(defn get-account-from-local-storage
+  []
+  (convert/jsonDecode
+   (await
+    (pref/get-string :account))))
+
 (def client (atom nil))
 
-(defn set-mail-client 
+(defn set-mail-client
   [email password]
   (reset! client (await (mail-client email password))))
-        
-(defn build-mime-message 
+
+(defn build-mime-message
   [m from to]
   (let [builder (doto (em/MessageBuilder)
                   (-> .-from (set! from))
@@ -33,37 +53,60 @@
                                             .htmlText
                                             m))]
     (.buildMimeMessage builder)))
-    
-(defn mail-inboxes
+
+(defn mail-boxes
   [^em/MailClient client]
-  ^#/(em/Tree em/Mailbox)
-  (await (.listMailboxesAsTree client .createIntermediate false)))
-  
+  (let [^#/(em/Tree em/Mailbox?)
+        result (await (.listMailboxesAsTree client .createIntermediate false))]
+    (swap! state assoc :mail-boxes (into [] (.-children (.-root result))))))
+
 (defn select-box
   [^em/MailClient client ^em/Mailbox box]
   (await (.selectMailbox client box)))
-  
-(defn select-inbox 
+
+(defn select-inbox
   [^em/MailClient client]
   (await (.selectInbox client)))
-  
-(defn fetch-messages 
+
+(defn fetch-messages
   [^em/MailClient client page perpage]
-  ^#/(List em/MimeMessage)
-  (await (.fetchMessages client .count perpage .page page)))
-  
+  (let [^#/(List em/MimeMessage)
+        result (await (.fetchMessages client .count perpage .page page))]
+    (swap! state assoc :mail-list (into [] result))))
+
 (defn is-connected?
   [^em/MailClient client]
   (.-isConnected client))
-  
+
 (defn connect
   [^em/MailClient client]
   (await (.connect client)))
-  
-(defn reconnect 
+
+(defn reconnect
   [^em/MailClient client]
   (await (.reconnect client)))
-  
-(defn disconnect 
+
+(defn disconnect
   [^em/MailClient client]
   (await (.disconnect client)))
+
+(defn login
+  [ctx ^widgets/NavigatorState navigator params]
+  (let [{email :email password :password} params
+        ^em/MailClient
+        client (await (mail-client email password))]
+    (await (connect client))
+    (dart:core/print "-----------")
+    (dart:core/print client)
+    (dart:core/print (is-connected? client))
+    (dart:core/print "-----------")
+    (if (and
+         (not (nil? client))
+         (is-connected? client))
+      (do
+        (save-account-to-local-storage email password)
+        (swap! state assoc :client client)
+        (swap! state assoc :account {:email email :password password})
+        ;; (.popUntil navigator (widgets.ModalRoute/withName "/"))
+        (mail-boxes client))
+      (util/show-toast ctx "Account not connected!"))))

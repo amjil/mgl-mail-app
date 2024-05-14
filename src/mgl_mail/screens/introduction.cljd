@@ -5,15 +5,15 @@
    ["package:introduction_screen/introduction_screen.dart" :as intro]
    [cljd.flutter :as f]))
    
-(defn screen 
+(defn screen
   []
-  (f/widget 
+  (f/widget
    (intro/IntroductionScreen
     .globalBackgroundColor m.Colors/white
     .allowImplicitScrolling true
     .autoScrollDuration 3000
     .infiniteAutoScroll true
-    .globalFooter (m/SizedBox 
+    .globalFooter (m/SizedBox
                    .height 60)
     .pages [(intro/PageViewModel
              .titleWidget (m/SizedBox)
