@@ -35,8 +35,8 @@
                                                                         .onPressed (fn []
                                                                                      (mail-service/login ctx
                                                                                                          navigator
-                                                                                                         {:email "sqbh@sina.com"
-                                                                                                          :password "DNfvR4hWgbQpgB"})))
+                                                                                                         {:email "xx@xx.com"
+                                                                                                          :password "oops!!!"})))
                                                                        (mgl/MongolTextButton
                                                                         .child (mgl/MongolText "ᠦᠭᠡᠢ")
                                                                         .onPressed (fn [] (dart:core/print "xxx")))])]))
