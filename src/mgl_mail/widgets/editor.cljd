@@ -27,6 +27,13 @@
    .editorState editor-state
    .editorScrollController scroll-controller))
    
+(defn viewer 
+  [editor-state style]
+  (appeditor/AppFlowyEditor
+   .editable  false
+   .editorStyle style
+   .editorState editor-state))
+   
 (defn mobile-style
   []
   (appeditor.EditorStyle/mobile

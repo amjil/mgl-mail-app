@@ -1,0 +1,35 @@
+(ns mgl-mail.screens.message
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:appflowy_editor/appflowy_editor.dart" :as appeditor]
+   ["package:enough_mail/enough_mail.dart" :as em]
+   [mgl-mail.services.editor :as edit-service]
+   [mgl-mail.widgets.editor :as editor]
+   [mgl-mail.widgets.top-bar :as top-bar]
+   [mgl-mail.states.global :refer [state]]
+   [cljd.flutter :as f]))
+   
+(defn screen
+  []
+  (f/widget
+   :let [^em/MimeMessage
+         mime (:message @state)
+         content (.decodeTextHtmlPart mime)]
+   :managed [editor-state (appeditor/EditorState
+                           .document (edit-service/from-html content))]
+   (m/Scaffold)
+   .body
+   (m/SafeArea)
+   (m/Column
+    .mainAxisAlignment m.MainAxisAlignment/center
+    .crossAxisAlignment m.CrossAxisAlignment/start
+    .children
+    [(top-bar/compose)
+     (m/Divider .thickness 1)
+     (m/Expanded
+      .child
+      (m/Row
+       .children
+       [(f/widget
+         (m/Expanded
+          .child (editor/viewer editor-state (editor/mobile-style))))]))])))

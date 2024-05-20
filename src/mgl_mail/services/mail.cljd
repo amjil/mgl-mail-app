@@ -44,10 +44,13 @@
   (reset! client (await (mail-client email password))))
 
 (defn build-mime-message
-  [m from to]
+  [title m
+   ^#/(List em/MailAddress) from
+   ^#/(List em/MailAddress) to]
   (let [builder (doto (em/MessageBuilder)
                   (-> .-from (set! from))
                   (-> .to (set! to))
+                  (-> .subject (set! title))
                   (.addMultipartAlternative .plainText
                                             (emh.HtmlToPlainTextConverter/convert m)
                                             .htmlText
@@ -71,7 +74,7 @@
 (defn fetch-messages
   [^em/MailClient client page perpage]
   (let [^#/(List em/MimeMessage)
-        result (await (.fetchMessages client .count perpage .page page))]
+        result (await (.fetchMessages client .page page .count perpage))]
     (swap! state assoc :mail-list (into [] result))))
 
 (defn is-connected?
@@ -89,6 +92,10 @@
 (defn disconnect
   [^em/MailClient client]
   (await (.disconnect client)))
+  
+(defn send-message 
+  [^em/MailClient client ^em/MimeMessage mime]
+  (await (.sendMessage client mime)))
 
 (defn login
   [ctx ^widgets/NavigatorState navigator params]
