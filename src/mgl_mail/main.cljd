@@ -1,11 +1,16 @@
 (ns mgl-mail.main
   (:require
    ["package:flutter/material.dart" :as m]
+   ["dart:io" :as io]
    [mgl-mail.mobile :as mobile]
+   [mgl-mail.desktop :as desktop]
    [cljd.flutter :as f]))
 
 (defn main []
   (m.WidgetsFlutterBinding/ensureInitialized)
 
   (f/run
-   (mobile/app)))
+   (if (or (true? io/Platform.isIOS)
+           (true? io/Platform.isAndroid))
+     (mobile/app)
+     (desktop/app))))

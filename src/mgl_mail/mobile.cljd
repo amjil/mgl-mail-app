@@ -8,7 +8,7 @@
    [mgl-mail.screens.introduction :as intro]
    [mgl-mail.screens.compose :as compose]
    [mgl-mail.screens.home :as home]
-   [mgl-mail.screens.message-source :as message-source] ))
+   [mgl-mail.screens.message-source :as message-source]))
    
 (defn app []
   (control/set-control)
