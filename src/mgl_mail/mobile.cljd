@@ -1,0 +1,32 @@
+(ns mgl-mail.mobile
+  (:require 
+   ["package:flutter/material.dart" :as m]
+   [cljd.flutter :as f]
+   [virtual-keyboard.options :as options]
+   [virtual-keyboard.input-control :as control]
+   [mgl-mail.screens.account :as account]
+   [mgl-mail.screens.introduction :as intro]
+   [mgl-mail.screens.compose :as compose]
+   [mgl-mail.screens.home :as home]
+   [mgl-mail.screens.message-source :as message-source] ))
+   
+(defn app []
+  (control/set-control)
+  (f/widget
+   :context ctx
+   :let [width  (-> m/MediaQuery (.of ctx) .-size .-width)
+         info (merge options/keyboard-option
+                     {:keyboard/key-cap-border-radius 6
+                      :keyboard/action-keys-container-color (-> m.Colors/blueGrey .-shade200)
+                      :keyboard/action-text-color m.Colors/black}
+                     {:keyboard/width width})
+         state (atom (merge options/keyboard-state))]
+   :bind {:state state :info info}
+   (m/MaterialApp
+    .theme (m/ThemeData .primarySwatch m.Colors/pink)
+    .home
+    ;;  (compose/screen)
+    ;;  (account/screen)
+    (home/screen)
+    ;; (message-source/screen)
+    )))
