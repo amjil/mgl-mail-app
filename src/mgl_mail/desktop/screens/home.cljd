@@ -1,0 +1,19 @@
+(ns mgl-mail.desktop.screens.home
+  (:require
+   ["package:flutter/material.dart" :as m]
+   [cljd.flutter :as f]
+   [mgl-mail.services.mail :as mail]
+   [mgl-mail.services.auth :as auth]))
+   
+(defn screen 
+  []
+  (f/widget
+   (m/Scaffold)
+   .body
+   (m/Center)
+   (m/Column
+    .children
+    [(m/Text "x")
+     (m/TextButton
+      .onPressed (fn [] (dart:core/print "xxx"))
+      .child (m/Text "Button"))])))

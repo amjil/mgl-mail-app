@@ -1,14 +1,12 @@
 (ns mgl-mail.desktop
   (:require
    ["package:flutter/material.dart" :as m]
-   [cljd.flutter :as f]))
+   [cljd.flutter :as f]
+   [mgl-mail.desktop.screens.home :as home]))
    
 (defn app []
   (f/widget
    (m/MaterialApp
     .theme (m/ThemeData .primarySwatch m.Colors/pink))
    .home
-   (m/Scaffold)
-   .body
-   (m/Center)
-   (m/Text "x")))
+   (home/screen)))

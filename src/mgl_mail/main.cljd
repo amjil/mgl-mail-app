@@ -10,7 +10,7 @@
   (m.WidgetsFlutterBinding/ensureInitialized)
 
   (f/run
-   (if (or (true? io/Platform.isIOS)
-           (true? io/Platform.isAndroid))
+   (if (or io/Platform.isIOS
+           io/Platform.isAndroid)
      (mobile/app)
      (desktop/app))))
