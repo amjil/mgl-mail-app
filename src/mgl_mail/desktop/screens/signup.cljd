@@ -2,7 +2,8 @@
   (:require 
    ["package:flutter/material.dart" :as m]
    ["package:mongol/mongol.dart" :as mgl]
-   [cljd.flutter :as f]))
+   [cljd.flutter :as f]
+   [mgl-mail.services.auth :as auth]))
    
 (defn text-field
   [controller hint is-obscure?]
@@ -74,5 +75,12 @@
                  .children [(m/TextSpan .text " Login"
                                         .style (m/TextStyle .color primary-color
                                                             .fontSize 16))])))
-        (rounded-button (fn [] (dart:core/print "signup"))
-                        "Done")]))])))
+        (rounded-button
+         (fn []
+           (let [email (.-text email-controller)
+                 password (.-text password-controller)]
+             (auth/set-account
+              {:email email :password password})
+            ;;  (dart:core/print account)
+              (dart:core/print "------------")))
+         "Done")]))])))
