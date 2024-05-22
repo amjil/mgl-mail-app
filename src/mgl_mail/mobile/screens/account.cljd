@@ -1,10 +1,10 @@
-(ns mgl-mail.screens.account
+(ns mgl-mail.mobile.screens.account
   (:require
    ["package:flutter/material.dart" :as m]
    ["package:mongol/mongol.dart" :as mgl]
    [cljd.flutter :as f]
-   [mgl-mail.widgets.text-input :as text-input]
-   [mgl-mail.widgets.editor :as editor]
+   [mgl-mail.mobile.widgets.text-input :as text-input]
+   [mgl-mail.mobile.widgets.editor :as editor]
    [mgl-mail.services.mail :as mail-service]))
 
 (defn screen
@@ -13,7 +13,7 @@
         password (atom "")]
     (f/widget
      :context ctx
-     :get [:state m/Navigator]
+     :get [:state]
      (m/Scaffold)
      .body
      (m/SafeArea)
@@ -33,10 +33,7 @@
                                                             .children [(mgl/MongolTextButton
                                                                         .child (mgl/MongolText "ᠲᠡᠢᠮᠦ")
                                                                         .onPressed (fn []
-                                                                                     (mail-service/login ctx
-                                                                                                         navigator
-                                                                                                         {:email "xx@xx.com"
-                                                                                                          :password "oops!!!"})))
+                                                                                     (dart:core/print "xxx")))
                                                                        (mgl/MongolTextButton
                                                                         .child (mgl/MongolText "ᠦᠭᠡᠢ")
                                                                         .onPressed (fn [] (dart:core/print "xxx")))])]))

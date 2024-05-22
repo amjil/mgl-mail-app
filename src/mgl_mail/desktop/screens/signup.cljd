@@ -1,0 +1,12 @@
+(ns mgl-mail.desktop.screens.signup
+  (:require 
+   ["package:flutter/material.dart" :as m]
+   [cljd.flutter :as f]))
+
+(defn screen 
+  []
+  (f/widget
+   (m/Scaffold)
+   .body 
+   (m/Center)
+   (m/Text "x")))

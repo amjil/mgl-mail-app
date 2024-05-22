@@ -4,11 +4,11 @@
    [cljd.flutter :as f]
    [virtual-keyboard.options :as options]
    [virtual-keyboard.input-control :as control]
-   [mgl-mail.screens.account :as account]
-   [mgl-mail.screens.introduction :as intro]
-   [mgl-mail.screens.compose :as compose]
-   [mgl-mail.screens.home :as home]
-   [mgl-mail.screens.message-source :as message-source]))
+   [mgl-mail.mobile.screens.account :as account]
+   [mgl-mail.mobile.screens.introduction :as intro]
+   [mgl-mail.mobile.screens.compose :as compose]
+   [mgl-mail.mobile.screens.home :as home]
+   [mgl-mail.mobile.screens.message-source :as message-source]))
    
 (defn app []
   (control/set-control)
@@ -23,6 +23,7 @@
          state (atom (merge options/keyboard-state))]
    :bind {:state state :info info}
    (m/MaterialApp
+    .debugShowCheckedModeBanner false
     .theme (m/ThemeData .primarySwatch m.Colors/pink)
     .home
     ;;  (compose/screen)

@@ -1,0 +1,6 @@
+(ns mgl-mail.widgets.signature
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:mongol/mongol.dart" :as mgl]
+   [cljd.flutter :as f]))
+   

@@ -1,8 +1,8 @@
-(ns mgl-mail.screens.message-source
+(ns mgl-mail.mobile.screens.message-source
   (:require
    ["package:flutter/material.dart" :as m]
    [cljd.flutter :as f]
-   [mgl-mail.widgets.mail-list :as mail-list]
+   [mgl-mail.mobile.widgets.mail-list :as mail-list]
    [mgl-mail.services.mail :as mail-service]
    [mgl-mail.states.global :refer [state]]))
 

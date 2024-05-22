@@ -1,4 +1,4 @@
-(ns mgl-mail.screens.introduction
+(ns mgl-mail.mobile.screens.introduction
   (:require
    ["package:flutter/material.dart" :as m]
    ["package:mongol/mongol.dart" :as mgl]

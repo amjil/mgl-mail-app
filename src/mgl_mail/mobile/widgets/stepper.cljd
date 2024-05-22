@@ -4,11 +4,11 @@
    ["package:mongol/mongol.dart" :as mgl]
    [cljd.flutter :as f]))
    
-(defn view [curr]
+(defn view [curr steps]
   (f/widget
    :watch [current-step curr]
    (m/Stepper
-    .type m.StepperType/vertical
+    .type m.StepperType/horizontal
     .currentStep current-step
     .onStepContinue (fn [] (when (> 2 current-step) (swap! curr inc)))
     .onStepCancel (fn [] (if (zero? current-step) nil (swap! curr dec)))
@@ -22,15 +22,5 @@
                                    (mgl/MongolTextButton
                                     .onPressed (.-onStepCancel details)
                                     .child (mgl/MongolText "Cancel"))]))
-    .steps [(m/Step
-             .title (m/SizedBox)
-             .content (m/Container
-                       .alignment m.Alignment/centerLeft
-                       .child (mgl/MongolText "Content for Step 1")))
-            (m/Step
-             .title (m/SizedBox)
-             .content (m/Text "Content for Step 2"))
-            (m/Step
-             .title (m/SizedBox)
-             .content (m/Text "Content for Step 3"))])))
+    .steps steps)))
              

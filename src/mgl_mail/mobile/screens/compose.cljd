@@ -1,11 +1,11 @@
-(ns mgl-mail.screens.compose
+(ns mgl-mail.mobile.screens.compose
   (:require
    ["package:flutter/material.dart" :as m]
    ["package:appflowy_editor/appflowy_editor.dart" :as appeditor]
    [mgl-mail.services.editor :as edit-service]
-   [mgl-mail.widgets.editor :as editor]
-   [mgl-mail.widgets.text-input :as text-input]
-   [mgl-mail.widgets.top-bar :as top-bar]
+   [mgl-mail.mobile.widgets.editor :as editor]
+   [mgl-mail.mobile.widgets.text-input :as text-input]
+   [mgl-mail.mobile.widgets.top-bar :as top-bar]
    [cljd.flutter :as f]))
    
 (defn screen

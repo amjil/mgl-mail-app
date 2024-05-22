@@ -4,10 +4,16 @@
    ["dart:io" :as io]
    [mgl-mail.mobile :as mobile]
    [mgl-mail.desktop :as desktop]
-   [cljd.flutter :as f]))
+   [mgl-mail.states.global :refer [state]]
+   [cljd.flutter :as f]
+   [mgl-mail.services.mail :as mail]))
 
 (defn main []
   (m.WidgetsFlutterBinding/ensureInitialized)
+  
+  (let [account (mail/get-account)]
+    (when-not (nil? account)
+      (swap! state :account account)))
 
   (f/run
    (if (or io/Platform.isIOS

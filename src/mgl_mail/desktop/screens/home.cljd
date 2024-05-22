@@ -2,18 +2,20 @@
   (:require
    ["package:flutter/material.dart" :as m]
    [cljd.flutter :as f]
-   [mgl-mail.services.mail :as mail]
-   [mgl-mail.services.auth :as auth]))
+   [mgl-mail.desktop.screens.signup :as signup]
+   [mgl-mail.states.global :refer [state]]))
    
 (defn screen 
   []
   (f/widget
-   (m/Scaffold)
-   .body
-   (m/Center)
-   (m/Column
-    .children
-    [(m/Text "x")
-     (m/TextButton
-      .onPressed (fn [] (dart:core/print "xxx"))
-      .child (m/Text "Button"))])))
+   :watch [{account :account} state]
+   (cond
+     (empty? account)
+     (signup/screen)
+
+     :else
+     (f/widget
+      (m/Scaffold)
+      .body
+      (m/Center)
+      (m/Text "Home")))))

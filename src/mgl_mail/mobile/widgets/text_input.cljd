@@ -1,4 +1,4 @@
-(ns mgl-mail.widgets.text-input
+(ns mgl-mail.mobile.widgets.text-input
   (:require 
    ["package:flutter/material.dart" :as m]
    ["package:mongol/mongol.dart" :as mgl]
