@@ -1,12 +1,78 @@
 (ns mgl-mail.desktop.screens.signup
   (:require 
    ["package:flutter/material.dart" :as m]
+   ["package:mongol/mongol.dart" :as mgl]
    [cljd.flutter :as f]))
+   
+(defn text-field
+  [controller hint is-obscure?]
+  (f/widget
+   :get {{{primary-color .-primary} .-colorScheme} m/Theme}
+   (m/TextFormField
+    .controller controller
+    .obscureText (if is-obscure? true false)
+    .decoration
+    (m/InputDecoration
+     .focusedBorder
+     (m/OutlineInputBorder
+      .borderRadius (.circular m/BorderRadius 5)
+      .borderSide (m/BorderSide
+                   .color primary-color .width 2))
+     .enabledBorder (m/OutlineInputBorder
+                     .borderRadius (.circular m/BorderRadius 5)
+                     .borderSide
+                     (m/BorderSide .color m.Colors/grey))
+     .contentPadding (.all m/EdgeInsets 14)
+     .hintText hint
+     .hintStyle (m/TextStyle .fontSize 14)))))
+     
+(defn rounded-button [on-tap label]
+  (m/InkWell
+   .onTap on-tap
+   .child (m/Chip
+           .label
+           (mgl/MongolText label
+                           .style (m/TextStyle
+                                   .fontSize 16))
+           .labelPadding (.symmetric m/EdgeInsets .horizontal 5 .vertical 20))))
 
-(defn screen 
+(defn screen
   []
   (f/widget
+   :get {navigator m/Navigator
+         {{primary-color .-primary} .-colorScheme} m/Theme}
+   :managed [email-controller (m/TextEditingController)
+             password-controller (m/TextEditingController)]
    (m/Scaffold)
-   .body 
+   .body
+   (m/Padding
+    .padding (m.EdgeInsets/only .top 40))
    (m/Center)
-   (m/Text "x")))
+   (m/Container
+    .width 400)
+   (m/Padding
+    .padding (.all m/EdgeInsets 20))
+   (m/Column
+    .children
+    [(text-field email-controller "Email" false)
+     (m/SizedBox .height 25)
+     (text-field  password-controller "Password" true)
+     (m/SizedBox .height 40)
+     (f/widget
+      (m/Container .height 100)
+      (m/Row
+       .children
+       [(m/GestureDetector
+         .onTap (fn []
+                  (.pushNamed navigator "/login")
+                  nil)
+         .child
+         (mgl/MongolRichText
+          .text (m/TextSpan
+                 .text "Already have an account?"
+                 .style (m/TextStyle .fontSize 16)
+                 .children [(m/TextSpan .text " Login"
+                                        .style (m/TextStyle .color primary-color
+                                                            .fontSize 16))])))
+        (rounded-button (fn [] (dart:core/print "signup"))
+                        "Done")]))])))
