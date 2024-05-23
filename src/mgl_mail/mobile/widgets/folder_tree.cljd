@@ -1,4 +1,4 @@
-(ns mgl-mail.widgets.folder-tree
+(ns mgl-mail.mobile.widgets.folder-tree
   (:require
    ["package:flutter/material.dart" :as m]
    ["package:mongol/mongol.dart" :as mgl]

@@ -1,4 +1,4 @@
-(ns mgl-mail.widgets.mail-list
+(ns mgl-mail.mobile.widgets.mail-list
   (:require
    ["package:flutter/material.dart" :as m]
    ["package:enough_mail/enough_mail.dart" :as em]

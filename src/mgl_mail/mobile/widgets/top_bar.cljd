@@ -1,4 +1,4 @@
-(ns mgl-mail.widgets.top-bar
+(ns mgl-mail.mobile.widgets.top-bar
   (:require
    ["package:flutter/material.dart" :as m]
    [cljd.flutter :as f]))

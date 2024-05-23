@@ -1,4 +1,4 @@
-(ns mgl-mail.widgets.editor
+(ns mgl-mail.mobile.widgets.editor
   (:require
    ["package:flutter/material.dart" :as m]
    ["package:appflowy_editor/appflowy_editor.dart" :as appeditor]

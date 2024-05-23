@@ -1,9 +1,9 @@
-(ns mgl-mail.widgets.search
+(ns mgl-mail.mobile.widgets.search
   (:require
    ["package:flutter/material.dart" :as m]
    ["package:mongol/mongol.dart" :as mgl]
    [cljd.flutter :as f]
-   [mgl-mail.widgets.editor :as editor]))
+   [mgl-mail.mobile.widgets.editor :as editor]))
    
 
 (defn input-view 
