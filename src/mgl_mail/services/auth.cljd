@@ -10,6 +10,7 @@
   (let [^em/MailAccount
         account (await (mail/mail-account-with-default params))]
     (mail/save-account account)
+    (swap! state assoc :account account)
     (let [client (await (mail/mail-client account))]
       (await (mail/connect client))
       (when (mail/is-connected? client)

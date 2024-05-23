@@ -45,7 +45,7 @@
   [^em/MailAccount 
    account]
   (let [account-string (.toString account)]
-    (pref/set-string "account" account-string)))
+    (await (pref/set-string "account" account-string))))
 
 (defn get-account
   []

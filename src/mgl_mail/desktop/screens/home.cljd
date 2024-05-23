@@ -10,7 +10,7 @@
   (f/widget
    :watch [{account :account} state]
    (cond
-     (empty? account)
+     (nil? account)
      (signup/screen)
 
      :else

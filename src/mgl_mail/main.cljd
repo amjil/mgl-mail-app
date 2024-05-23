@@ -11,9 +11,9 @@
 (defn main []
   (m.WidgetsFlutterBinding/ensureInitialized)
   
-  (let [account (mail/get-account)]
+  (let [account (await (mail/get-account))]
     (when-not (nil? account)
-      (swap! state :account account)))
+      (swap! state assoc :account account)))
 
   (f/run
    (if (or io/Platform.isIOS

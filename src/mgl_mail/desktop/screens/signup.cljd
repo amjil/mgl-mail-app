@@ -80,7 +80,5 @@
            (let [email (.-text email-controller)
                  password (.-text password-controller)]
              (auth/set-account
-              {:email email :password password})
-            ;;  (dart:core/print account)
-              (dart:core/print "------------")))
+              {:email email :password password})))
          "Done")]))])))
