@@ -1,0 +1,49 @@
+(ns mgl-mail.desktop.widgets.mailbox
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:mongol/mongol.dart" :as mgl]
+   ["package:enough_mail/enough_mail.dart" :as em]
+   [cljd.flutter :as f]
+   [mgl-mail.states.global :refer [state]]))
+
+(defn mailbox-item
+  [^#/(em/TreeElement em/Mailbox?) x level current]
+  (f/widget
+   :let [mailbox (.-value x)
+         children (.-children x)
+         title (m/Padding
+                .padding (m.EdgeInsets/only .top (* level 8.0))
+                .child (mgl/MongolText (.-name mailbox)))]
+   (if (nil? children)
+     (mgl/MongolListTile
+      .title title
+      .onTap (fn [] (dart:core/print "xxx"))
+      .selected (= current mailbox))
+     (m/Material
+      .child
+      (m/RotatedBox
+       .quarterTurns 3
+       .child
+       (m/ExpansionTile
+        .title title
+        .children (map #(mailbox-item % (inc level) current))))))))
+
+(defn mailbox-list
+  []
+  (f/widget
+   :watch [mail-boxes (f/$ (some->> (f/<! state) :mail-boxes (into [])))]
+   (if (empty? mail-boxes)
+     (m/Center
+      .child (m/Column
+              .children [(m/Text "empty.")]))
+     (f/widget
+      :let [^#/(List em/TreeElement?)
+            mail-boxes-tree-elements mail-boxes]
+      (m/Expanded)
+      (m.ListView/builder
+       .scrollDirection  m.Axis/horizontal
+       .itemCount (count mail-boxes)
+       .itemBuilder
+       (f/build [idx]
+                (let [item (get mail-boxes-tree-elements idx)]
+                  (mailbox-item item 0 (:mailbox @state)))))))))
