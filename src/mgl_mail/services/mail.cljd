@@ -53,6 +53,10 @@
     (if (empty? account-string)
       nil
       (em.MailAccount/fromJson (convert/jsonDecode account-string)))))
+      
+(defn delete-account
+  []
+  (await (pref/remove-value "account")))
 
 (defn mail-client
   [account]

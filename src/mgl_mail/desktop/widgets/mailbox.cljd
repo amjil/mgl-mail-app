@@ -4,20 +4,48 @@
    ["package:mongol/mongol.dart" :as mgl]
    ["package:enough_mail/enough_mail.dart" :as em]
    [cljd.flutter :as f]
-   [mgl-mail.states.global :refer [state]]))
+   [mgl-mail.utils.route :as route]
+   [mgl-mail.states.global :refer [state]]
+   [mgl-mail.services.mail :as mail]))
+   
+(declare mailbox-name-filter)
 
 (defn mailbox-item
   [^#/(em/TreeElement em/Mailbox?) x level current]
   (f/widget
+   :get [m/Navigator]
    :let [mailbox (.-value x)
          children (.-children x)
          title (m/Padding
                 .padding (m.EdgeInsets/only .top (* level 8.0))
-                .child (mgl/MongolText (.-name mailbox)))]
+                .child (mgl/MongolText
+                        (cond
+                          (.-isInbox mailbox)
+                          "Inbox"
+
+                          (.-isDrafts mailbox)
+                          "Draft"
+
+                          (.-isSent mailbox)
+                          "Sent"
+
+                          (.-isTrash mailbox)
+                          "Trash"
+
+                          (.-isJunk mailbox)
+                          "Junk"
+
+                          :else
+                          (.-name mailbox))))]
    (if (nil? children)
      (mgl/MongolListTile
       .title title
-      .onTap (fn [] (dart:core/print "xxx"))
+      .onTap (fn []
+               (await (mail/select-box (:client @state) mailbox))
+               (swap! state assoc :mail-list [])
+               (mail/fetch-messages (:client @state) 1 10)
+               (.pushNamed navigator "/mail_list")
+               nil)
       .selected (= current mailbox))
      (m/Material
       .child
@@ -31,7 +59,8 @@
 (defn mailbox-list
   []
   (f/widget
-   :watch [mail-boxes (f/$ (some->> (f/<! state) :mail-boxes (into [])))]
+   :watch [mail-boxes (f/$ (some->> (f/<! state) :mail-boxes (into [])
+                                    (filter #(mailbox-name-filter (.-value %)))))]
    (if (empty? mail-boxes)
      (m/Center
       .child (m/Column
@@ -47,3 +76,24 @@
        (f/build [idx]
                 (let [item (get mail-boxes-tree-elements idx)]
                   (mailbox-item item 0 (:mailbox @state)))))))))
+
+(defn mailbox-name-filter
+  [^em/Mailbox mailbox]
+  (cond
+    (.-isInbox mailbox)
+    true
+
+    (.-isDrafts mailbox)
+    true
+
+    (.-isSent mailbox)
+    true
+
+    (.-isTrash mailbox)
+    true
+
+    (.-isJunk mailbox)
+    true
+
+    :else
+    false))
