@@ -5,6 +5,7 @@
    ["package:enough_mail/enough_mail.dart" :as em]
    [mgl-mail.services.editor :as edit-service]
    [mgl-mail.desktop.widgets.editor :as editor]
+   [mgl-mail.desktop.widgets.topbar :as topbar]
    [mgl-mail.states.global :refer [state]]
    [cljd.flutter :as f]))
  
@@ -13,7 +14,9 @@
    (f/widget
     :let [^em/MimeMessage
           mime (:mail @state)
-          content (.decodeTextHtmlPart mime)]
+          content (if (empty? (.decodeTextHtmlPart mime))
+                    (str "<p>" (.decodeTextPlainPart mime) "</p>")
+                    (.decodeTextHtmlPart mime))]
     :managed [editor-state (appeditor/EditorState
                             .document (edit-service/from-html content))]
     (m/Scaffold)
@@ -23,5 +26,7 @@
      .mainAxisAlignment m.MainAxisAlignment/center
      .crossAxisAlignment m.CrossAxisAlignment/start
      .children
-     [(m/Expanded
+     [(topbar/mail-detail)
+      (m/Divider .thickness 1)
+      (m/Expanded
        .child (editor/viewer editor-state (editor/style)))])))

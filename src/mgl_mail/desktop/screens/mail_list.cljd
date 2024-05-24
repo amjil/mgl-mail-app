@@ -2,13 +2,21 @@
   (:require
    ["package:flutter/material.dart" :as m]
    [cljd.flutter :as f]
-   [mgl-mail.desktop.widgets.maillist :as maillist]))
+   [mgl-mail.desktop.widgets.maillist :as maillist]
+   [mgl-mail.desktop.widgets.topbar :as topbar]))
    
 (defn screen 
   []
-  (f/widget 
+  (f/widget
    (m/Scaffold)
    .body
    (m/SafeArea)
-   (maillist/list-view)))
+   (m/Column
+    .mainAxisAlignment m.MainAxisAlignment/center
+    .crossAxisAlignment m.CrossAxisAlignment/start
+    .children [(topbar/mail-list)
+               (m/Divider .thickness 1)
+               (m/Expanded
+                .child
+                (maillist/list-view))])))
    

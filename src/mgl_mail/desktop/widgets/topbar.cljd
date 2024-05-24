@@ -1,0 +1,34 @@
+(ns mgl-mail.desktop.widgets.topbar
+  (:require
+   ["package:flutter/material.dart" :as m]
+   [cljd.flutter :as f]))
+
+(defn mail-detail
+  []
+  (f/widget
+   :get [m/Navigator]
+   (m/SafeArea .bottom false)
+   (m/Row
+    .mainAxisAlignment m.MainAxisAlignment/start
+    .children
+    [(m/IconButton
+      .padding (m.EdgeInsets/all 10)
+      .constraints (m/BoxConstraints)
+      .onPressed (fn []
+                   (.pop navigator))
+      .icon (m/Icon m.Icons/arrow_back_ios_new))])))
+      
+(defn mail-list
+  []
+  (f/widget
+   :get [m/Navigator]
+   (m/SafeArea .bottom false)
+   (m/Row
+    .mainAxisAlignment m.MainAxisAlignment/start
+    .children
+    [(m/IconButton
+      .padding (m.EdgeInsets/all 10)
+      .constraints (m/BoxConstraints)
+      .onPressed (fn []
+                   (.pop navigator))
+      .icon (m/Icon m.Icons/arrow_back_ios_new))])))
