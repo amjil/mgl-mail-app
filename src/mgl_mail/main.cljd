@@ -4,7 +4,6 @@
    ["dart:io" :as io]
    [mgl-mail.mobile :as mobile]
    [mgl-mail.desktop :as desktop]
-   [mgl-mail.states.global :refer [state]]
    [cljd.flutter :as f]
    [mgl-mail.services.mail :as mail]))
 
@@ -13,7 +12,7 @@
   
   (let [account (await (mail/get-account))]
     (when-not (nil? account)
-      (swap! state assoc :account account)))
+      (mail/initialize-client account)))
 
   (f/run
    (if (or io/Platform.isIOS

@@ -1,18 +1,11 @@
 (ns mgl-mail.services.auth
   (:require
-   ["package:flutter/widgets.dart" :as widgets]
    ["package:enough_mail/enough_mail.dart" :as em]
-   [mgl-mail.services.mail :as mail]
-   [mgl-mail.states.global :refer [state]]))
+   [mgl-mail.services.mail :as mail]))
    
 (defn set-account 
   [params]
   (let [^em/MailAccount
         account (await (mail/mail-account-with-default params))]
     (mail/save-account account)
-    (swap! state assoc :account account)
-    (let [client (await (mail/mail-client account))]
-      (await (mail/connect client))
-      (when (mail/is-connected? client)
-        (mail/mail-boxes client))
-      (swap! state assoc :client client))))
+    (mail/initialize-client account)))

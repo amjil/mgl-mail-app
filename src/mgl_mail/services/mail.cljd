@@ -126,3 +126,12 @@
 (defn send-message 
   [^em/MailClient client ^em/MimeMessage mime]
   (await (.sendMessage client mime)))
+
+(defn initialize-client 
+  [^em/MailAccount account]
+  (swap! state assoc :account account)
+  (let [client (await (mail-client account))]
+    (await (connect client))
+    (when (is-connected? client)
+      (mail-boxes client))
+    (swap! state assoc :client client)))
