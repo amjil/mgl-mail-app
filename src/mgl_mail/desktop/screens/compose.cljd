@@ -1,0 +1,36 @@
+(ns mgl-mail.desktop.screens.compose
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:appflowy_editor/appflowy_editor.dart" :as appeditor]
+   [cljd.flutter :as f]
+   [mgl-mail.services.editor :as edit-service]
+   [mgl-mail.desktop.widgets.editor :as editor]
+   [mgl-mail.desktop.widgets.text-input :as text-input]))
+
+(defn screen
+  []
+  (let [to (atom "")
+        title (atom "")]
+    (f/widget
+     :managed [editor-state (appeditor/EditorState
+                             .document (edit-service/from-html "<p></p>"))]
+     (m/Scaffold)
+     .body
+     (m/SafeArea)
+     (m/Column
+      .mainAxisAlignment m.MainAxisAlignment/center
+      .crossAxisAlignment m.CrossAxisAlignment/start
+      .children
+      [(m/Expanded
+        .child
+        (m/Expanded
+         .child (m/Row
+                 .children
+                 [(text-input/view to "Recipient email")
+                  (text-input/view title "Subject")
+                  (f/widget
+                   :managed [scroll-controll (appeditor/EditorScrollController
+                                              .editorState editor-state
+                                              .shrinkWrap false)]
+                   (m/Expanded
+                    .child (editor/editor editor-state scroll-controll (editor/style))))])))]))))

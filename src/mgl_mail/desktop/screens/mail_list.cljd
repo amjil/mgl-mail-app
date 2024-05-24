@@ -1,0 +1,14 @@
+(ns mgl-mail.desktop.screens.mail-list
+  (:require
+   ["package:flutter/material.dart" :as m]
+   [cljd.flutter :as f]
+   [mgl-mail.desktop.widgets.maillist :as maillist]))
+   
+(defn screen 
+  []
+  (f/widget 
+   (m/Scaffold)
+   .body
+   (m/SafeArea)
+   (maillist/list-view)))
+   

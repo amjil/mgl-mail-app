@@ -2,11 +2,17 @@
   (:require
    ["package:flutter/material.dart" :as m]
    [cljd.flutter :as f]
-   [mgl-mail.desktop.screens.home :as home]))
+   [mgl-mail.desktop.screens.home :as home]
+   [mgl-mail.desktop.screens.mail-list :as mail-list]
+   [mgl-mail.desktop.screens.mail-detail :as mail-detail]
+   [mgl-mail.desktop.screens.compose :as compose]))
    
 (defn app []
   (f/widget
    (m/MaterialApp
-    .theme (m/ThemeData .primarySwatch m.Colors/pink))
-   .home
-   (home/screen)))
+    .theme (m/ThemeData .primarySwatch m.Colors/pink)
+    .initialRoute "/"
+    .routes {"/"          (fn ^m/Widget [_] (home/screen))
+             "/mail_list" (fn ^m/Widget [_] (mail-list/screen))
+             "/mail_detail" (fn ^m/Widget [_] (mail-detail/screen))
+             "/compose" (fn ^m/Widget [_] (compose/screen))})))

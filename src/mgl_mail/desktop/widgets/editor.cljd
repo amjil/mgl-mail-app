@@ -1,0 +1,34 @@
+(ns mgl-mail.desktop.widgets.editor
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:appflowy_editor/appflowy_editor.dart" :as appeditor]))
+   
+(defn editor
+  [editor-state scroll-controller style]
+  (m/Padding 
+   .padding (.symmetric m/EdgeInsets .horizontal 10)
+   .child
+  (appeditor/AppFlowyEditor
+   .editorStyle style
+   .editorState editor-state
+   .editorScrollController scroll-controller)))
+   
+(defn viewer
+  [editor-state style]
+  (appeditor/AppFlowyEditor
+   .editable  false
+   .editorStyle style
+   .editorState editor-state))
+
+(defn style
+  []
+  (appeditor.EditorStyle/desktop
+   .cursorWidth 2.0
+   .cursorColor m/Colors.blue
+   .selectionColor m/Colors.grey.shade200
+   .textStyleConfiguration (appeditor/TextStyleConfiguration
+                            .text (m/TextStyle
+                                   .fontSize 16
+                                   .color m/Colors.black
+                                   .fontFamily "MongolianBaiZheng"))
+   .padding (.symmetric m/EdgeInsets .vertical 10)))

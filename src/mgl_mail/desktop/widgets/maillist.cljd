@@ -1,0 +1,38 @@
+(ns mgl-mail.desktop.widgets.maillist
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:enough_mail/enough_mail.dart" :as em]
+   ["package:mongol/mongol.dart" :as mgl]
+   [cljd.flutter :as f]
+   [mgl-mail.states.global :refer [state]]))
+   
+(defn list-item [^em/MimeMessage item]
+  (f/widget
+   :get [m/Navigator]
+   :let [subject (or (.decodeSubject item) "No Subject")]
+   (mgl/MongolListTile
+    .title (m/Padding
+            .padding (m.EdgeInsets/only .top 8.0)
+            .child (mgl/MongolText subject))
+    .onTap (fn []
+             (swap! state assoc :mail item)
+             (.pushNamed navigator "/mail_detail")
+             nil))))
+
+(defn list-view
+  []
+  (f/widget
+   :watch [mail-list- (f/$ (some->> (f/<! state) :mail-list (into [])))]
+   (if (empty? mail-list-)
+     (m/Center
+      .child (m/Column
+              .children [(m/Text "empty.")]))
+     (f/widget
+      :let [^#/(List em/MimeMessage?)
+            mail-list mail-list-]
+      (m.ListView/builder
+       .scrollDirection m.Axis/horizontal
+       .itemCount (count mail-list)
+       .itemBuilder (f/build [idx]
+                             (let [item (get mail-list idx)]
+                               (list-item item))))))))
