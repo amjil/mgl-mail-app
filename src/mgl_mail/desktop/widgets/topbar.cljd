@@ -24,11 +24,18 @@
    :get [m/Navigator]
    (m/SafeArea .bottom false)
    (m/Row
-    .mainAxisAlignment m.MainAxisAlignment/start
+    .mainAxisAlignment m.MainAxisAlignment/spaceBetween
     .children
     [(m/IconButton
       .padding (m.EdgeInsets/all 10)
       .constraints (m/BoxConstraints)
       .onPressed (fn []
                    (.pop navigator))
-      .icon (m/Icon m.Icons/arrow_back_ios_new))])))
+      .icon (m/Icon m.Icons/arrow_back_ios_new))
+     (m/IconButton
+      .padding (m.EdgeInsets/all 10)
+      .constraints (m/BoxConstraints)
+      .onPressed (fn [] 
+                   (.pushNamed navigator "/compose")
+                   nil)
+      .icon (m/Icon m.Icons/edit))])))
