@@ -39,3 +39,41 @@
                    (.pushNamed navigator "/compose")
                    nil)
       .icon (m/Icon m.Icons/edit))])))
+      
+(defn mail-box
+  []
+  (f/widget
+   :get [m/Navigator]
+   (m/SafeArea .bottom false)
+   (m/Row
+    .mainAxisAlignment m.MainAxisAlignment/end
+    .children
+    [(m/IconButton
+      .padding (m.EdgeInsets/all 10)
+      .constraints (m/BoxConstraints)
+      .onPressed (fn []
+                   (.pushNamed navigator "/compose")
+                   nil)
+      .icon (m/Icon m.Icons/edit))])))
+
+(defn compose 
+  []
+  (f/widget
+   :get [m/Navigator]
+   (m/SafeArea .bottom false)
+   (m/Row
+    .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+    .children
+    [(m/IconButton
+      .padding (m.EdgeInsets/all 10)
+      .constraints (m/BoxConstraints)
+      .onPressed (fn [] 
+                   (.pop navigator)
+                   nil)
+      .icon (m/Icon m.Icons/arrow_back_ios_new))
+     (m/Row
+      .children [(m/IconButton
+                  .padding (m.EdgeInsets/all 10)
+                  .constraints (m/BoxConstraints)
+                  .onPressed (fn [] (prn "xxx"))
+                  .icon (m/Icon m.Icons/send))])])))

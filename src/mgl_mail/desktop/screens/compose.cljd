@@ -5,6 +5,7 @@
    [cljd.flutter :as f]
    [mgl-mail.services.editor :as edit-service]
    [mgl-mail.desktop.widgets.editor :as editor]
+   [mgl-mail.desktop.widgets.topbar :as topbar]
    [mgl-mail.desktop.widgets.text-input :as text-input]))
 
 (defn screen
@@ -21,16 +22,16 @@
       .mainAxisAlignment m.MainAxisAlignment/center
       .crossAxisAlignment m.CrossAxisAlignment/start
       .children
-      [(m/Expanded
-        .child
-        (m/Expanded
-         .child (m/Row
-                 .children
-                 [(text-input/view to "Recipient email")
-                  (text-input/view title "Subject")
-                  (f/widget
-                   :managed [scroll-controll (appeditor/EditorScrollController
-                                              .editorState editor-state
-                                              .shrinkWrap false)]
-                   (m/Expanded
-                    .child (editor/editor editor-state scroll-controll (editor/style))))])))]))))
+      [(topbar/compose)
+       (m/Divider .thickness 1)
+       (m/Expanded
+        .child (m/Row
+                .children
+                [(text-input/view to "Recipient email")
+                 (text-input/view title "Subject")
+                 (f/widget
+                  :managed [scroll-controll (appeditor/EditorScrollController
+                                             .editorState editor-state
+                                             .shrinkWrap false)]
+                  (m/Expanded
+                   .child (editor/editor editor-state scroll-controll (editor/style))))]))]))))

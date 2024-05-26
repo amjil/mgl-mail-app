@@ -4,6 +4,7 @@
    [cljd.flutter :as f]
    [mgl-mail.desktop.screens.signup :as signup]
    [mgl-mail.desktop.widgets.mailbox :as mailbox]
+   [mgl-mail.desktop.widgets.topbar :as topbar]
    [mgl-mail.states.global :refer [state]]))
    
 (defn screen 
@@ -20,4 +21,8 @@
       .body
       (m/SafeArea)
       (m/Column
-       .children [(mailbox/mailbox-list)])))))
+       .mainAxisAlignment m.MainAxisAlignment/center
+       .crossAxisAlignment m.CrossAxisAlignment/start
+       .children [(topbar/mail-box)
+                  (m/Divider .thickness 1)
+                  (mailbox/mailbox-list)])))))
