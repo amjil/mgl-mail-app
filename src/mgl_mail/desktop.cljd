@@ -11,6 +11,7 @@
   (f/widget
    (m/MaterialApp
     .theme (m/ThemeData .primarySwatch m.Colors/pink)
+    .debugShowCheckedModeBanner false
     .initialRoute "/"
     .routes {"/"          (fn ^m/Widget [_] (home/screen))
              "/mail_list" (fn ^m/Widget [_] (mail-list/screen))

@@ -33,7 +33,7 @@ dependencies:
   keyboard_height_plugin: ^0.0.4
   appflowy_editor: ^2.3.3
   http: ^1.1.0
-  mongol: ^7.0.0
+  mongol: ^8.0.0
   mongol_code: ^0.3.0
   vibration: ^1.8.4
   enough_mail: ^2.1.5
