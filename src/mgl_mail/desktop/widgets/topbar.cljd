@@ -1,7 +1,11 @@
 (ns mgl-mail.desktop.widgets.topbar
   (:require
    ["package:flutter/material.dart" :as m]
-   [cljd.flutter :as f]))
+   ["package:enough_mail/enough_mail.dart" :as em]
+   [cljd.flutter :as f]
+   [mgl-mail.services.editor :as edit]
+   [mgl-mail.services.mail :as mail]
+   [mgl-mail.states.global :refer [state]]))
 
 (defn mail-detail
   []
@@ -57,7 +61,7 @@
       .icon (m/Icon m.Icons/edit))])))
 
 (defn compose 
-  []
+  [title content to]
   (f/widget
    :get [m/Navigator]
    (m/SafeArea .bottom false)
@@ -75,5 +79,16 @@
       .children [(m/IconButton
                   .padding (m.EdgeInsets/all 10)
                   .constraints (m/BoxConstraints)
-                  .onPressed (fn [] (prn "xxx"))
+                  .onPressed (fn [] 
+                               (let [title @title
+                                     content (edit/to-html (.-document content))
+                                     email @to
+                                     ^#/(List em/MailAddress)
+                                     mail-address
+                                     (into [] [(em/MailAddress
+                                                (-> (clojure.string/split email #"@")
+                                                    first)
+                                                email)])
+                                     mime (mail/build-mime-message title content mail-address)]
+                                 (mail/send-message (:client @state) mime)))
                   .icon (m/Icon m.Icons/send))])])))

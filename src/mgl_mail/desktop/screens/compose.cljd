@@ -22,7 +22,7 @@
       .mainAxisAlignment m.MainAxisAlignment/center
       .crossAxisAlignment m.CrossAxisAlignment/start
       .children
-      [(topbar/compose)
+      [(topbar/compose title editor-state to)
        (m/Divider .thickness 1)
        (m/Expanded
         .child (m/Row

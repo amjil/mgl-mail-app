@@ -79,12 +79,15 @@
 
 (defn build-mime-message
   [title m
-   ^#/(List em/MailAddress) from
    ^#/(List em/MailAddress) to]
-  (let [builder (doto (em/MessageBuilder)
-                  (-> .from (set! from))
-                  (-> .to (set! to))
-                  (-> .subject (set! title))
+  (let [^em/MailAccount 
+        account (:account @state)
+        ^#/(List em/MailAddress) 
+        from (into [] [(em/MailAddress (.-name account) (.-email account))])
+        builder (doto (em/MessageBuilder)
+                  (-> .-from (set! from))
+                  (-> .-to (set! to))
+                  (-> .-subject (set! title))
                   (.addMultipartAlternative .plainText
                                             (emh.HtmlToPlainTextConverter/convert m)
                                             .htmlText
