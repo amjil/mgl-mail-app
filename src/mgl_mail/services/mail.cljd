@@ -130,6 +130,10 @@
   [^em/MailClient client]
   (await (.disconnect client)))
   
+(defn append-message 
+  [^em/MailClient client ^em/MimeMessage mime]
+  (await (.appendMessage client mime .flags ["Seen"] .targetMailboxPath "Sent")))
+  
 (defn send-message 
   [^em/MailClient client ^em/MimeMessage mime]
   (await (.sendMessage client mime)))
