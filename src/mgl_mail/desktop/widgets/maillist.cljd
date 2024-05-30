@@ -9,7 +9,9 @@
 (defn list-item [^em/MimeMessage item]
   (f/widget
    :get [m/Navigator]
-   :let [subject (or (.decodeSubject item) "No Subject")]
+   :let [subject (if (empty? (.decodeSubject item)) 
+                   "No Subject"
+                   (.decodeSubject item))]
    (mgl/MongolListTile
     .title (m/Padding
             .padding (m.EdgeInsets/only .top 8.0)
@@ -26,7 +28,7 @@
    (if (empty? mail-list-)
      (m/Center
       .child (m/Column
-              .children [(m/Text "empty.")]))
+              .children [(mgl/MongolText "empty.")]))
      (f/widget
       :let [^#/(List em/MimeMessage?)
             mail-list mail-list-]

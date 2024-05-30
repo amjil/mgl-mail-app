@@ -79,7 +79,7 @@
       .children [(m/IconButton
                   .padding (m.EdgeInsets/all 10)
                   .constraints (m/BoxConstraints)
-                  .onPressed (fn [] 
+                  .onPressed (fn []
                                (let [title @title
                                      content (edit/to-html (.-document content))
                                      email @to
@@ -90,6 +90,5 @@
                                                     first)
                                                 email)])
                                      mime (mail/build-mime-message title content mail-address)]
-                                 (mail/append-message (:client @state) mime)
                                  (mail/send-message (:client @state) mime)))
                   .icon (m/Icon m.Icons/send))])])))

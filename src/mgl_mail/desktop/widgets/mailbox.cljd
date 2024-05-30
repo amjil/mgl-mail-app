@@ -64,7 +64,7 @@
    (if (empty? mail-boxes)
      (m/Center
       .child (m/Column
-              .children [(m/Text "empty.")]))
+              .children [(mgl/MongolText "empty.")]))
      (f/widget
       :let [^#/(List em/TreeElement?)
             mail-boxes-tree-elements mail-boxes]
