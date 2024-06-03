@@ -15,10 +15,8 @@
                    "No Subject"
                    (.decodeSubject item))]
    (context-menu/ContextMenuRegion
-    .contextMenu (menu/mail-item-menu)
-    .onItemSelected (fn [value]
-                      (dart:core/print value)
-                      nil))
+    .contextMenu (menu/mail-item-menu item)
+    .onItemSelected (partial menu/mail-item-selected-fn item))
    (mgl/MongolListTile
     .title (m/Padding
             .padding (m.EdgeInsets/only .top 8.0)

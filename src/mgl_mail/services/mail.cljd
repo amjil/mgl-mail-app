@@ -149,3 +149,17 @@
     (when (is-connected? client)
       (mail-boxes client))
     (swap! state assoc :client client)))
+    
+(defn mark-seen-unseen 
+  [^em/MailClient client ^em/MimeMessage mime]
+  (let [^em/MessageSequence
+        ms (em.MessageSequence/fromId (.-sequenceId mime))]
+    (if (true? (.-isSeen mime))
+      (.markUnseen client ms)
+      (.markSeen client ms))))
+
+(defn mark-deleted
+  [^em/MailClient client ^em/MimeMessage mime]
+  (let [^em/MessageSequence
+        ms (em.MessageSequence/fromId (.-sequenceId mime))]
+    (.markDeleted client ms)))

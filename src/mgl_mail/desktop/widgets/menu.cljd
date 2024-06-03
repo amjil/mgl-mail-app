@@ -3,16 +3,31 @@
    ["package:flutter/material.dart" :as m]
    ["package:mongol/mongol.dart" :as mgl]
    ["package:flutter_context_menu/flutter_context_menu.dart" :as menu]
-   [cljd.flutter :as f]))
+   ["package:enough_mail/enough_mail.dart" :as em]
+   [cljd.flutter :as f]
+   [mgl-mail.services.mail :as mail]
+   [mgl-mail.states.global :refer [state]]))
 
 (defn mail-item-menu
-  []
+  [mail]
   (menu/ContextMenu
    .entries [(menu/MenuItem
+              .label "ᠲᠡᠮᠳᠡᠭ"
+              .value "mark"
+              .icon (if (true? (.-isSeen  mail))
+                      m.Icons/mark_email_unread_outlined
+                      m.Icons/mark_email_read_outlined))
+             (menu/MenuItem
               .label "ᠨᠡᠭᠦᠯᠭᠡᠬᠦ"
-              ;; .icon ""
               .value "move")
              (menu/MenuItem
               .label "ᠬᠠᠰᠤᠬᠤ"
               .value "delete")]
    .maxHeight 200))
+   
+(defn mail-item-selected-fn 
+  [mime value]
+  (condp = value
+    "mark" (mail/mark-seen-unseen (:client @state) mime)
+    ;; "move" nil 
+    "delete" (mail/mark-deleted (:client @state) mime)))
