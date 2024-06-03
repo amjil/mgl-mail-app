@@ -1,0 +1,18 @@
+(ns mgl-mail.desktop.widgets.menu
+  (:require
+   ["package:flutter/material.dart" :as m]
+   ["package:mongol/mongol.dart" :as mgl]
+   ["package:flutter_context_menu/flutter_context_menu.dart" :as menu]
+   [cljd.flutter :as f]))
+
+(defn mail-item-menu
+  []
+  (menu/ContextMenu
+   .entries [(menu/MenuItem
+              .label "ᠨᠡᠭᠦᠯᠭᠡᠬᠦ"
+              ;; .icon ""
+              .value "move")
+             (menu/MenuItem
+              .label "ᠬᠠᠰᠤᠬᠤ"
+              .value "delete")]
+   .maxHeight 200))

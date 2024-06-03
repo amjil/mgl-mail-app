@@ -2,16 +2,23 @@
   (:require
    ["package:flutter/material.dart" :as m]
    ["package:enough_mail/enough_mail.dart" :as em]
+   ["package:flutter_context_menu/flutter_context_menu.dart" :as context-menu]
    ["package:mongol/mongol.dart" :as mgl]
    [cljd.flutter :as f]
+   [mgl-mail.desktop.widgets.menu :as menu]
    [mgl-mail.states.global :refer [state]]))
    
 (defn list-item [^em/MimeMessage item]
   (f/widget
    :get [m/Navigator]
-   :let [subject (if (empty? (.decodeSubject item)) 
+   :let [subject (if (empty? (.decodeSubject item))
                    "No Subject"
                    (.decodeSubject item))]
+   (context-menu/ContextMenuRegion
+    .contextMenu (menu/mail-item-menu)
+    .onItemSelected (fn [value]
+                      (dart:core/print value)
+                      nil))
    (mgl/MongolListTile
     .title (m/Padding
             .padding (m.EdgeInsets/only .top 8.0)
