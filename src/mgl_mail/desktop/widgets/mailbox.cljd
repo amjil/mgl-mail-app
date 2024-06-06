@@ -4,7 +4,6 @@
    ["package:mongol/mongol.dart" :as mgl]
    ["package:enough_mail/enough_mail.dart" :as em]
    [cljd.flutter :as f]
-   [mgl-mail.utils.route :as route]
    [mgl-mail.states.global :refer [state]]
    [mgl-mail.services.mail :as mail]))
    

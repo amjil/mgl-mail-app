@@ -5,13 +5,29 @@
    
 (defn editor
   [editor-state scroll-controller style]
-  (m/Padding 
+  (m/Padding
    .padding (.symmetric m/EdgeInsets .horizontal 10)
    .child
-  (appeditor/AppFlowyEditor
-   .editorStyle style
-   .editorState editor-state
-   .editorScrollController scroll-controller)))
+   (appeditor/FloatingToolbar
+    .items (into [] (concat [appeditor/paragraphItem]
+                            appeditor/headingItems
+                            appeditor/markdownFormatItems
+                            [appeditor/quoteItem]
+                            [appeditor/bulletedListItem]
+                            [appeditor/numberedListItem]
+                            [appeditor/linkItem]
+                            [(appeditor/buildTextColorItem)]
+                            [(appeditor/buildHighlightColorItem)]
+                            ;; appeditor/textDirectionItems
+                            appeditor/alignmentItems)) 
+    .editorState editor-state
+    .textDirection m.TextDirection/ltr
+    .editorScrollController scroll-controller
+    .child
+    (appeditor/AppFlowyEditor
+     .editorStyle style
+     .editorState editor-state
+     .editorScrollController scroll-controller))))
    
 (defn viewer
   [editor-state style]
