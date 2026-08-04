@@ -1,3 +1,6 @@
+import 'package:drift/drift.dart';
+import 'package:enough_mail/enough_mail.dart';
+
 import '../db/app_database.dart';
 import '../imap/attachment_downloader.dart';
 import '../imap/imap_sync_service.dart';
@@ -115,6 +118,45 @@ class AccountEngine {
     }
   }
 
+  /// Sync a single mailbox by local folder id (stop IDLE → SELECT → fetch).
+  Future<void> syncFolder(int folderId) async {
+    final folder = await db.folderDao.findById(folderId);
+    if (folder == null || folder.accountId != account.id) return;
+    final s = sync;
+    if (s == null) return;
+    final worker = imapWorker;
+    // For well-known roles, re-probe live LIST so we don't sync an empty twin.
+    // Name can still map「草稿夹」「归档」even when DB role is stale custom.
+    Future<void> action() async {
+      final role = s.effectiveRole(folder);
+      if (role == 'draft' ||
+          role == 'trash' ||
+          role == 'sent' ||
+          role == 'archive') {
+        await s.syncFolderByRole(role);
+      } else {
+        await s.syncFolderMessages(folder);
+      }
+    }
+
+    if (worker != null) {
+      await worker.runExclusive(action);
+    } else {
+      await action();
+    }
+  }
+
+  Future<void> syncRole(String role) async {
+    final s = sync;
+    if (s == null) return;
+    final worker = imapWorker;
+    if (worker != null) {
+      await worker.runExclusive(() => s.syncFolderByRole(role));
+    } else {
+      await s.syncFolderByRole(role);
+    }
+  }
+
   Future<void> downloadBodyIfNeeded(int messageId) async {
     final s = sync;
     if (s == null) return;
@@ -134,6 +176,86 @@ class AccountEngine {
       return worker.runExclusive(() => downloader.download(attachmentId));
     }
     return downloader.download(attachmentId);
+  }
+
+  Future<void> deleteMessage(int messageId) async {
+    final message = await db.messageDao.findById(messageId);
+    if (message == null || message.accountId != account.id) return;
+
+    final s = sync;
+    final hasImap = message.uid != null && message.folderId != null;
+
+    // IMAP first so we don't claim success when the server still has the mail.
+    if (hasImap) {
+      if (s == null) {
+        throw StateError('IMAP not ready; cannot delete on server');
+      }
+      final worker = imapWorker;
+      if (worker != null) {
+        await worker.runExclusive(() => s.deleteRemoteMessage(message));
+      } else {
+        await s.deleteRemoteMessage(message);
+      }
+    }
+
+    await db.messageDao.markDeleted(messageId);
+    await db.outboxDao.deleteByMessageId(messageId);
+  }
+
+  /// Move message to [targetRole] (e.g. `archive`) on IMAP + update local row.
+  Future<void> moveMessageToRole(int messageId, String targetRole) async {
+    final message = await db.messageDao.findById(messageId);
+    if (message == null || message.accountId != account.id) return;
+
+    final targetFolder = await db.folderDao.findByRole(account.id, targetRole);
+    if (targetFolder == null) {
+      throw StateError('No $targetRole folder for account ${account.id}');
+    }
+
+    if (message.state == targetRole && message.folderId == targetFolder.id) {
+      return;
+    }
+
+    final hasImap = message.uid != null && message.folderId != null;
+    String? newUid = message.uid;
+    var folderId = targetFolder.id;
+
+    if (hasImap) {
+      final s = sync;
+      if (s == null) {
+        throw StateError('IMAP not ready; cannot move on server');
+      }
+      final worker = imapWorker;
+      final result = worker != null
+          ? await worker.runExclusive(
+              () => s.moveRemoteMessageToRole(message, targetRole),
+            )
+          : await s.moveRemoteMessageToRole(message, targetRole);
+      folderId = result.folderId;
+      newUid = result.uid;
+    }
+
+    await db.messageDao.updateMessage(
+      messageId,
+      MessagesCompanion(
+        folderId: Value(folderId),
+        uid: Value(newUid),
+        state: Value(targetRole),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// APPEND draft MIME to server Drafts; returns new UID when known.
+  Future<String?> appendDraft(MimeMessage mime) async {
+    final s = sync;
+    if (s == null) return null;
+    final append = ImapAppendService(s);
+    final worker = imapWorker;
+    if (worker != null) {
+      return worker.runExclusive(() => append.appendToDrafts(mime));
+    }
+    return append.appendToDrafts(mime);
   }
 
   Future<void> setBackground(bool background) async {

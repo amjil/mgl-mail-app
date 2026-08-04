@@ -1,23 +1,58 @@
 (ns mail-app.desktop.widgets.mailbox
-  "Fixed mailbox roles backed by MailBridge streams."
+  "IMAP folder list (+ local Outbox)."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [cljd.flutter :as f]
+            [clojure.string :as str]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]))
 
 (def ^:private font-family "MongolianBaiZheng")
 
-(def ^:private mailboxes
-  [{:role :inbox :label "Inbox"}
-   {:role :sent :label "Sent"}
-   {:role :outbox :label "Outbox"}])
+(def ^:private role-order
+  {"inbox" 0
+   "sent" 1
+   "draft" 2
+   "archive" 3
+   "trash" 4
+   "custom" 5})
 
-(defn- mailbox-item [{:keys [role label]} selected]
+(defn- folder-sort-key [^mc/MailFolderDto f]
+  [(get role-order (or (.-role f) "") 50)
+   (or (.-path f) "")
+   (or (.-id f) 0)])
+
+(defn- has-role? [folders role]
+  (boolean (some (fn [^mc/MailFolderDto f] (= (.-role f) role)) folders)))
+
+(defn- role-key
+  "Map DB role / display name → UI mailbox key. Name wins for stale custom rows."
+  [role name]
+  (let [n (str/lower-case (or name ""))]
+    (cond
+      (= role "inbox") :inbox
+      (= role "sent") :sent
+      (or (= role "draft")
+          (str/includes? n "草稿")
+          (= n "drafts")
+          (= n "draft"))
+      :draft
+      (or (= role "archive")
+          (str/includes? n "归档")
+          (str/includes? n "歸檔")
+          (str/includes? n "档案")
+          (str/includes? n "檔案")
+          (str/includes? n "archive"))
+      :archive
+      (= role "trash") :trash
+      :else nil)))
+
+(defn- mailbox-item [key label selected?]
   (f/widget
    :get [m/Navigator]
    (mgl/MongolListTile
-    .selected (= role selected)
+    .selected selected?
     .title (m/Padding
             .padding (m.EdgeInsets/only .top 8.0)
             .child
@@ -25,14 +60,40 @@
              label
              .style (m/TextStyle .fontSize 18.0 .fontFamily font-family)))
     .onTap (fn []
-             (mail/select-mailbox! role)
+             (mail/select-mailbox! key)
              (.pushNamed navigator "/mail_list")
              nil))))
+
+(defn- folder-item [^mc/MailFolderDto f selected]
+  (let [id (.-id f)
+        role (.-role f)
+        name (.-name f)
+        rk (role-key role name)
+        key (or rk id)
+        selected? (or (= selected key)
+                      (= selected id)
+                      (and (= selected :inbox) (or (= role "inbox") (= rk :inbox)))
+                      (and (= selected :sent) (or (= role "sent") (= rk :sent)))
+                      (and (= selected :draft) (or (= role "draft") (= rk :draft)))
+                      (and (= selected :archive) (or (= role "archive") (= rk :archive)))
+                      (and (= selected :trash) (or (= role "trash") (= rk :trash))))]
+    (mailbox-item key (or name role "Folder") selected?)))
+
+(defn- build-items [folder-list selected]
+  (let [folders (->> folder-list (sort-by folder-sort-key) vec)
+        head (cond-> []
+               (not (has-role? folders "inbox"))
+               (conj (mailbox-item :inbox "Inbox" (= selected :inbox)))
+               (not (has-role? folders "sent"))
+               (conj (mailbox-item :sent "Sent" (= selected :sent))))
+        mid (mapv #(folder-item % selected) folders)
+        tail [(mailbox-item :outbox "Outbox" (= selected :outbox))]]
+    (into (into head mid) tail)))
 
 (defn mailbox-list
   []
   (f/widget
-   :watch [{:keys [selected-mailbox accounts]} store/app-state]
+   :watch [{:keys [selected-mailbox accounts folder-list]} store/app-state]
    (if (empty? accounts)
      (m/Center
       .child (mgl/MongolText
@@ -41,5 +102,4 @@
      (m/ListView
       .scrollDirection m.Axis/horizontal
       .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
-      .children
-      (mapv #(mailbox-item % selected-mailbox) mailboxes)))))
+      .children (build-items folder-list selected-mailbox)))))

@@ -2,11 +2,14 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
+import 'package:enough_mail/enough_mail.dart';
+import 'package:enough_mail_html/enough_mail_html.dart';
 import 'package:uuid/uuid.dart';
 
 import '../bridge/dto/mail_dtos.dart';
 import '../bridge/mapper/mail_mapper.dart';
 import '../db/app_database.dart';
+import '../imap/imap_sync_service.dart';
 import '../oauth/oauth_config.dart';
 import '../oauth/oauth_token_store.dart';
 import '../oauth/outlook_oauth.dart';
@@ -191,6 +194,106 @@ class MailEngine {
     }
   }
 
+  Future<List<MailFolderDto>> listFolders({String? accountId}) async {
+    final filter = accountId ?? context.currentAccountId;
+    final rows = await db.folderDao.listSelectable(accountId: filter);
+    return _dedupeFolderDtos(rows.map(MailMapper.toFolderDto).toList());
+  }
+
+  Stream<List<MailFolderDto>> watchFolders({String? accountId}) {
+    // Capture filter once; callers re-subscribe when account changes.
+    final filter = accountId ?? context.currentAccountId;
+    return db.folderDao.watchSelectable(accountId: filter).asyncMap(
+      (rows) async =>
+          _dedupeFolderDtos(rows.map(MailMapper.toFolderDto).toList()),
+    );
+  }
+
+  /// Collapse duplicate special-use / same-name folders per account.
+  List<MailFolderDto> _dedupeFolderDtos(List<MailFolderDto> rows) {
+    int score(MailFolderDto f) {
+      var s = 1000 - f.path.length;
+      if (f.path.toUpperCase() == 'INBOX') s += 500;
+      // Prefer known roles over custom when names collide after remapping.
+      if (f.role != 'custom') s += 100;
+      return s;
+    }
+
+    final sorted = List<MailFolderDto>.from(rows)
+      ..sort((a, b) {
+        final c = score(b).compareTo(score(a));
+        return c != 0 ? c : a.id.compareTo(b.id);
+      });
+
+    final seenRoles = <String>{};
+    final seenNames = <String>{};
+    final out = <MailFolderDto>[];
+    for (final f in sorted) {
+      final roleKey = '${f.accountId}|${f.role}';
+      if (f.role != 'custom' && !seenRoles.add(roleKey)) continue;
+      final nameKey = '${f.accountId}|${f.name.trim().toLowerCase()}';
+      if (nameKey.endsWith('|')) {
+        out.add(f);
+        continue;
+      }
+      if (!seenNames.add(nameKey)) continue;
+      out.add(f);
+    }
+    out.sort((a, b) {
+      const order = {
+        'inbox': 0,
+        'sent': 1,
+        'draft': 2,
+        'archive': 3,
+        'trash': 4,
+        'custom': 5,
+      };
+      final c = (order[a.role] ?? 50).compareTo(order[b.role] ?? 50);
+      if (c != 0) return c;
+      return a.path.compareTo(b.path);
+    });
+    return out;
+  }
+
+  Stream<List<MailMessageDto>> watchFolder(int folderId) {
+    return db.messageDao.watchByFolderIds([folderId]).asyncMap((rows) async {
+      final folder = await db.folderDao.findById(folderId);
+      final role = folder?.role;
+      final dtos = <MailMessageDto>[];
+      for (final m in rows) {
+        final body = await db.messageBodyDao.find(m.id);
+        dtos.add(MailMapper.toMessageDto(
+          m,
+          hasBody: body?.isDownloaded == true,
+          folderRole: role,
+        ));
+      }
+      return dtos;
+    });
+  }
+
+  Future<void> syncFolder(int folderId) async {
+    final folder = await db.folderDao.findById(folderId);
+    if (folder == null) return;
+    await _accounts[folder.accountId]?.syncFolder(folderId);
+  }
+
+  Future<void> syncRole(String role, {String? accountId}) async {
+    final filter = accountId ?? context.currentAccountId;
+    if (filter != null) {
+      await _accounts[filter]?.syncRole(role);
+      return;
+    }
+    for (final engine in _accounts.values) {
+      try {
+        await engine.syncRole(role);
+      } catch (e) {
+        // ignore: avoid_print
+        print('syncRole($role) for ${engine.accountId} failed: $e');
+      }
+    }
+  }
+
   Stream<List<MailMessageDto>> watchInbox({String? accountId}) async* {
     final filter = accountId ?? context.currentAccountId;
     // Re-subscribe when folders change by polling folder ids periodically
@@ -252,6 +355,105 @@ class MailEngine {
     );
   }
 
+  Stream<List<MailMessageDto>> watchDrafts({String? accountId}) =>
+      _watchByFolderRole('draft', accountId: accountId);
+
+  Stream<List<MailMessageDto>> watchArchive({String? accountId}) =>
+      _watchByFolderRole('archive', accountId: accountId);
+
+  Stream<List<MailMessageDto>> watchTrash({String? accountId}) =>
+      _watchByFolderRole('trash', accountId: accountId);
+
+  Stream<List<MailMessageDto>> _watchByFolderRole(
+    String role, {
+    String? accountId,
+  }) {
+    final filter = accountId ?? context.currentAccountId;
+    return Stream.multi((controller) async {
+      Future<List<int>> folderIds() async {
+        if (filter == null) {
+          final folders = await db.folderDao.listByRole(role);
+          return folders.map((f) => f.id).toList();
+        }
+        final all = await db.folderDao.listForAccount(filter);
+        return all
+            .where(
+              (f) =>
+                  f.role == role ||
+                  ImapSyncService.mapRoleFromName(f.name) == role,
+            )
+            .map((f) => f.id)
+            .toList();
+      }
+
+      StreamSubscription<List<Message>>? byStateSub;
+      StreamSubscription<List<Message>>? byFolderSub;
+      StreamSubscription<List<Folder>>? foldersSub;
+      var stateRows = <Message>[];
+      var folderRows = <Message>[];
+
+      Future<void> emit() async {
+        final byId = <int, Message>{};
+        for (final m in stateRows) {
+          byId[m.id] = m;
+        }
+        for (final m in folderRows) {
+          byId[m.id] = m;
+        }
+        final merged = byId.values.toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
+        final dtos = <MailMessageDto>[];
+        for (final m in merged) {
+          final body = await db.messageBodyDao.find(m.id);
+          dtos.add(MailMapper.toMessageDto(
+            m,
+            hasBody: body?.isDownloaded == true,
+            folderRole: role,
+          ));
+        }
+        controller.add(dtos);
+      }
+
+      Future<void> resubscribeFolders() async {
+        await byFolderSub?.cancel();
+        final ids = await folderIds();
+        // ignore: avoid_print
+        print('watchRole=$role folderIds=$ids');
+        byFolderSub = db.messageDao.watchByFolderIds(ids).listen((rows) async {
+          folderRows = rows;
+          await emit();
+        });
+      }
+
+      byStateSub = db.messageDao.watchByState(role, accountId: filter).listen(
+        (rows) async {
+          stateRows = rows;
+          await emit();
+        },
+      );
+      // Re-bind when folder roles/paths change after sync probe.
+      if (filter != null) {
+        foldersSub = db.folderDao.watchSelectable(accountId: filter).listen(
+          (_) {
+            resubscribeFolders();
+          },
+        );
+      }
+      await resubscribeFolders();
+      final refresh =
+          Stream.periodic(const Duration(seconds: 5)).listen((_) {
+        resubscribeFolders();
+      });
+
+      controller.onCancel = () async {
+        await refresh.cancel();
+        await byStateSub?.cancel();
+        await byFolderSub?.cancel();
+        await foldersSub?.cancel();
+      };
+    });
+  }
+
   Stream<List<MailOutboxDto>> watchOutbox({String? accountId}) {
     final filter = accountId ?? context.currentAccountId;
     return db.outboxDao.watchAll(accountId: filter).asyncMap((rows) async {
@@ -295,11 +497,6 @@ class MailEngine {
     await _accounts[message.accountId]
         ?.downloadBodyIfNeeded(messageId)
         .timeout(const Duration(seconds: 45));
-  }
-
-  Future<List<MailAttachmentDto>> listAttachments(int messageId) async {
-    final rows = await db.attachmentDao.listForMessage(messageId);
-    return rows.map(MailMapper.toAttachmentDto).toList();
   }
 
   Future<MailAttachmentDto?> downloadAttachment(int attachmentId) async {
@@ -393,6 +590,149 @@ class MailEngine {
     return messageId;
   }
 
+  /// Save a compose draft locally (and APPEND to IMAP Drafts when available).
+  /// Recipients may be empty.
+  Future<int> saveDraft({
+    required String accountId,
+    List<String>? to,
+    List<String>? cc,
+    required String subject,
+    String? plainText,
+    String? htmlText,
+    List<String>? attachmentPaths,
+  }) async {
+    if (!_accounts.containsKey(accountId)) {
+      throw StateError('Account $accountId is not registered');
+    }
+    final account = (await db.accountDao.findById(accountId))!;
+    final draftFolder = await db.folderDao.findDraft(accountId);
+    final clientMessageId = _uuid.v4();
+    final rfcId = '<$clientMessageId@local>';
+    final toJoined = (to ?? const []).join(', ');
+    final ccJoined = cc?.join(', ');
+    final messageId = await db.messageDao.insertMessage(
+      MessagesCompanion.insert(
+        accountId: accountId,
+        folderId: Value(draftFolder?.id),
+        clientMessageId: Value(clientMessageId),
+        messageId: Value(rfcId),
+        fromAddr: Value(account.email),
+        toAddr: Value(toJoined),
+        ccAddr: Value(ccJoined),
+        subject: Value(subject),
+        date: DateTime.now(),
+        state: const Value('draft'),
+        isRead: const Value(true),
+        hasAttachment: Value(attachmentPaths?.isNotEmpty == true),
+      ),
+    );
+    await db.messageBodyDao.upsert(
+      MessageBodiesCompanion.insert(
+        messageId: Value(messageId),
+        plainText: Value(plainText),
+        htmlText: Value(htmlText),
+        isDownloaded: const Value(true),
+        downloadedAt: Value(DateTime.now()),
+      ),
+    );
+    if (attachmentPaths != null) {
+      for (final path in attachmentPaths) {
+        final file = File(path);
+        await db.attachmentDao.insert(
+          AttachmentsCompanion.insert(
+            messageId: messageId,
+            filename: file.uri.pathSegments.last,
+            localPath: Value(path),
+            isDownloaded: const Value(true),
+            size: Value(await file.exists() ? await file.length() : null),
+          ),
+        );
+      }
+    }
+    await indexer.indexMessage(
+      messageId: messageId,
+      accountId: accountId,
+      subject: subject,
+      body: plainText ?? htmlText,
+      toAddr: toJoined,
+    );
+
+    try {
+      final mime = _buildOutgoingMime(
+        account: account,
+        toAddr: toJoined,
+        ccAddr: ccJoined ?? '',
+        subject: subject,
+        plainText: plainText,
+        htmlText: htmlText,
+        clientMessageId: clientMessageId,
+        messageIdHeader: rfcId,
+      );
+      final uid = await _accounts[accountId]?.appendDraft(mime);
+      if (uid != null) {
+        await db.messageDao.updateMessage(
+          messageId,
+          MessagesCompanion(
+            uid: Value(uid),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+      }
+    } catch (e) {
+      // Local draft is kept even if IMAP APPEND fails.
+      // ignore: avoid_print
+      print('saveDraft IMAP APPEND failed: $e');
+    }
+    return messageId;
+  }
+
+  MimeMessage _buildOutgoingMime({
+    required Account account,
+    required String toAddr,
+    required String ccAddr,
+    required String subject,
+    String? plainText,
+    String? htmlText,
+    required String clientMessageId,
+    String? messageIdHeader,
+  }) {
+    final builder = MessageBuilder()
+      ..from = [
+        MailAddress(account.displayName ?? account.email, account.email),
+      ]
+      ..to = _parseAddresses(toAddr)
+      ..cc = _parseAddresses(ccAddr)
+      ..subject = subject;
+
+    builder.addHeader('X-Client-Message-Id', clientMessageId);
+    if (messageIdHeader != null) {
+      builder.addHeader('Message-ID', messageIdHeader);
+    }
+
+    final html = htmlText;
+    final plain = plainText ??
+        (html != null ? HtmlToPlainTextConverter.convert(html) : '');
+    if (html != null && html.isNotEmpty) {
+      builder.addMultipartAlternative(
+        plainText: plain,
+        htmlText: html,
+      );
+    } else {
+      builder.text = plain;
+    }
+    return builder.buildMimeMessage();
+  }
+
+  List<MailAddress> _parseAddresses(String raw) {
+    if (raw.trim().isEmpty) return [];
+    return raw
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .map((e) => MailAddress(null, e))
+        .toList();
+  }
+
   Future<void> retryOutbox(int outboxId) async {
     final row = await db.outboxDao.findById(outboxId);
     if (row == null) return;
@@ -405,6 +745,56 @@ class MailEngine {
       ),
     );
     await _accounts[row.accountId]?.outboxWorker?.kick();
+  }
+
+  /// Prefer IMAP delete first; only then soft-delete locally / FTS.
+  Future<void> deleteMessage(int messageId) async {
+    final message = await db.messageDao.findById(messageId);
+    if (message == null) return;
+    final engine = _accounts[message.accountId];
+    if (engine != null) {
+      await engine.deleteMessage(messageId);
+    } else if (message.uid == null) {
+      await db.messageDao.markDeleted(messageId);
+      await db.outboxDao.deleteByMessageId(messageId);
+    } else {
+      throw StateError('Account ${message.accountId} is not running');
+    }
+    try {
+      await indexer.remove(messageId);
+    } catch (_) {}
+  }
+
+  /// Move message to Archive on IMAP and locally.
+  Future<void> moveToArchive(int messageId) =>
+      moveToRole(messageId, 'archive');
+
+  /// Move message to Inbox on IMAP and locally (e.g. unarchive).
+  Future<void> moveToInbox(int messageId) =>
+      moveToRole(messageId, 'inbox');
+
+  Future<void> moveToRole(int messageId, String role) async {
+    final message = await db.messageDao.findById(messageId);
+    if (message == null) return;
+    final engine = _accounts[message.accountId];
+    if (engine != null) {
+      await engine.moveMessageToRole(messageId, role);
+    } else if (message.uid == null) {
+      final folder = await db.folderDao.findByRole(message.accountId, role);
+      if (folder == null) {
+        throw StateError('No $role folder for account ${message.accountId}');
+      }
+      await db.messageDao.updateMessage(
+        messageId,
+        MessagesCompanion(
+          folderId: Value(folder.id),
+          state: Value(role),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+    } else {
+      throw StateError('Account ${message.accountId} is not running');
+    }
   }
 
   Future<void> _register(Account account, {required bool start}) async {

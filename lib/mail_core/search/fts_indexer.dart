@@ -23,20 +23,6 @@ class FtsIndexer {
     );
   }
 
-  Future<void> indexFromRows({
-    required Message message,
-    MessageBody? body,
-  }) {
-    return indexMessage(
-      messageId: message.id,
-      accountId: message.accountId,
-      subject: message.subject,
-      body: body?.plainText ?? body?.htmlText,
-      fromAddr: message.fromAddr,
-      toAddr: message.toAddr,
-    );
-  }
-
   Future<void> remove(int messageId) =>
       _db.mailSearchDao.deleteFts(messageId);
 }

@@ -1,7 +1,9 @@
 (ns mail-app.desktop
   (:require ["package:flutter/material.dart" :as m]
+            ["package:flutter_styled_toast/flutter_styled_toast.dart" :as st]
             [cljd.flutter :as f]
             [mail-app.desktop.lifecycle :as life]
+            [mail-app.desktop.toast :as toast]
             [mail-app.desktop.screens.home :as home]
             [mail-app.desktop.screens.compose :as compose]
             [mail-app.desktop.screens.mail-list :as mail-list]
@@ -12,6 +14,8 @@
 (defn app []
   (life/wrap
    (f/widget
+    ;; StyledToast must wrap *inside* MaterialApp.builder so toast Overlay
+    ;; sits under MaterialApp (theme + navigator), not outside it.
     (m/MaterialApp
      .title "MGL Mail"
      .debugShowCheckedModeBanner false
@@ -19,6 +23,15 @@
              .primarySwatch m.Colors/blue
              .fontFamily "MongolianBaiZheng"
              .scaffoldBackgroundColor m.Colors/white)
+     .builder
+     (fn [_ctx child]
+       (st/StyledToast
+        .child
+        (f/widget
+         :context host-ctx
+         (do
+           (toast/remember-root-ctx! host-ctx)
+           (or child (m/SizedBox.shrink))))))
      .initialRoute "/"
      .routes {"/" (fn ^m/Widget [_] (home/screen))
               "/signup" (fn ^m/Widget [_] (signup/screen))

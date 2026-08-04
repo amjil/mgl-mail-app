@@ -7,14 +7,35 @@
 
 (defonce !bridge (atom nil))
 (defonce !mailbox-sub (atom nil))
-
-(defn bridge []
-  @!bridge)
+(defonce !folder-sub (atom nil))
 
 (defn- cancel-mailbox-sub! []
   (when-let [^async/StreamSubscription s @!mailbox-sub]
     (.cancel s)
     (reset! !mailbox-sub nil)))
+
+(defn- cancel-folder-sub! []
+  (when-let [^async/StreamSubscription s @!folder-sub]
+    (.cancel s)
+    (reset! !folder-sub nil)))
+
+(defn- start-folder-watch!
+  "Keep :folder-list in sync with local DB (filled by IMAP LIST)."
+  []
+  (cancel-folder-sub!)
+  (when-let [b @!bridge]
+    (let [aid (:current-account-id @store/app-state)
+          apply! (fn [folders]
+                   (store/set-folder-list! (vec (or folders []))))]
+      ;; Eager load so UI is not stuck on empty until the next DB write.
+      (-> (.listFolders ^mc/MailBridge b .accountId aid)
+          (.then apply!)
+          (.catchError (fn [e]
+                         (dart:core/print (str "listFolders failed: " e))
+                         nil)))
+      (reset! !folder-sub
+              (.listen (.watchFolders ^mc/MailBridge b .accountId aid)
+                       apply!)))))
 
 (defn refresh-accounts!
   []
@@ -49,11 +70,13 @@
     (await (.initialize b))
     (reset! !bridge b)
     (await (refresh-accounts!))
+    (start-folder-watch!)
     b))
 
 (defn dispose!
   []
   (cancel-mailbox-sub!)
+  (cancel-folder-sub!)
   (when-let [b @!bridge]
     (await (.dispose b))
     (reset! !bridge nil)))
@@ -72,14 +95,17 @@
       (cancel-mailbox-sub!)
       (store/set-mail-list! [])
       (store/set-outbox-list! [])
+      (store/set-folder-list! [])
       (store/clear-message-detail!))
-    (await (refresh-accounts!))))
+    (await (refresh-accounts!))
+    (start-folder-watch!)))
 
 (defn- after-account-added!
   [^mc/MailBridge b account]
   (store/set-current-account! (.-id account))
   (.setCurrentAccount b (.-id account))
   (await (refresh-accounts!))
+  (start-folder-watch!)
   (-> (.syncAccount b (.-id account))
       (.catchError (fn [e]
                      (dart:core/print (str "sync after addAccount failed: " e))
@@ -120,50 +146,102 @@
   (when-let [b @!bridge]
     (store/set-syncing! true)
     (-> (.syncAll b)
-        (.then (fn [_] (store/set-syncing! false) true))
+        (.then (fn [_]
+                 (start-folder-watch!)
+                 (store/set-syncing! false)
+                 true))
         (.catchError (fn [e]
                        (store/set-syncing! false)
                        (store/set-error! (str e))
                        false)))))
 
+(defn- resolve-folder-id
+  "Map legacy :inbox/:sent keywords to a folder id from :folder-list."
+  [sel]
+  (cond
+    (nil? sel) nil
+    (keyword? sel)
+    (let [role (name sel)]
+      (some (fn [^mc/MailFolderDto f]
+              (when (= (.-role f) role) (.-id f)))
+            (:folder-list @store/app-state)))
+    :else sel))
+
+(defn- listen-messages! [^mc/MailBridge b stream]
+  (reset! !mailbox-sub
+          (.listen stream
+                   (fn [msgs]
+                     (store/set-mail-list! (vec (or msgs [])))))))
+
+(defn- sync-role-bg!
+  "Best-effort background sync; never blocks the mailbox watch subscription."
+  [^mc/MailBridge b role aid]
+  (-> (.syncRole b role .accountId aid)
+      (.catchError (fn [e]
+                     (dart:core/print (str "syncRole " role " failed: " e))
+                     nil)))
+  nil)
+
 (defn select-mailbox!
-  "Subscribe to Inbox / Sent / Outbox stream for the current account."
-  [role]
+  "Subscribe to a mailbox. `sel` is `:outbox`, `:inbox`, `:sent`, or a folder id."
+  [sel]
   (cancel-mailbox-sub!)
-  (store/set-selected-mailbox! role)
+  (store/set-selected-mailbox! sel)
   (store/set-mail-list! [])
   (store/set-outbox-list! [])
   (store/clear-message-detail!)
   (when-let [b @!bridge]
     (let [aid (:current-account-id @store/app-state)]
-      (case role
-        :inbox
-        (reset! !mailbox-sub
-                (.listen (.watchInbox ^mc/MailBridge b .accountId aid)
-                         (fn [msgs]
-                           (store/set-mail-list! (vec (or msgs []))))))
-
-        :sent
-        (reset! !mailbox-sub
-                (.listen (.watchSent ^mc/MailBridge b .accountId aid)
-                         (fn [msgs]
-                           (store/set-mail-list! (vec (or msgs []))))))
-
-        :outbox
+      (cond
+        (= sel :outbox)
         (reset! !mailbox-sub
                 (.listen (.watchOutbox ^mc/MailBridge b .accountId aid)
                          (fn [rows]
                            (store/set-outbox-list! (vec (or rows []))))))
 
-        nil))))
+        (= sel :inbox)
+        (listen-messages! b (.watchInbox ^mc/MailBridge b .accountId aid))
+
+        (= sel :sent)
+        (listen-messages! b (.watchSent ^mc/MailBridge b .accountId aid))
+
+        (= sel :draft)
+        (do
+          ;; Show local drafts immediately; IMAP sync must not gate the watch
+          ;; (a hung sync left the list empty forever after save-draft).
+          (listen-messages! b (.watchDrafts ^mc/MailBridge b .accountId aid))
+          (sync-role-bg! b "draft" aid))
+
+        (= sel :archive)
+        (do
+          (listen-messages! b (.watchArchive ^mc/MailBridge b .accountId aid))
+          (sync-role-bg! b "archive" aid))
+
+        (= sel :trash)
+        (do
+          (listen-messages! b (.watchTrash ^mc/MailBridge b .accountId aid))
+          (sync-role-bg! b "trash" aid))
+
+        :else
+        (when-let [fid (resolve-folder-id sel)]
+          (store/set-selected-mailbox! fid)
+          (-> (.syncFolder ^mc/MailBridge b fid)
+              (.catchError (fn [e]
+                             (dart:core/print (str "syncFolder failed: " e))
+                             nil)))
+          (listen-messages! b (.watchFolder ^mc/MailBridge b fid)))))))
 
 (defn set-current-account!
   [account-id]
   (when-let [b @!bridge]
     (store/set-current-account! account-id)
     (.setCurrentAccount b account-id)
-    (when-let [role (:selected-mailbox @store/app-state)]
-      (select-mailbox! role))
+    (start-folder-watch!)
+    (store/set-selected-mailbox! nil)
+    (cancel-mailbox-sub!)
+    (store/set-mail-list! [])
+    (store/set-outbox-list! [])
+    (store/clear-message-detail!)
     nil))
 
 (defn open-message!
@@ -195,10 +273,60 @@
                        (store/set-error! (str e))
                        nil)))))
 
-(defn list-attachments!
+(defn delete-message!
+  "Soft-delete locally and move to Trash / expunge on IMAP."
   [message-id]
   (when-let [b @!bridge]
-    (await (.listAttachments ^mc/MailBridge b message-id))))
+    (store/clear-error!)
+    (-> (.deleteMessage ^mc/MailBridge b message-id)
+        (.then (fn [_]
+                 (store/clear-message-detail!)
+                 (store/set-mail-list!
+                  (filterv (fn [^mc/MailMessageDto m]
+                             (not= (.-id m) message-id))
+                           (:mail-list @store/app-state)))
+                 (store/set-outbox-list!
+                  (filterv (fn [^mc/MailOutboxDto r]
+                             (not= (.-messageId r) message-id))
+                           (:outbox-list @store/app-state)))
+                 true))
+        (.catchError (fn [e]
+                       (store/set-error! (str e))
+                       false)))))
+
+(defn archive-message!
+  "Move message to Archive on IMAP and locally; remove from current list."
+  [message-id]
+  (when-let [b @!bridge]
+    (store/clear-error!)
+    (-> (.moveToArchive ^mc/MailBridge b message-id)
+        (.then (fn [_]
+                 (store/clear-message-detail!)
+                 (store/set-mail-list!
+                  (filterv (fn [^mc/MailMessageDto m]
+                             (not= (.-id m) message-id))
+                           (:mail-list @store/app-state)))
+                 true))
+        (.catchError (fn [e]
+                       (store/set-error! (str e))
+                       false)))))
+
+(defn move-to-inbox!
+  "Move message to Inbox on IMAP and locally; remove from current list."
+  [message-id]
+  (when-let [b @!bridge]
+    (store/clear-error!)
+    (-> (.moveToInbox ^mc/MailBridge b message-id)
+        (.then (fn [_]
+                 (store/clear-message-detail!)
+                 (store/set-mail-list!
+                  (filterv (fn [^mc/MailMessageDto m]
+                             (not= (.-id m) message-id))
+                           (:mail-list @store/app-state)))
+                 true))
+        (.catchError (fn [e]
+                       (store/set-error! (str e))
+                       false)))))
 
 (defn download-attachment!
   [attachment-id]
@@ -291,6 +419,50 @@
                        .plainText plain-text
                        .htmlText html-text
                        .attachmentPaths paths)
+            (.then (fn [id]
+                     (store/set-sending! false)
+                     id))
+            (.catchError (fn [e]
+                           (store/set-sending! false)
+                           (store/set-error! (str e))
+                           (throw e))))))))
+
+(defn save-draft!
+  "Save compose content to Drafts (local + IMAP APPEND). To may be empty."
+  [{:keys [to cc subject plain-text html-text account-id attachment-paths]}]
+  (let [b @!bridge
+        aid (or account-id (:current-account-id @store/app-state))
+        to-list (if (string? to) (split-addrs to) (vec (or to [])))
+        cc-list (cond
+                  (nil? cc) nil
+                  (string? cc) (let [xs (split-addrs cc)]
+                                 (when (seq xs) xs))
+                  (seq cc) (vec cc)
+                  :else nil)
+        paths (when (seq attachment-paths) (vec attachment-paths))]
+    (cond
+      (nil? b)
+      (do
+        (store/set-error! "MailBridge not initialized")
+        (throw (Exception. "MailBridge not initialized")))
+
+      (nil? aid)
+      (do
+        (store/set-error! "No account configured")
+        (throw (Exception. "No account configured")))
+
+      :else
+      (do
+        (store/set-sending! true)
+        (store/set-error! nil)
+        (-> (.saveDraft ^mc/MailBridge b
+                        .accountId aid
+                        .to (when (seq to-list) to-list)
+                        .cc cc-list
+                        .subject (or subject "")
+                        .plainText plain-text
+                        .htmlText html-text
+                        .attachmentPaths paths)
             (.then (fn [id]
                      (store/set-sending! false)
                      id))

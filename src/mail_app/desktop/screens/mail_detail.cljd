@@ -3,10 +3,10 @@
             ["package:mongol/mongol.dart" :as mgl]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             ["package:url_launcher/url_launcher.dart" :as ul]
-            ["package:flutter_styled_toast/flutter_styled_toast.dart" :as toast]
             [cljd.flutter :as f]
             [clojure.string :as str]
             [block-editor.widgets.reader :as reader]
+            [mail-app.desktop.toast :as toast]
             [mail-app.desktop.widgets.topbar :as topbar]
             [mail-app.desktop.widgets.compose-quote :as quote]
             [mail-app.services.compose-export :as export]
@@ -72,9 +72,6 @@
          .flex 1
          .child (quote/panel !quote-state))]))))
 
-(defn- toast! [ctx msg]
-  (toast/showToast msg .context ctx .duration (dart:core/Duration. .seconds 2)))
-
 (defn- strip-tags [html]
   (-> (or html "")
       (str/replace #"<br\s*/?>" "\n")
@@ -139,11 +136,91 @@
     (.pushNamed navigator "/compose")
     nil))
 
+(defn- confirm-delete! [ctx navigator ^mc/MailMessageWithBody detail]
+  (let [^mc/MailMessageDto msg (.-message detail)
+        mid (.-id msg)
+        tctx (toast/safe-ctx ctx)]
+    (-> (m/showDialog
+         .context ctx
+         .builder
+         (fn [dialog-ctx]
+           (m/AlertDialog
+            .title (m/Text "Delete message?")
+            .content (m/Text "Move this message to Trash.")
+            .actions
+            [(m/TextButton
+              .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) false) nil)
+              .child (m/Text "Cancel"))
+             (m/TextButton
+              .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) true) nil)
+              .child (m/Text "Delete"
+                             .style (m/TextStyle .color m.Colors/red)))])))
+        (.then (fn [ok?]
+                 (when ok?
+                   (-> (mail/delete-message! mid)
+                       (.then (fn [ok]
+                                (if ok
+                                  (do
+                                    (toast/success! tctx "Deleted")
+                                    (when (.canPop navigator) (.pop navigator))
+                                    nil)
+                                  (toast/error! tctx
+                                                (or (:last-error @store/app-state)
+                                                    "Delete failed")))))
+                       (.catchError (fn [e]
+                                      (toast/error! tctx (str e))
+                                      nil))))
+                 nil))
+        (.catchError (fn [_] nil)))
+    nil))
+
+(defn- archive-pressed! [ctx navigator ^mc/MailMessageWithBody detail]
+  (let [^mc/MailMessageDto msg (.-message detail)
+        mid (.-id msg)
+        already? (or (= (.-state msg) "archive")
+                     (= (.-folderRole msg) "archive"))
+        tctx (toast/safe-ctx ctx)]
+    (if already?
+      (toast/info! tctx "Already archived")
+      (-> (mail/archive-message! mid)
+          (.then (fn [ok]
+                   (if ok
+                     (do
+                       (toast/success! tctx "Archived")
+                       (when (.canPop navigator) (.pop navigator))
+                       nil)
+                     (toast/error! tctx
+                                   (or (:last-error @store/app-state)
+                                       "Archive failed")))))
+          (.catchError (fn [e]
+                         (toast/error! tctx (str e))
+                         nil))))
+    nil))
+
+(defn- move-to-inbox-pressed! [ctx navigator ^mc/MailMessageWithBody detail]
+  (let [^mc/MailMessageDto msg (.-message detail)
+        mid (.-id msg)
+        tctx (toast/safe-ctx ctx)]
+    (-> (mail/move-to-inbox! mid)
+        (.then (fn [ok]
+                 (if ok
+                   (do
+                     (toast/success! tctx "Moved to Inbox")
+                     (when (.canPop navigator) (.pop navigator))
+                     nil)
+                   (toast/error! tctx
+                                 (or (:last-error @store/app-state)
+                                     "Move to Inbox failed")))))
+        (.catchError (fn [e]
+                       (toast/error! tctx (str e))
+                       nil)))
+    nil))
+
 (defn- open-local-path! [ctx path]
   (when (seq path)
     (-> (ul/launchUrl (dart:core/Uri.file path))
         (.catchError (fn [e]
-                       (toast! ctx (str "Cannot open: " e))
+                       (toast/error! ctx (str "Cannot open: " e))
                        nil)))))
 
 (defn- attachment-row
@@ -178,12 +255,12 @@
         (fn []
           (-> (mail/download-attachment! (.-id att))
               (.then (fn [dto]
-                       (toast! ctx "Downloaded")
+                       (toast/success! ctx "Downloaded")
                        (when (and dto (.-localPath dto))
                          (open-local-path! ctx (.-localPath dto)))
                        nil))
               (.catchError (fn [e]
-                             (toast! ctx (str e))
+                             (toast/error! ctx (str e))
                              nil)))
           nil))))))
 
@@ -225,11 +302,23 @@
      (m/Column
       .crossAxisAlignment m.CrossAxisAlignment/start
       .children
-      [(topbar/mail-detail
-        :on-reply (when message-detail
-                    #(start-reply! navigator message-detail))
-        :on-forward (when message-detail
-                      #(start-forward! navigator message-detail)))
+      [(let [archived? (when message-detail
+                         (let [^mc/MailMessageDto msg
+                               (.-message ^mc/MailMessageWithBody message-detail)]
+                           (or (= (.-state msg) "archive")
+                               (= (.-folderRole msg) "archive"))))]
+         (topbar/mail-detail
+          :archived? archived?
+          :on-reply (when message-detail
+                      #(start-reply! navigator message-detail))
+          :on-forward (when message-detail
+                        #(start-forward! navigator message-detail))
+          :on-archive (when (and message-detail (not archived?))
+                        #(archive-pressed! ctx navigator message-detail))
+          :on-unarchive (when (and message-detail archived?)
+                          #(move-to-inbox-pressed! ctx navigator message-detail))
+          :on-delete (when message-detail
+                       #(confirm-delete! ctx navigator message-detail))))
        (m/Divider .thickness 1.0 .height 1.0)
        (m/Expanded
         .child

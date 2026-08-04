@@ -14,6 +14,3 @@
   "macOS / Windows / Linux (and web treated as desktop chrome)."
   []
   (or kIsWeb (not (mobile?))))
-
-(defn web? []
-  kIsWeb)

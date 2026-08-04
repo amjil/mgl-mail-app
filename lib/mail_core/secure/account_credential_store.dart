@@ -132,15 +132,8 @@ class AccountCredentialStore {
   Future<void> savePassword(String accountId, String password) =>
       _write(_passwordKey(accountId), password);
 
-  /// Backward-compatible alias used by existing password accounts.
-  Future<void> save(String accountId, String password) =>
-      savePassword(accountId, password);
-
   Future<String?> readPassword(String accountId) =>
       _read(_passwordKey(accountId));
-
-  /// Backward-compatible alias.
-  Future<String?> read(String accountId) => readPassword(accountId);
 
   Future<void> saveOAuth(String accountId, OAuthTokenData token) =>
       _write(_oauthKey(accountId), token.encode());

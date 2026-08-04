@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -74,12 +73,17 @@ CREATE VIRTUAL TABLE IF NOT EXISTS fts_messages USING fts5(
       );
 
   static QueryExecutor _openConnection() {
-    return driftDatabase(name: 'mail_core');
-  }
-
-  /// Open an in-memory DB (tests / smoke).
-  factory AppDatabase.memory() {
-    return AppDatabase(NativeDatabase.memory());
+    return driftDatabase(
+      name: 'mail_core',
+      native: DriftNativeOptions(
+        databasePath: () async {
+          final docs = await getApplicationDocumentsDirectory();
+          final path = p.join(docs.path, 'mail_core.sqlite');
+          print('SQLite database: $path');
+          return path;
+        },
+      ),
+    );
   }
 
   /// Attachment storage root under app documents.

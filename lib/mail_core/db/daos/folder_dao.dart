@@ -27,10 +27,10 @@ class FolderDao extends DatabaseAccessor<AppDatabase> with _$FolderDaoMixin {
         .getSingleOrNull();
   }
 
-  Future<Folder?> findInbox(String accountId) =>
-      findByRole(accountId, 'inbox');
-
   Future<Folder?> findSent(String accountId) => findByRole(accountId, 'sent');
+
+  Future<Folder?> findDraft(String accountId) =>
+      findByRole(accountId, 'draft');
 
   Future<Folder?> findById(int id) =>
       (select(folders)..where((f) => f.id.equals(id))).getSingleOrNull();
@@ -40,12 +40,64 @@ class FolderDao extends DatabaseAccessor<AppDatabase> with _$FolderDaoMixin {
         .get();
   }
 
+  Future<List<Folder>> listSelectable({String? accountId}) {
+    final q = select(folders)
+      ..orderBy([(f) => OrderingTerm.asc(f.path)]);
+    if (accountId != null) {
+      q.where(
+        (f) => f.selectable.equals(true) & f.accountId.equals(accountId),
+      );
+    } else {
+      q.where((f) => f.selectable.equals(true));
+    }
+    return q.get();
+  }
+
+  Stream<List<Folder>> watchSelectable({String? accountId}) {
+    final q = select(folders)
+      ..orderBy([(f) => OrderingTerm.asc(f.path)]);
+    if (accountId != null) {
+      q.where(
+        (f) => f.selectable.equals(true) & f.accountId.equals(accountId),
+      );
+    } else {
+      q.where((f) => f.selectable.equals(true));
+    }
+    return q.watch();
+  }
+
   Future<List<Folder>> listByRole(String role, {String? accountId}) {
     final q = select(folders)..where((f) => f.role.equals(role));
     if (accountId != null) {
       q.where((f) => f.accountId.equals(accountId));
     }
     return q.get();
+  }
+
+  Future<void> markSelectable(int id, bool selectable) =>
+      (update(folders)..where((f) => f.id.equals(id))).write(
+        FoldersCompanion(selectable: Value(selectable)),
+      );
+
+  Future<void> updatePath(int id, String path) =>
+      (update(folders)..where((f) => f.id.equals(id))).write(
+        FoldersCompanion(path: Value(path)),
+      );
+
+  Future<void> deleteById(int id) =>
+      (delete(folders)..where((f) => f.id.equals(id))).go();
+
+  Future<Folder?> findByName(String accountId, String name) {
+    return (select(folders)
+          ..where((f) => f.accountId.equals(accountId) & f.name.equals(name))
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  Future<List<Folder>> listByName(String accountId, String name) {
+    return (select(folders)
+          ..where((f) => f.accountId.equals(accountId) & f.name.equals(name)))
+        .get();
   }
 
   Future<int> upsertFolder(FoldersCompanion row) async {
@@ -60,6 +112,41 @@ class FolderDao extends DatabaseAccessor<AppDatabase> with _$FolderDaoMixin {
         ),
       );
       return existing.id;
+    }
+    // Same display name, different path (e.g. UTF-8 → modified UTF-7 migration).
+    final byName = await findByName(row.accountId.value, row.name.value);
+    if (byName != null) {
+      // Path may already belong to another row — keep that row, drop the name twin.
+      final clash = await findByPath(row.accountId.value, row.path.value);
+      if (clash != null) {
+        await (update(folders)..where((f) => f.id.equals(clash.id))).write(
+          FoldersCompanion(
+            name: row.name,
+            role: row.role,
+            selectable: row.selectable,
+            unreadCount: row.unreadCount,
+          ),
+        );
+        if (clash.id != byName.id) {
+          await markSelectable(byName.id, false);
+        }
+        return clash.id;
+      }
+      try {
+        await (update(folders)..where((f) => f.id.equals(byName.id))).write(
+          FoldersCompanion(
+            path: row.path,
+            role: row.role,
+            selectable: row.selectable,
+            unreadCount: row.unreadCount,
+          ),
+        );
+        return byName.id;
+      } catch (_) {
+        // UNIQUE path race: fall through to insert / re-find.
+        final again = await findByPath(row.accountId.value, row.path.value);
+        if (again != null) return again.id;
+      }
     }
     return into(folders).insert(row);
   }

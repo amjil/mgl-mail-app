@@ -70,11 +70,34 @@ class MailBridge {
   Future<void> syncAccount(String accountId) =>
       _engine.syncAccount(accountId);
 
+  Future<List<MailFolderDto>> listFolders({String? accountId}) =>
+      _engine.listFolders(accountId: accountId);
+
+  Stream<List<MailFolderDto>> watchFolders({String? accountId}) =>
+      _engine.watchFolders(accountId: accountId);
+
+  Stream<List<MailMessageDto>> watchFolder(int folderId) =>
+      _engine.watchFolder(folderId);
+
+  Future<void> syncFolder(int folderId) => _engine.syncFolder(folderId);
+
+  Future<void> syncRole(String role, {String? accountId}) =>
+      _engine.syncRole(role, accountId: accountId);
+
   Stream<List<MailMessageDto>> watchInbox({String? accountId}) =>
       _engine.watchInbox(accountId: accountId);
 
   Stream<List<MailMessageDto>> watchSent({String? accountId}) =>
       _engine.watchSent(accountId: accountId);
+
+  Stream<List<MailMessageDto>> watchDrafts({String? accountId}) =>
+      _engine.watchDrafts(accountId: accountId);
+
+  Stream<List<MailMessageDto>> watchArchive({String? accountId}) =>
+      _engine.watchArchive(accountId: accountId);
+
+  Stream<List<MailMessageDto>> watchTrash({String? accountId}) =>
+      _engine.watchTrash(accountId: accountId);
 
   Stream<List<MailOutboxDto>> watchOutbox({String? accountId}) =>
       _engine.watchOutbox(accountId: accountId);
@@ -84,9 +107,6 @@ class MailBridge {
 
   Future<void> ensureBodyDownloaded(int messageId) =>
       _engine.ensureBodyDownloaded(messageId);
-
-  Future<List<MailAttachmentDto>> listAttachments(int messageId) =>
-      _engine.listAttachments(messageId);
 
   Future<MailAttachmentDto?> downloadAttachment(int attachmentId) =>
       _engine.downloadAttachment(attachmentId);
@@ -117,7 +137,36 @@ class MailBridge {
     );
   }
 
+  Future<int> saveDraft({
+    required String accountId,
+    List<String>? to,
+    List<String>? cc,
+    required String subject,
+    String? plainText,
+    String? htmlText,
+    List<String>? attachmentPaths,
+  }) {
+    return _engine.saveDraft(
+      accountId: accountId,
+      to: to,
+      cc: cc,
+      subject: subject,
+      plainText: plainText,
+      htmlText: htmlText,
+      attachmentPaths: attachmentPaths,
+    );
+  }
+
   Future<void> retryOutbox(int outboxId) => _engine.retryOutbox(outboxId);
+
+  Future<void> deleteMessage(int messageId) =>
+      _engine.deleteMessage(messageId);
+
+  Future<void> moveToArchive(int messageId) =>
+      _engine.moveToArchive(messageId);
+
+  Future<void> moveToInbox(int messageId) =>
+      _engine.moveToInbox(messageId);
 
   Future<void> onAppBackground(bool background) =>
       _engine.onAppBackground(background);

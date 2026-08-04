@@ -1,9 +1,9 @@
 (ns mail-app.desktop.screens.signup
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
-            ["package:flutter_styled_toast/flutter_styled_toast.dart" :as toast]
             [cljd.flutter :as f]
             [clojure.string :as str]
+            [mail-app.desktop.toast :as toast]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]))
 
@@ -41,18 +41,14 @@
                      (when (seq h) h))})
       (.then (fn [_]
                (reset! !busy false)
-               (toast/showToast "Account added"
-                                .context ctx
-                                .duration (dart:core/Duration. .seconds 2))
+               (toast/success! ctx "Account added")
                (when (.canPop navigator)
                  (.pop navigator))
                nil))
       (.catchError (fn [e]
                      (reset! !busy false)
                      (dart:core/print (str "add account failed: " e))
-                     (toast/showToast (str e)
-                                      .context ctx
-                                      .duration (dart:core/Duration. .seconds 3))
+                     (toast/error! ctx (str e))
                      nil)))
   nil)
 
@@ -62,18 +58,14 @@
   (-> (mail/add-outlook-account!)
       (.then (fn [_]
                (reset! !busy false)
-               (toast/showToast "Outlook account added"
-                                .context ctx
-                                .duration (dart:core/Duration. .seconds 2))
+               (toast/success! ctx "Outlook account added")
                (when (.canPop navigator)
                  (.pop navigator))
                nil))
       (.catchError (fn [e]
                      (reset! !busy false)
                      (dart:core/print (str "add outlook account failed: " e))
-                     (toast/showToast (str e)
-                                      .context ctx
-                                      .duration (dart:core/Duration. .seconds 4))
+                     (toast/error! ctx (str e))
                      nil)))
   nil)
 

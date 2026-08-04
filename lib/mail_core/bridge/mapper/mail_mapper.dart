@@ -36,6 +36,8 @@ class MailMapper {
       name: f.name,
       path: f.path,
       role: f.role,
+      selectable: f.selectable,
+      unreadCount: f.unreadCount,
     );
   }
 

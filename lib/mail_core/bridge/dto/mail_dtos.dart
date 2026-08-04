@@ -44,13 +44,19 @@ class MailFolderDto {
     required this.name,
     required this.path,
     required this.role,
+    this.selectable = true,
+    this.unreadCount = 0,
   });
 
   final int id;
   final String accountId;
   final String name;
   final String path;
+
+  /// inbox / sent / trash / draft / custom
   final String role;
+  final bool selectable;
+  final int unreadCount;
 }
 
 class MailAttachmentDto {

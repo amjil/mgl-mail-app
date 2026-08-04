@@ -11,8 +11,6 @@ class AccountDao extends DatabaseAccessor<AppDatabase> with _$AccountDaoMixin {
 
   Future<List<Account>> listAccounts() => select(accounts).get();
 
-  Stream<List<Account>> watchAccounts() => select(accounts).watch();
-
   Future<Account?> findById(String id) =>
       (select(accounts)..where((a) => a.id.equals(id))).getSingleOrNull();
 

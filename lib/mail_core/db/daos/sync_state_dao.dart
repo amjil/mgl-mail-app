@@ -17,6 +17,12 @@ class SyncStateDao extends DatabaseAccessor<AppDatabase>
         .getSingleOrNull();
   }
 
+  Future<void> deleteForFolder(String accountId, int folderId) =>
+      (delete(syncStates)
+            ..where((s) =>
+                s.accountId.equals(accountId) & s.folderId.equals(folderId)))
+          .go();
+
   Future<void> upsert(SyncStatesCompanion row) =>
       into(syncStates).insertOnConflictUpdate(row);
 }

@@ -84,7 +84,7 @@
          .icon (m/Icon m.Icons/edit))])]))))
 
 (defn mail-detail
-  [& {:keys [on-reply on-forward]}]
+  [& {:keys [on-reply on-forward on-archive on-unarchive on-delete archived?]}]
   (f/widget
    :get [m/Navigator]
    (m/SafeArea
@@ -115,4 +115,23 @@
          .constraints (m/BoxConstraints.)
          .tooltip "Forward"
          .onPressed on-forward
-         .icon (m/Icon m.Icons/forward))])]))))
+         .icon (m/Icon m.Icons/forward))
+        (if archived?
+          (m/IconButton
+           .padding (m.EdgeInsets/all 10.0)
+           .constraints (m/BoxConstraints.)
+           .tooltip "Move to Inbox"
+           .onPressed on-unarchive
+           .icon (m/Icon m.Icons/unarchive_outlined))
+          (m/IconButton
+           .padding (m.EdgeInsets/all 10.0)
+           .constraints (m/BoxConstraints.)
+           .tooltip "Archive"
+           .onPressed on-archive
+           .icon (m/Icon m.Icons/archive_outlined)))
+        (m/IconButton
+         .padding (m.EdgeInsets/all 10.0)
+         .constraints (m/BoxConstraints.)
+         .tooltip "Delete"
+         .onPressed on-delete
+         .icon (m/Icon m.Icons/delete_outline))])]))))

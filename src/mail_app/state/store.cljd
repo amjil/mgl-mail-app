@@ -6,7 +6,9 @@
          :sending? false
          :syncing? false
          :last-error nil
-         ;; :inbox | :sent | :outbox
+         ;; IMAP folders for current account filter
+         :folder-list []
+         ;; :outbox | folder-id (int) | nil
          :selected-mailbox nil
          :mail-list []
          :outbox-list []
@@ -36,8 +38,11 @@
 (defn set-error! [msg]
   (swap! app-state assoc :last-error msg))
 
-(defn set-selected-mailbox! [role]
-  (swap! app-state assoc :selected-mailbox role))
+(defn set-folder-list! [folders]
+  (swap! app-state assoc :folder-list (or folders [])))
+
+(defn set-selected-mailbox! [sel]
+  (swap! app-state assoc :selected-mailbox sel))
 
 (defn set-mail-list! [msgs]
   (swap! app-state assoc :mail-list (or msgs [])))

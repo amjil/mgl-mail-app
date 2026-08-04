@@ -69,12 +69,6 @@ class MessageDao extends DatabaseAccessor<AppDatabase> with _$MessageDaoMixin {
         ),
       );
 
-  Future<void> markDeletedByUid(
-      String accountId, int folderId, String uid) async {
-    final msg = await findByUid(accountId, folderId, uid);
-    if (msg != null) await markDeleted(msg.id);
-  }
-
   Stream<List<Message>> watchByFolderIds(List<int> folderIds) {
     if (folderIds.isEmpty) {
       return Stream.value(const []);
@@ -87,6 +81,39 @@ class MessageDao extends DatabaseAccessor<AppDatabase> with _$MessageDaoMixin {
               m.state.isNotValue('failed'))
           ..orderBy([(m) => OrderingTerm.desc(m.date)]))
         .watch();
+  }
+
+  Future<void> deleteByMessageId(int messageId) =>
+      (delete(messages)..where((m) => m.id.equals(messageId))).go();
+
+  Future<void> reassignFolder(int fromFolderId, int toFolderId) async {
+    if (fromFolderId == toFolderId) return;
+    final fromMsgs = await (select(messages)
+          ..where((m) => m.folderId.equals(fromFolderId)))
+        .get();
+    for (final m in fromMsgs) {
+      if (m.uid != null) {
+        final clash = await findByUid(m.accountId, toFolderId, m.uid!);
+        if (clash != null) {
+          // Keep the canonical folder's copy; drop the duplicate row.
+          await (delete(messages)..where((row) => row.id.equals(m.id))).go();
+          continue;
+        }
+      }
+      await updateMessage(
+        m.id,
+        MessagesCompanion(folderId: Value(toFolderId)),
+      );
+    }
+  }
+
+  Future<int> countInFolder(int folderId) async {
+    final rows = await (select(messages)
+          ..where(
+            (m) => m.folderId.equals(folderId) & m.deleted.equals(false),
+          ))
+        .get();
+    return rows.length;
   }
 
   Stream<List<Message>> watchByState(String state, {String? accountId}) {

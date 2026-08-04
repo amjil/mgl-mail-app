@@ -60,6 +60,9 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     );
   }
 
+  Future<void> deleteByMessageId(int messageId) =>
+      (delete(outbox)..where((o) => o.messageId.equals(messageId))).go();
+
   Stream<List<OutboxData>> watchAll({String? accountId}) {
     final q = select(outbox)
       ..where((o) => o.status.isNotValue('sent'))

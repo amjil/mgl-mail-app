@@ -2,13 +2,10 @@
   "Account switcher + remove / add account actions."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
-            ["package:flutter_styled_toast/flutter_styled_toast.dart" :as toast]
             [cljd.flutter :as f]
+            [mail-app.desktop.toast :as toast]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]))
-
-(defn- toast! [ctx msg]
-  (toast/showToast msg .context ctx .duration (dart:core/Duration. .seconds 2)))
 
 (defn account-chip
   []
@@ -39,10 +36,10 @@
           (= value :remove)
           (when current-account-id
             (-> (mail/remove-account! current-account-id)
-                (.then (fn [_] (toast! ctx "Account removed") nil))
+                (.then (fn [_] (toast/success! ctx "Account removed") nil))
                 (.catchError (fn [e]
                                (dart:core/print (str "remove account failed: " e))
-                               (toast! ctx (str e))
+                               (toast/error! ctx (str e))
                                nil)))
             nil)
 

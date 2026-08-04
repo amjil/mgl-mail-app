@@ -1,0 +1,51 @@
+(ns mail-app.desktop.toast
+  "App toast helpers on top of components.toast.
+
+  Prefer the MaterialApp.builder / StyledToast host context (`!root-ctx`),
+  which stays mounted across route push/pop. Never pass OverlayState.context —
+  Overlay.of looks for an *ancestor* Overlay and fails on the Overlay itself."
+  (:require ["package:flutter/material.dart" :as m]
+            [components.toast :as toast]))
+
+(defonce ^:private !root-ctx (atom nil))
+
+(defn remember-root-ctx!
+  "Call from MaterialApp.builder (inside StyledToast) on each build."
+  [ctx]
+  (when ctx
+    (reset! !root-ctx ctx))
+  nil)
+
+(defn- mounted? [ctx]
+  (boolean
+   (when ctx
+     (try
+       (.-mounted ^m/BuildContext ctx)
+       (catch Object _ false)))))
+
+(defn safe-ctx
+  "Return a still-mounted context suitable for components.toast.
+  Call before awaiting Futures when you only have a page context."
+  [ctx]
+  (or (when (mounted? @!root-ctx) @!root-ctx)
+      (when (mounted? ctx) ctx)))
+
+(defn- show! [show-fn ctx msg]
+  (when-let [c (safe-ctx ctx)]
+    (try
+      (show-fn c (str msg))
+      (catch Object e
+        (dart:core/print (str "toast failed: " e " / " msg)))))
+  nil)
+
+(defn success! [ctx msg]
+  (show! toast/success ctx msg))
+
+(defn error! [ctx msg]
+  (show! toast/error ctx msg))
+
+(defn info! [ctx msg]
+  (show! toast/info ctx msg))
+
+(defn warn! [ctx msg]
+  (show! toast/warn ctx msg))
