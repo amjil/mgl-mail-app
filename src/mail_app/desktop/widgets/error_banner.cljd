@@ -1,0 +1,21 @@
+(ns mail-app.desktop.widgets.error-banner
+  "Surfaces store :last-error as a dismissible Material banner."
+  (:require ["package:flutter/material.dart" :as m]
+            [cljd.flutter :as f]
+            [mail-app.state.store :as store]))
+
+(defn banner
+  "Returns a MaterialBanner or SizedBox.shrink."
+  []
+  (f/widget
+   :watch [{:keys [last-error]} store/app-state]
+   (if (seq last-error)
+     (m/MaterialBanner
+      .content (m/Text last-error
+                       .style (m/TextStyle .fontSize 13.0))
+      .leading (m/Icon m.Icons/error_outline .color m.Colors/red)
+      .actions
+      [(m/TextButton
+        .onPressed (fn [] (store/clear-error!) nil)
+        .child (m/Text "Dismiss"))])
+     (m/SizedBox.shrink))))

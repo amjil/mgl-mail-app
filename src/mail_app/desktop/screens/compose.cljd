@@ -1,0 +1,116 @@
+(ns mail-app.desktop.screens.compose
+  "Desktop compose: header text fields + mongol block editor body.
+   Reply/forward shows original mail in a toggle panel (toggle.cljd)."
+  (:require ["package:flutter/material.dart" :as m]
+            [cljd.flutter :as f]
+            [clojure.string :as str]
+            [block-editor.widgets.editor :as editor]
+            [block-editor.widgets.toolbar :as toolbar]
+            [block-editor.utils.persistence :as persist]
+            [shared-ime.overlay-view :as overlay]
+            [mail-app.desktop.widgets.compose-fields :as fields]
+            [mail-app.desktop.widgets.compose-quote :as quote]
+            [mail-app.desktop.widgets.compose-topbar :as topbar]
+            [mail-app.services.compose-export :as export]
+            [mail-app.state.store :as store]))
+
+(def ^:private font-family "MongolianBaiZheng")
+
+(def compose-editor-config
+  {:text-block-types #{:paragraph :heading-1 :heading-2 :heading-3
+                       :blockquote :list-item :ordered-list-item :toggle}
+   :block-style
+   (fn [b-type]
+     (case b-type
+       :heading-1 (m/TextStyle .fontSize 28.0 .fontWeight m/FontWeight.bold
+                               .color m.Colors/black87 .fontFamily font-family)
+       :heading-2 (m/TextStyle .fontSize 22.0 .fontWeight m/FontWeight.bold
+                               .color m.Colors/black87 .fontFamily font-family)
+       :heading-3 (m/TextStyle .fontSize 18.0 .fontWeight m/FontWeight.w600
+                               .color m.Colors/black87 .fontFamily font-family)
+       (m/TextStyle .fontSize 16.0 .color m.Colors/black87
+                    .fontFamily font-family)))})
+
+(defn- apply-fields!
+  [draft to-ctrl cc-ctrl subject-ctrl !show-cc?]
+  (when draft
+    (when-let [to (:to draft)]
+      (set! (.-text to-ctrl) (str to)))
+    (when-let [cc (:cc draft)]
+      (when (seq (str/trim (str cc)))
+        (reset! !show-cc? true)
+        (set! (.-text cc-ctrl) (str cc))))
+    (when-let [subject (:subject draft)]
+      (set! (.-text subject-ctrl) (str subject)))))
+
+(defn- initial-doc-state [draft]
+  (cond
+    (:body-state draft) (:body-state draft)
+    (:body-plain draft) (export/state-from-plain-text (:body-plain draft))
+    :else (persist/create-empty-state)))
+
+(defn screen []
+  (let [draft (:compose-draft @store/app-state)
+        _ (when draft (store/clear-compose-draft!))
+        !doc-state (atom (initial-doc-state draft))
+        !quote-state (atom (:quote-state draft))
+        !show-cc? (atom false)
+        !attachment-paths (atom [])
+        !fields-draft (atom draft)
+        has-quote? (some? (:quote-state draft))]
+    (f/widget
+     :managed [to-ctrl (m/TextEditingController.)
+               to-focus (m/FocusNode.)
+               cc-ctrl (m/TextEditingController.)
+               cc-focus (m/FocusNode.)
+               subject-ctrl (m/TextEditingController.)
+               subject-focus (m/FocusNode.)]
+     :watch [show-cc? !show-cc?]
+     (do
+       (when-let [d @!fields-draft]
+         (reset! !fields-draft nil)
+         (apply-fields! d to-ctrl cc-ctrl subject-ctrl !show-cc?))
+       (m/Scaffold
+        .backgroundColor m.Colors/white
+        .body
+        (overlay/ime-global-wrapper
+         (m/SafeArea
+          .child
+          (m/Column
+           .crossAxisAlignment m.CrossAxisAlignment/stretch
+           .children
+           [(topbar/topbar {:!doc-state !doc-state
+                            :!quote-state !quote-state
+                            :to-ctrl to-ctrl
+                            :cc-ctrl cc-ctrl
+                            :subject-ctrl subject-ctrl
+                            :!show-cc? !show-cc?
+                            :!attachment-paths !attachment-paths})
+            (m/Divider .thickness 1.0 .height 1.0)
+            (m/Expanded
+             .child
+             (m/Row
+              .crossAxisAlignment m.CrossAxisAlignment/stretch
+              .children
+              (cond->
+                [(fields/header-row
+                  {:to-ctrl to-ctrl :to-focus to-focus
+                   :cc-ctrl cc-ctrl :cc-focus cc-focus
+                   :subject-ctrl subject-ctrl :subject-focus subject-focus
+                   :show-cc? show-cc?})
+                 (m/VerticalDivider .width 1.0 .thickness 1.0)
+                 (m/Expanded
+                  .flex 2
+                  .child
+                  (editor/mongol-block-editor
+                   !doc-state
+                   :editor-config compose-editor-config
+                   :toolbar (toolbar/editor-toolbar !doc-state compose-editor-config)
+                   :background-color m.Colors/white
+                   :show-block-handles? false
+                   :padding (m.EdgeInsets/all 24.0)))]
+                has-quote?
+                (conj (m/Expanded
+                       .flex 1
+                       .child (quote/panel !quote-state))))))]))
+         "compose-header-ime"))))))

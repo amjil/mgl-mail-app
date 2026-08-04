@@ -1,0 +1,91 @@
+(ns mail-app.desktop.screens.search
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            ["dart:async" :as async]
+            [cljd.flutter :as f]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]))
+
+(def ^:private font-family "MongolianBaiZheng")
+
+(defn- result-item [^mc/MailSearchResultDto hit]
+  (f/widget
+   :get [m/Navigator]
+   (mgl/MongolListTile
+    .title (m/Padding
+            .padding (m.EdgeInsets/only .top 8.0)
+            .child
+            (mgl/MongolText
+             (or (.-subject hit) "No Subject")
+             .style (m/TextStyle .fontSize 16.0 .fontFamily font-family)))
+    .subtitle (mgl/MongolText
+               (or (.-snippet hit) "")
+               .style (m/TextStyle .fontSize 12.0
+                                   .fontFamily font-family
+                                   .color m.Colors/black54))
+    .onTap (fn []
+             (mail/open-message! (.-messageId hit))
+             (.pushNamed navigator "/mail_detail")
+             nil))))
+
+(defn- results-body [search-results searching?]
+  (cond
+    searching?
+    (m/Center .child (m/CircularProgressIndicator.))
+
+    (empty? search-results)
+    (m/Center
+     .child
+     (mgl/MongolText
+      "No results"
+      .style (m/TextStyle .fontFamily font-family .color m.Colors/black54)))
+
+    :else
+    (m/ListView
+     .scrollDirection m.Axis/horizontal
+     .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+     .children (mapv result-item search-results))))
+
+(defn screen []
+  (let [!timer (atom nil)]
+    (f/widget
+     :get [m/Navigator]
+     :managed [query-ctrl (m/TextEditingController.)]
+     :watch [{:keys [search-results searching?]} store/app-state]
+     (m/Scaffold
+      .appBar
+      (m/AppBar
+       .leading
+       (m/IconButton
+        .icon (m/Icon m.Icons/arrow_back)
+        .onPressed (fn []
+                     (store/set-search-results! [])
+                     (store/set-search-query! "")
+                     (.pop navigator)
+                     nil))
+       .title
+       (m/TextField
+        .controller query-ctrl
+        .autofocus true
+        .decoration (m/InputDecoration
+                     .hintText "Search…"
+                     .border m/InputBorder.none)
+        .onChanged
+        (fn [v]
+          (when-let [t @!timer] (.cancel ^async/Timer t))
+          (reset! !timer
+                  (async/Timer.
+                   (dart:core/Duration. .milliseconds 350)
+                   #(mail/search! v)))
+          nil))
+       .actions
+       [(if searching?
+          (m/Padding
+           .padding (m.EdgeInsets/all 12.0)
+           .child
+           (m/SizedBox
+            .width 20.0 .height 20.0
+            .child (m/CircularProgressIndicator. .strokeWidth 2.0)))
+          (m/SizedBox.shrink))])
+      .body (results-body search-results searching?)))))

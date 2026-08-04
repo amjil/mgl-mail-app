@@ -1,0 +1,300 @@
+(ns mail-app.services.mail-core
+  "Thin ClojureDart wrapper around Dart MailBridge."
+  (:require ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            ["dart:async" :as async]
+            [clojure.string :as str]
+            [mail-app.state.store :as store]))
+
+(defonce !bridge (atom nil))
+(defonce !mailbox-sub (atom nil))
+
+(defn bridge []
+  @!bridge)
+
+(defn- cancel-mailbox-sub! []
+  (when-let [^async/StreamSubscription s @!mailbox-sub]
+    (.cancel s)
+    (reset! !mailbox-sub nil)))
+
+(defn refresh-accounts!
+  []
+  (when-let [b @!bridge]
+    (let [accounts (await (.listAccounts b))]
+      (store/set-accounts! accounts)
+      (let [cur (:current-account-id @store/app-state)
+            ids (set (map #(.-id %) accounts))]
+        (cond
+          ;; nil = aggregate all accounts (Bridge AccountContext)
+          (nil? cur)
+          (.setCurrentAccount b nil)
+
+          (contains? ids cur)
+          (.setCurrentAccount b cur)
+
+          (seq accounts)
+          (let [first-id (.-id (first accounts))]
+            (store/set-current-account! first-id)
+            (.setCurrentAccount b first-id))
+
+          :else
+          (do
+            (store/set-current-account! nil)
+            (.setCurrentAccount b nil))))
+      accounts)))
+
+(defn init!
+  "Create and initialize MailBridge. Safe to call once at startup."
+  []
+  (let [b (mc.MailBridge/create)]
+    (await (.initialize b))
+    (reset! !bridge b)
+    (await (refresh-accounts!))
+    b))
+
+(defn dispose!
+  []
+  (cancel-mailbox-sub!)
+  (when-let [b @!bridge]
+    (await (.dispose b))
+    (reset! !bridge nil)))
+
+(defn on-app-background!
+  [background?]
+  (when-let [b @!bridge]
+    (.onAppBackground b (boolean background?))))
+
+(defn remove-account!
+  [account-id]
+  (when-let [b @!bridge]
+    (await (.removeAccount b account-id))
+    (when (= account-id (:current-account-id @store/app-state))
+      (store/set-current-account! nil)
+      (cancel-mailbox-sub!)
+      (store/set-mail-list! [])
+      (store/set-outbox-list! [])
+      (store/clear-message-detail!))
+    (await (refresh-accounts!))))
+
+(defn- after-account-added!
+  [^mc/MailBridge b account]
+  (store/set-current-account! (.-id account))
+  (.setCurrentAccount b (.-id account))
+  (await (refresh-accounts!))
+  (-> (.syncAccount b (.-id account))
+      (.catchError (fn [e]
+                     (dart:core/print (str "sync after addAccount failed: " e))
+                     nil)))
+  account)
+
+(defn add-account!
+  "Register account via MailBridge. Derives imap./smtp. hosts from email domain when omitted."
+  [{:keys [email password imap-host smtp-host display-name]
+    :or {display-name nil}}]
+  (let [b @!bridge
+        domain (-> (or email "") (str/split #"@") last)
+        imap (or imap-host (str "imap." domain))
+        smtp (or smtp-host (str "smtp." domain))]
+    (when (nil? b)
+      (throw (Exception. "MailBridge not initialized")))
+    (when (or (empty? email) (empty? password) (empty? domain))
+      (throw (Exception. "Email and password required")))
+    (let [account (await (.addAccount ^mc/MailBridge b
+                                      .email email
+                                      .password password
+                                      .imapHost imap
+                                      .smtpHost smtp
+                                      .displayName (or display-name email)))]
+      (after-account-added! b account))))
+
+(defn add-outlook-account!
+  "Browser Microsoft OAuth → Outlook IMAP/SMTP (XOAUTH2)."
+  []
+  (let [b @!bridge]
+    (when (nil? b)
+      (throw (Exception. "MailBridge not initialized")))
+    (let [account (await (.addOutlookAccount ^mc/MailBridge b))]
+      (after-account-added! b account))))
+
+(defn sync!
+  []
+  (when-let [b @!bridge]
+    (store/set-syncing! true)
+    (-> (.syncAll b)
+        (.then (fn [_] (store/set-syncing! false) true))
+        (.catchError (fn [e]
+                       (store/set-syncing! false)
+                       (store/set-error! (str e))
+                       false)))))
+
+(defn select-mailbox!
+  "Subscribe to Inbox / Sent / Outbox stream for the current account."
+  [role]
+  (cancel-mailbox-sub!)
+  (store/set-selected-mailbox! role)
+  (store/set-mail-list! [])
+  (store/set-outbox-list! [])
+  (store/clear-message-detail!)
+  (when-let [b @!bridge]
+    (let [aid (:current-account-id @store/app-state)]
+      (case role
+        :inbox
+        (reset! !mailbox-sub
+                (.listen (.watchInbox ^mc/MailBridge b .accountId aid)
+                         (fn [msgs]
+                           (store/set-mail-list! (vec (or msgs []))))))
+
+        :sent
+        (reset! !mailbox-sub
+                (.listen (.watchSent ^mc/MailBridge b .accountId aid)
+                         (fn [msgs]
+                           (store/set-mail-list! (vec (or msgs []))))))
+
+        :outbox
+        (reset! !mailbox-sub
+                (.listen (.watchOutbox ^mc/MailBridge b .accountId aid)
+                         (fn [rows]
+                           (store/set-outbox-list! (vec (or rows []))))))
+
+        nil))))
+
+(defn set-current-account!
+  [account-id]
+  (when-let [b @!bridge]
+    (store/set-current-account! account-id)
+    (.setCurrentAccount b account-id)
+    (when-let [role (:selected-mailbox @store/app-state)]
+      (select-mailbox! role))
+    nil))
+
+(defn open-message!
+  [message-id]
+  (when-let [b @!bridge]
+    (store/set-selected-message! message-id)
+    (store/set-message-detail! nil)
+    (store/clear-error!)
+    (-> (.openMessage ^mc/MailBridge b message-id)
+        (.then (fn [detail]
+                 ;; Show headers immediately so the detail screen is never stuck
+                 ;; on a spinner while IMAP downloads the body.
+                 (store/set-message-detail! detail)
+                 (let [^mc/MailMessageDto msg (.-message ^mc/MailMessageWithBody detail)]
+                   (if (.-hasBody msg)
+                     detail
+                     (-> (.ensureBodyDownloaded ^mc/MailBridge b message-id)
+                         (.then (fn [_]
+                                  (.openMessage ^mc/MailBridge b message-id)))
+                         (.then (fn [fresh]
+                                  (when (= message-id
+                                           (:selected-message-id @store/app-state))
+                                    (store/set-message-detail! fresh))
+                                  fresh))
+                         (.catchError (fn [e]
+                                        (store/set-error! (str e))
+                                        nil)))))))
+        (.catchError (fn [e]
+                       (store/set-error! (str e))
+                       nil)))))
+
+(defn list-attachments!
+  [message-id]
+  (when-let [b @!bridge]
+    (await (.listAttachments ^mc/MailBridge b message-id))))
+
+(defn download-attachment!
+  [attachment-id]
+  (when-let [b @!bridge]
+    (store/mark-downloading! attachment-id true)
+    (-> (.downloadAttachment ^mc/MailBridge b attachment-id)
+        (.then (fn [dto]
+                 (store/mark-downloading! attachment-id false)
+                 ;; refresh open message so attachment localPath updates
+                 (when-let [mid (:selected-message-id @store/app-state)]
+                   (open-message! mid))
+                 dto))
+        (.catchError (fn [e]
+                       (store/mark-downloading! attachment-id false)
+                       (store/set-error! (str e))
+                       (throw e))))))
+
+(defn search!
+  [query]
+  (let [q (str/trim (or query ""))]
+    (store/set-search-query! q)
+    (if (empty? q)
+      (do
+        (store/set-search-results! [])
+        (store/set-searching! false)
+        (async/Future.value []))
+      (when-let [b @!bridge]
+        (store/set-searching! true)
+        (let [aid (:current-account-id @store/app-state)]
+          (-> (.search ^mc/MailBridge b q .accountId aid)
+              (.then (fn [hits]
+                       (store/set-search-results! (vec (or hits [])))
+                       (store/set-searching! false)
+                       hits))
+              (.catchError (fn [e]
+                             (store/set-searching! false)
+                             (store/set-error! (str e))
+                             (store/set-search-results! [])
+                             []))))))))
+
+(defn retry-outbox!
+  [outbox-id]
+  (when-let [b @!bridge]
+    (.retryOutbox ^mc/MailBridge b outbox-id)))
+
+(defn- split-addrs [s]
+  (->> (str/split (or s "") #"[,\s;]+")
+       (map str/trim)
+       (remove empty?)
+       vec))
+
+(defn send!
+  "Enqueue mail via MailBridge. Optional :attachment-paths (seq of file paths)."
+  [{:keys [to cc subject plain-text html-text account-id attachment-paths]}]
+  (let [b @!bridge
+        aid (or account-id (:current-account-id @store/app-state))
+        to-list (if (string? to) (split-addrs to) (vec (or to [])))
+        cc-list (cond
+                  (nil? cc) nil
+                  (string? cc) (let [xs (split-addrs cc)]
+                                 (when (seq xs) xs))
+                  (seq cc) (vec cc)
+                  :else nil)
+        paths (when (seq attachment-paths) (vec attachment-paths))]
+    (cond
+      (nil? b)
+      (do
+        (store/set-error! "MailBridge not initialized")
+        (throw (Exception. "MailBridge not initialized")))
+
+      (nil? aid)
+      (do
+        (store/set-error! "No account configured")
+        (throw (Exception. "No account configured")))
+
+      (empty? to-list)
+      (do
+        (store/set-error! "Recipient required")
+        (throw (Exception. "Recipient required")))
+
+      :else
+      (do
+        (store/set-sending! true)
+        (store/set-error! nil)
+        (-> (.sendMail ^mc/MailBridge b
+                       .accountId aid
+                       .to to-list
+                       .cc cc-list
+                       .subject (or subject "")
+                       .plainText plain-text
+                       .htmlText html-text
+                       .attachmentPaths paths)
+            (.then (fn [id]
+                     (store/set-sending! false)
+                     id))
+            (.catchError (fn [e]
+                           (store/set-sending! false)
+                           (store/set-error! (str e))
+                           (throw e))))))))

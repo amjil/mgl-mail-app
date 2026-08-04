@@ -1,0 +1,325 @@
+(ns mail-app.desktop.screens.mail-detail
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            ["package:url_launcher/url_launcher.dart" :as ul]
+            ["package:flutter_styled_toast/flutter_styled_toast.dart" :as toast]
+            [cljd.flutter :as f]
+            [clojure.string :as str]
+            [block-editor.widgets.reader :as reader]
+            [mail-app.desktop.widgets.topbar :as topbar]
+            [mail-app.desktop.widgets.compose-quote :as quote]
+            [mail-app.services.compose-export :as export]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]))
+
+(def ^:private font-family "MongolianBaiZheng")
+
+(def ^:private reader-cfg
+  {:block-style
+   (fn [b-type]
+     (case b-type
+       :heading-1 (m/TextStyle .fontSize 28.0 .fontWeight m/FontWeight.bold
+                               .color m.Colors/black87 .fontFamily font-family)
+       :heading-2 (m/TextStyle .fontSize 22.0 .fontWeight m/FontWeight.bold
+                               .color m.Colors/black87 .fontFamily font-family)
+       :heading-3 (m/TextStyle .fontSize 18.0 .fontWeight m/FontWeight.w600
+                               .color m.Colors/black87 .fontFamily font-family)
+       (m/TextStyle .fontSize 16.0 .color m.Colors/black87
+                    .fontFamily font-family)))
+   :block-plugins []})
+
+(defn- body-reader [text]
+  (let [plain (if (empty? text) "(empty body)" text)
+        state (export/state-from-plain-text plain)
+        root (:root state)
+        blocks (:blocks state)]
+    (m/ListView.builder
+     .scrollDirection m.Axis/horizontal
+     .padding (m.EdgeInsets/all 24.0)
+     .itemCount (count root)
+     .itemBuilder
+     (fn [_ idx]
+       (let [id (nth root idx)
+             block (get blocks id)]
+         (m/Padding
+          .padding (m.EdgeInsets/only .right 24.0)
+          .child
+          (reader/block-reader-view block [] reader-cfg)))))))
+
+(defn- body-with-quote
+  "Show reply text + collapsible quoted original when body contains ---/From:."
+  [text]
+  (let [parsed (export/parse-quoted-plain text)
+        reply (or (:reply parsed) text)
+        quote-body (:quote-body parsed)
+        has-quote? (seq quote-body)
+        !quote-state
+        (when has-quote?
+          (atom (export/quote-toggle-state
+                 (or (:quote-from parsed) "")
+                 (:quote-date parsed)
+                 quote-body)))]
+    (if-not has-quote?
+      (body-reader text)
+      (m/Row
+       .crossAxisAlignment m.CrossAxisAlignment/stretch
+       .children
+       [(m/Expanded
+         .flex 2
+         .child (body-reader (if (seq reply) reply "(empty body)")))
+        (m/Expanded
+         .flex 1
+         .child (quote/panel !quote-state))]))))
+
+(defn- toast! [ctx msg]
+  (toast/showToast msg .context ctx .duration (dart:core/Duration. .seconds 2)))
+
+(defn- strip-tags [html]
+  (-> (or html "")
+      (str/replace #"<br\s*/?>" "\n")
+      (str/replace #"</p>" "\n")
+      (str/replace #"<[^>]+>" "")
+      (str/replace "&nbsp;" " ")
+      (str/replace "&amp;" "&")
+      (str/replace "&lt;" "<")
+      (str/replace "&gt;" ">")
+      (str/replace "&quot;" "\"")
+      str/trim))
+
+(defn- body-text [^mc/MailMessageWithBody detail]
+  (let [body (.-body detail)]
+    (cond
+      (nil? body) ""
+      (seq (.-plainText body)) (.-plainText body)
+      (seq (.-html body)) (strip-tags (.-html body))
+      :else "")))
+
+(defn- pad2 [n]
+  (.padLeft (.toString n) 2 "0"))
+
+(defn- format-date [d]
+  (when d
+    (let [^DateTime dt d]
+      (str (.year dt) "-"
+           (pad2 (.month dt)) "-"
+           (pad2 (.day dt)) " "
+           (pad2 (.hour dt)) ":"
+           (pad2 (.minute dt))))))
+
+(defn- ensure-prefix [subject prefix]
+  (let [s (or subject "")]
+    (if (str/starts-with? (str/lower-case s) (str/lower-case prefix))
+      s
+      (str prefix s))))
+
+(defn- start-reply! [navigator ^mc/MailMessageWithBody detail]
+  (let [^mc/MailMessageDto msg (.-message detail)
+        from (or (.-from msg) "")
+        subject (ensure-prefix (.-subject msg) "Re: ")
+        text (body-text detail)
+        date (format-date (.-date msg))]
+    (store/set-compose-draft!
+     {:to from
+      :subject subject
+      :quote-state (export/quote-toggle-state from date text)})
+    (.pushNamed navigator "/compose")
+    nil))
+
+(defn- start-forward! [navigator ^mc/MailMessageWithBody detail]
+  (let [^mc/MailMessageDto msg (.-message detail)
+        from (or (.-fromName msg) (.-from msg) "")
+        subject (ensure-prefix (.-subject msg) "Fwd: ")
+        text (body-text detail)
+        date (format-date (.-date msg))]
+    (store/set-compose-draft!
+     {:to ""
+      :subject subject
+      :quote-state (export/quote-toggle-state from date text)})
+    (.pushNamed navigator "/compose")
+    nil))
+
+(defn- open-local-path! [ctx path]
+  (when (seq path)
+    (-> (ul/launchUrl (dart:core/Uri.file path))
+        (.catchError (fn [e]
+                       (toast! ctx (str "Cannot open: " e))
+                       nil)))))
+
+(defn- attachment-row
+  [ctx ^mc/MailAttachmentDto att downloading?]
+  (let [name (or (.-filename att) "file")
+        ready? (and (.-isDownloaded att) (seq (.-localPath att)))]
+    (m/ListTile
+     .dense true
+     .leading (m/Icon m.Icons/attach_file)
+     .title (m/Text name .style (m/TextStyle .fontSize 13.0))
+     .subtitle (when (.-size att)
+                 (m/Text (str (.-size att) " bytes")
+                         .style (m/TextStyle .fontSize 11.0 .color m.Colors/black54)))
+     .trailing
+     (cond
+       downloading?
+       (m/SizedBox
+        .width 20.0 .height 20.0
+        .child (m/CircularProgressIndicator. .strokeWidth 2.0))
+
+       ready?
+       (m/IconButton
+        .tooltip "Open"
+        .icon (m/Icon m.Icons/open_in_new)
+        .onPressed (fn [] (open-local-path! ctx (.-localPath att)) nil))
+
+       :else
+       (m/IconButton
+        .tooltip "Download"
+        .icon (m/Icon m.Icons/download)
+        .onPressed
+        (fn []
+          (-> (mail/download-attachment! (.-id att))
+              (.then (fn [dto]
+                       (toast! ctx "Downloaded")
+                       (when (and dto (.-localPath dto))
+                         (open-local-path! ctx (.-localPath dto)))
+                       nil))
+              (.catchError (fn [e]
+                             (toast! ctx (str e))
+                             nil)))
+          nil))))))
+
+(defn- attachments-panel [ctx detail downloading-ids]
+  (let [atts (vec (or (.-attachments ^mc/MailMessageWithBody detail) []))]
+    (when (seq atts)
+      (m/Container
+       .width 220.0
+       .decoration (m/BoxDecoration
+                    .border (m/Border
+                             .left (m/BorderSide .color m.Colors/black12)))
+       .child
+       (m/Column
+        .crossAxisAlignment m.CrossAxisAlignment/stretch
+        .children
+        [(m/Padding
+          .padding (m.EdgeInsets/all 12.0)
+          .child
+          (m/Text "Attachments"
+                  .style (m/TextStyle .fontWeight m/FontWeight.bold)))
+         (m/Expanded
+          .child
+          (m/ListView
+           .children
+           (mapv (fn [^mc/MailAttachmentDto a]
+                   (attachment-row ctx a (contains? downloading-ids (.-id a))))
+                 atts)))])))))
+
+(defn screen []
+  (f/widget
+   :context ctx
+   :get [m/Navigator]
+   :watch [{:keys [message-detail downloading-attachment-ids last-error]}
+           store/app-state]
+   (m/Scaffold
+    .body
+    (m/SafeArea
+     .child
+     (m/Column
+      .crossAxisAlignment m.CrossAxisAlignment/start
+      .children
+      [(topbar/mail-detail
+        :on-reply (when message-detail
+                    #(start-reply! navigator message-detail))
+        :on-forward (when message-detail
+                      #(start-forward! navigator message-detail)))
+       (m/Divider .thickness 1.0 .height 1.0)
+       (m/Expanded
+        .child
+        (cond
+          (nil? message-detail)
+          (m/Center
+           .child
+           (if (seq last-error)
+             (m/Padding
+              .padding (m.EdgeInsets/all 24.0)
+              .child
+              (m/Text (str last-error)
+                      .textAlign m.TextAlign/center
+                      .style (m/TextStyle .color m.Colors/red .fontSize 13.0)))
+             (m/CircularProgressIndicator.)))
+
+          :else
+          (let [^mc/MailMessageWithBody detail message-detail
+                ^mc/MailMessageDto msg (.-message detail)
+                subject (let [s (.-subject msg)]
+                          (if (or (nil? s) (empty? s)) "No Subject" s))
+                from (or (.-fromName msg) (.-from msg) "")
+                to (or (.-to msg) "")
+                date (format-date (.-date msg))
+                text (body-text detail)
+                loading-body? (not (.-hasBody msg))
+                att-panel (attachments-panel ctx detail downloading-attachment-ids)]
+            (m/Row
+             .crossAxisAlignment m.CrossAxisAlignment/stretch
+             .children
+             [(m/Padding
+               .padding (m.EdgeInsets/all 16.0)
+               .child
+               (m/Column
+                .crossAxisAlignment m.CrossAxisAlignment/start
+                .children
+                (cond->
+                  [(mgl/MongolText
+                    subject
+                    .style (m/TextStyle .fontSize 20.0
+                                        .fontFamily font-family
+                                        .fontWeight m/FontWeight.bold))
+                   (m/SizedBox .height 12.0)
+                   (mgl/MongolText
+                    from
+                    .style (m/TextStyle .fontSize 14.0
+                                        .fontFamily font-family
+                                        .color m.Colors/black54))]
+                  (seq to)
+                  (conj
+                   (m/Padding
+                    .padding (m.EdgeInsets/only .top 8.0)
+                    .child
+                    (mgl/MongolText
+                     (str "To: " to)
+                     .style (m/TextStyle .fontSize 12.0
+                                         .fontFamily font-family
+                                         .color m.Colors/black45))))
+                  date
+                  (conj
+                   (m/Padding
+                    .padding (m.EdgeInsets/only .top 8.0)
+                    .child
+                    (m/Text date
+                            .style (m/TextStyle .fontSize 11.0
+                                                .color m.Colors/black45)))))))
+              (m/VerticalDivider .width 1.0 .thickness 1.0)
+              (m/Expanded
+               .child
+               (cond
+                 loading-body?
+                 (m/Center
+                  .child
+                  (if (seq last-error)
+                    (m/Padding
+                     .padding (m.EdgeInsets/all 24.0)
+                     .child
+                     (m/Text (str "Failed to load body:\n" last-error)
+                             .textAlign m.TextAlign/center
+                             .style (m/TextStyle .color m.Colors/red
+                                                 .fontSize 13.0)))
+                    (m/Column
+                     .mainAxisSize m.MainAxisSize/min
+                     .children
+                     [(m/CircularProgressIndicator.)
+                      (m/SizedBox .height 12.0)
+                      (m/Text "Loading body..."
+                              .style (m/TextStyle .color m.Colors/black45
+                                                  .fontSize 12.0))])))
+
+                 :else
+                 (body-with-quote text)))
+              (if att-panel att-panel (m/SizedBox.shrink))]))))])))))

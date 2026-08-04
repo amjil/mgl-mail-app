@@ -1,0 +1,79 @@
+(ns mail-app.state.store)
+
+(defonce app-state
+  (atom {:accounts []
+         :current-account-id nil
+         :sending? false
+         :syncing? false
+         :last-error nil
+         ;; :inbox | :sent | :outbox
+         :selected-mailbox nil
+         :mail-list []
+         :outbox-list []
+         :selected-message-id nil
+         :message-detail nil
+         ;; search
+         :search-query ""
+         :search-results []
+         :searching? false
+         ;; attachment download in progress (id set)
+         :downloading-attachment-ids #{}
+         ;; compose prefill: {:to :cc :subject :body-plain :body-state :quote-state} or nil
+         :compose-draft nil}))
+
+(defn set-accounts! [accounts]
+  (swap! app-state assoc :accounts (or accounts [])))
+
+(defn set-current-account! [account-id]
+  (swap! app-state assoc :current-account-id account-id))
+
+(defn set-sending! [v]
+  (swap! app-state assoc :sending? (boolean v)))
+
+(defn set-syncing! [v]
+  (swap! app-state assoc :syncing? (boolean v)))
+
+(defn set-error! [msg]
+  (swap! app-state assoc :last-error msg))
+
+(defn set-selected-mailbox! [role]
+  (swap! app-state assoc :selected-mailbox role))
+
+(defn set-mail-list! [msgs]
+  (swap! app-state assoc :mail-list (or msgs [])))
+
+(defn set-outbox-list! [rows]
+  (swap! app-state assoc :outbox-list (or rows [])))
+
+(defn set-selected-message! [id]
+  (swap! app-state assoc :selected-message-id id))
+
+(defn set-message-detail! [detail]
+  (swap! app-state assoc :message-detail detail))
+
+(defn clear-message-detail! []
+  (swap! app-state assoc :selected-message-id nil :message-detail nil))
+
+(defn set-search-query! [q]
+  (swap! app-state assoc :search-query (or q "")))
+
+(defn set-search-results! [rows]
+  (swap! app-state assoc :search-results (or rows [])))
+
+(defn set-searching! [v]
+  (swap! app-state assoc :searching? (boolean v)))
+
+(defn mark-downloading! [att-id on?]
+  (swap! app-state update :downloading-attachment-ids
+         (fn [s]
+           (let [s (or s #{})]
+             (if on? (conj s att-id) (disj s att-id))))))
+
+(defn set-compose-draft! [draft]
+  (swap! app-state assoc :compose-draft draft))
+
+(defn clear-compose-draft! []
+  (swap! app-state assoc :compose-draft nil))
+
+(defn clear-error! []
+  (swap! app-state assoc :last-error nil))

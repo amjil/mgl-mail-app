@@ -1,0 +1,13 @@
+(ns mail-app.bootstrap.desktop
+  "Desktop-only startup: FST / next-word for shared desktop IME."
+  (:require ["package:flutter/foundation.dart" :as foundation :refer [kIsWeb]]
+            [ime-core.fst-engine :as fst]
+            [ime-core.next-word :as next-word]))
+
+(defn init!
+  "Load IME dictionaries used by mgl-block-editor desktop overlay."
+  []
+  (when-not kIsWeb
+    (await (fst/ensure-loaded))
+    (await (next-word/ensure-loaded)))
+  (dart:core/print "bootstrap.desktop: ready"))

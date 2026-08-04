@@ -1,0 +1,158 @@
+(ns mail-app.desktop.widgets.compose-topbar
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:flutter_styled_toast/flutter_styled_toast.dart" :as toast]
+            ["package:file_selector/file_selector.dart" :as fs]
+            [cljd.flutter :as f]
+            [clojure.string :as str]
+            [mail-app.services.compose-export :as export]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]))
+
+(defn- toast! [ctx msg]
+  (toast/showToast msg
+                   .context ctx
+                   .duration (dart:core/Duration. .seconds 2)))
+
+(defn- parse-ready? [to]
+  (seq (str/trim (or to ""))))
+
+(defn- basename [path]
+  (or (last (str/split (or path "") #"[\\/]")) path))
+
+(defn- pick-attachments! [!paths]
+  (-> (fs/openFiles)
+      (.then (fn [files]
+               (let [new-paths (->> (or files [])
+                                    (map #(.-path ^fs/XFile %))
+                                    (remove empty?)
+                                    vec)]
+                 (when (seq new-paths)
+                   (swap! !paths #(vec (distinct (concat % new-paths))))))
+               nil))
+      (.catchError (fn [_] nil))))
+
+(defn- send-pressed!
+  [ctx navigator !doc-state !quote-state to-ctrl cc-ctrl subject-ctrl
+   show-cc? sending? current-account-id attachment-paths]
+  (cond
+    sending?
+    nil
+
+    (nil? current-account-id)
+    (toast! ctx "No account configured")
+
+    (not (parse-ready? (.-text to-ctrl)))
+    (toast! ctx "Recipient required")
+
+    :else
+    (let [reply-plain (export/to-plain-text @!doc-state)
+          reply-html (export/to-html @!doc-state)
+          quote-state (when !quote-state @!quote-state)
+          quote-plain (when quote-state (export/quote-state-to-plain quote-state))
+          quote-html (when (seq quote-plain)
+                       (str/join ""
+                                 (map (fn [c]
+                                        (str "<p>"
+                                             (-> c
+                                                 (str/replace "&" "&amp;")
+                                                 (str/replace "<" "&lt;")
+                                                 (str/replace ">" "&gt;"))
+                                             "</p>"))
+                                      (str/split-lines quote-plain))))
+          plain (if (seq quote-plain)
+                  (str reply-plain (when (seq reply-plain) "\n\n") quote-plain)
+                  reply-plain)
+          html (if (seq quote-html)
+                 (str (if (= reply-html "<p></p>") "" reply-html) quote-html)
+                 reply-html)
+          to (.-text to-ctrl)
+          cc (when show-cc? (.-text cc-ctrl))
+          subject (.-text subject-ctrl)]
+      (-> (mail/send! {:to to
+                       :cc cc
+                       :subject subject
+                       :plain-text plain
+                       :html-text html
+                       :attachment-paths attachment-paths})
+          (.then (fn [_]
+                   (toast! ctx "Queued for send")
+                   (.pop navigator)
+                   nil))
+          (.catchError (fn [e]
+                         (toast! ctx (str "Send failed: " e))
+                         nil)))))
+  nil)
+
+(defn topbar
+  "Back, Cc toggle, attach, and Send."
+  [{:keys [!doc-state !quote-state to-ctrl cc-ctrl subject-ctrl
+           !show-cc? !attachment-paths]}]
+  (f/widget
+   :context ctx
+   :get [m/Navigator]
+   :watch [{:keys [sending? current-account-id]} store/app-state
+           show-cc? !show-cc?
+           attachment-paths !attachment-paths]
+   (m/SafeArea
+    .bottom false
+    .child
+    (m/Column
+     .mainAxisSize m.MainAxisSize/min
+     .children
+     (cond->
+       [(m/Row
+         .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+         .children
+         [(m/IconButton
+           .padding (m.EdgeInsets/all 10.0)
+           .constraints (m/BoxConstraints.)
+           .tooltip "Back"
+           .onPressed (fn [] (.pop navigator) nil)
+           .icon (m/Icon m.Icons/arrow_back_ios_new))
+          (m/Row
+           .children
+           [(m/IconButton
+             .padding (m.EdgeInsets/all 10.0)
+             .constraints (m/BoxConstraints.)
+             .tooltip (if show-cc? "Hide Cc" "Show Cc")
+             .onPressed (fn [] (swap! !show-cc? not) nil)
+             .icon (m/Icon (if show-cc? m.Icons/unfold_less m.Icons/unfold_more)))
+            (m/IconButton
+             .padding (m.EdgeInsets/all 10.0)
+             .constraints (m/BoxConstraints.)
+             .tooltip "Attach"
+             .onPressed (fn [] (pick-attachments! !attachment-paths) nil)
+             .icon (m/Icon m.Icons/attach_file))
+            (m/IconButton
+             .padding (m.EdgeInsets/all 10.0)
+             .constraints (m/BoxConstraints.)
+             .tooltip "Send"
+             .onPressed (fn []
+                          (send-pressed! ctx navigator !doc-state !quote-state
+                                         to-ctrl cc-ctrl subject-ctrl
+                                         show-cc? sending? current-account-id
+                                         attachment-paths))
+             .icon (if sending?
+                     (m/SizedBox
+                      .width 20.0
+                      .height 20.0
+                      .child (m/CircularProgressIndicator. .strokeWidth 2.0))
+                     (m/Icon m.Icons/send)))])])]
+       (seq attachment-paths)
+       (conj
+        (m/Padding
+         .padding (m.EdgeInsets/only .left 8.0 .right 8.0 .bottom 8.0)
+         .child
+         (m/Wrap
+          .spacing 6.0
+          .runSpacing 4.0
+          .children
+          (mapv (fn [path]
+                  (m/InputChip
+                   .label (m/Text (basename path)
+                                  .style (m/TextStyle .fontSize 12.0))
+                   .onDeleted (fn []
+                                (swap! !attachment-paths
+                                       #(vec (remove #{path} %)))
+                                nil)))
+                attachment-paths)))))))))

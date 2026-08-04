@@ -1,0 +1,118 @@
+(ns mail-app.desktop.widgets.topbar
+  (:require ["package:flutter/material.dart" :as m]
+            [cljd.flutter :as f]
+            [mail-app.desktop.widgets.account-menu :as accounts]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]))
+
+(defn mail-box
+  []
+  (f/widget
+   :get [m/Navigator]
+   :watch [{:keys [syncing?]} store/app-state]
+   (m/SafeArea
+    .bottom false
+    .child
+    (m/Row
+     .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+     .children
+     [(accounts/account-chip)
+      (m/Row
+       .children
+       [(m/IconButton
+         .padding (m.EdgeInsets/all 10.0)
+         .constraints (m/BoxConstraints.)
+         .tooltip "Search"
+         .onPressed (fn []
+                      (.pushNamed navigator "/search")
+                      nil)
+         .icon (m/Icon m.Icons/search))
+        (m/IconButton
+         .padding (m.EdgeInsets/all 10.0)
+         .constraints (m/BoxConstraints.)
+         .tooltip "Sync"
+         .onPressed (fn [] (mail/sync!) nil)
+         .icon (if syncing?
+                 (m/SizedBox
+                  .width 20.0 .height 20.0
+                  .child (m/CircularProgressIndicator. .strokeWidth 2.0))
+                 (m/Icon m.Icons/sync)))
+        (m/IconButton
+         .padding (m.EdgeInsets/all 10.0)
+         .constraints (m/BoxConstraints.)
+         .tooltip "Compose"
+         .onPressed (fn []
+                      (store/clear-compose-draft!)
+                      (.pushNamed navigator "/compose")
+                      nil)
+         .icon (m/Icon m.Icons/edit))])]))))
+
+(defn mail-list
+  []
+  (f/widget
+   :get [m/Navigator]
+   (m/SafeArea
+    .bottom false
+    .child
+    (m/Row
+     .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+     .children
+     [(m/IconButton
+       .padding (m.EdgeInsets/all 10.0)
+       .constraints (m/BoxConstraints.)
+       .tooltip "Back"
+       .onPressed (fn [] (.pop navigator) nil)
+       .icon (m/Icon m.Icons/arrow_back_ios_new))
+      (m/Row
+       .children
+       [(m/IconButton
+         .padding (m.EdgeInsets/all 10.0)
+         .constraints (m/BoxConstraints.)
+         .tooltip "Search"
+         .onPressed (fn []
+                      (.pushNamed navigator "/search")
+                      nil)
+         .icon (m/Icon m.Icons/search))
+        (m/IconButton
+         .padding (m.EdgeInsets/all 10.0)
+         .constraints (m/BoxConstraints.)
+         .tooltip "Compose"
+         .onPressed (fn []
+                      (store/clear-compose-draft!)
+                      (.pushNamed navigator "/compose")
+                      nil)
+         .icon (m/Icon m.Icons/edit))])]))))
+
+(defn mail-detail
+  [& {:keys [on-reply on-forward]}]
+  (f/widget
+   :get [m/Navigator]
+   (m/SafeArea
+    .bottom false
+    .child
+    (m/Row
+     .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+     .children
+     [(m/IconButton
+       .padding (m.EdgeInsets/all 10.0)
+       .constraints (m/BoxConstraints.)
+       .tooltip "Back"
+       .onPressed (fn []
+                    (store/clear-message-detail!)
+                    (.pop navigator)
+                    nil)
+       .icon (m/Icon m.Icons/arrow_back_ios_new))
+      (m/Row
+       .children
+       [(m/IconButton
+         .padding (m.EdgeInsets/all 10.0)
+         .constraints (m/BoxConstraints.)
+         .tooltip "Reply"
+         .onPressed on-reply
+         .icon (m/Icon m.Icons/reply))
+        (m/IconButton
+         .padding (m.EdgeInsets/all 10.0)
+         .constraints (m/BoxConstraints.)
+         .tooltip "Forward"
+         .onPressed on-forward
+         .icon (m/Icon m.Icons/forward))])]))))

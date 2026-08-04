@@ -1,0 +1,21 @@
+(ns mail-app.mobile
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            [cljd.flutter :as f]))
+
+(defn app []
+  (f/widget
+   (m/MaterialApp
+    .title "MGL Mail"
+    .debugShowCheckedModeBanner false
+    .home
+    (m/Scaffold
+     .body
+     (m/SafeArea
+      .child
+      (m/Center
+       .child
+       (mgl/MongolText
+        "Mobile UI coming next — use desktop for Compose"
+        .style (m/TextStyle .fontSize 18.0
+                            .fontFamily "MongolianBaiZheng"))))))))

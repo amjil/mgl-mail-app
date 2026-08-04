@@ -1,0 +1,85 @@
+(ns mail-app.desktop.widgets.account-menu
+  "Account switcher + remove / add account actions."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            ["package:flutter_styled_toast/flutter_styled_toast.dart" :as toast]
+            [cljd.flutter :as f]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]))
+
+(defn- toast! [ctx msg]
+  (toast/showToast msg .context ctx .duration (dart:core/Duration. .seconds 2)))
+
+(defn account-chip
+  []
+  (f/widget
+   :context ctx
+   :get [m/Navigator]
+   :watch [{:keys [accounts current-account-id]} store/app-state]
+   (let [current (some #(when (= (.-id ^mc/MailAccountDto %) current-account-id) %)
+                       accounts)
+         label (cond
+                 (nil? current-account-id) "All accounts"
+                 current (or (.-displayName ^mc/MailAccountDto current)
+                             (.-email ^mc/MailAccountDto current))
+                 :else "Account")]
+     (m/PopupMenuButton
+      .tooltip "Accounts"
+      .onSelected
+      (fn [value]
+        (cond
+          (= value :add)
+          (do
+            (.pushNamed navigator "/signup")
+            nil)
+
+          (= value :all)
+          (do (mail/set-current-account! nil) nil)
+
+          (= value :remove)
+          (when current-account-id
+            (-> (mail/remove-account! current-account-id)
+                (.then (fn [_] (toast! ctx "Account removed") nil))
+                (.catchError (fn [e]
+                               (dart:core/print (str "remove account failed: " e))
+                               (toast! ctx (str e))
+                               nil)))
+            nil)
+
+          (string? value)
+          (do (mail/set-current-account! value) nil))
+        nil)
+      .itemBuilder
+      (fn [_]
+        ;; itemBuilder return type needs an explicit List cast (no magicast).
+        (.cast
+         (vec
+          (concat
+           [(m/CheckedPopupMenuItem
+             .value :all
+             .checked (nil? current-account-id)
+             .child (m/Text "All accounts"))]
+           (mapv (fn [^mc/MailAccountDto a]
+                   (m/CheckedPopupMenuItem
+                    .value (.-id a)
+                    .checked (= (.-id a) current-account-id)
+                    .child (m/Text (or (.-displayName a) (.-email a)))))
+                 accounts)
+           [(m/PopupMenuDivider.)
+            (m/PopupMenuItem .value :add .child (m/Text "Add account"))
+            (m/PopupMenuItem .value :remove .child (m/Text "Remove current"))]))))
+      .child
+      (m/Padding
+       .padding (m.EdgeInsets/symmetric .horizontal 8.0)
+       .child
+       (m/Row
+        .mainAxisSize m.MainAxisSize/min
+        .children
+        [(m/Icon m.Icons/account_circle .size 20.0)
+         (m/SizedBox .width 6.0)
+         (m/ConstrainedBox
+          .constraints (m/BoxConstraints .maxWidth 160.0)
+          .child
+          (m/Text label
+                  .overflow m.TextOverflow/ellipsis
+                  .style (m/TextStyle .fontSize 13.0)))]))))))

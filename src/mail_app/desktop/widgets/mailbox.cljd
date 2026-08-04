@@ -1,0 +1,45 @@
+(ns mail-app.desktop.widgets.mailbox
+  "Fixed mailbox roles backed by MailBridge streams."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            [cljd.flutter :as f]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]))
+
+(def ^:private font-family "MongolianBaiZheng")
+
+(def ^:private mailboxes
+  [{:role :inbox :label "Inbox"}
+   {:role :sent :label "Sent"}
+   {:role :outbox :label "Outbox"}])
+
+(defn- mailbox-item [{:keys [role label]} selected]
+  (f/widget
+   :get [m/Navigator]
+   (mgl/MongolListTile
+    .selected (= role selected)
+    .title (m/Padding
+            .padding (m.EdgeInsets/only .top 8.0)
+            .child
+            (mgl/MongolText
+             label
+             .style (m/TextStyle .fontSize 18.0 .fontFamily font-family)))
+    .onTap (fn []
+             (mail/select-mailbox! role)
+             (.pushNamed navigator "/mail_list")
+             nil))))
+
+(defn mailbox-list
+  []
+  (f/widget
+   :watch [{:keys [selected-mailbox accounts]} store/app-state]
+   (if (empty? accounts)
+     (m/Center
+      .child (mgl/MongolText
+              "No account"
+              .style (m/TextStyle .fontFamily font-family .color m.Colors/black54)))
+     (m/ListView
+      .scrollDirection m.Axis/horizontal
+      .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+      .children
+      (mapv #(mailbox-item % selected-mailbox) mailboxes)))))

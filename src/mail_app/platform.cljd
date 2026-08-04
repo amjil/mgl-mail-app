@@ -1,0 +1,19 @@
+(ns mail-app.platform
+  "Desktop vs mobile detection for shell / bootstrap branching."
+  (:require ["package:flutter/foundation.dart" :as foundation :refer [kIsWeb]]))
+
+(defn mobile?
+  "Android or iOS (native). Web is never mobile for our purposes."
+  []
+  (when-not kIsWeb
+    (let [p foundation/defaultTargetPlatform]
+      (or (= p foundation.TargetPlatform/android)
+          (= p foundation.TargetPlatform/iOS)))))
+
+(defn desktop?
+  "macOS / Windows / Linux (and web treated as desktop chrome)."
+  []
+  (or kIsWeb (not (mobile?))))
+
+(defn web? []
+  kIsWeb)

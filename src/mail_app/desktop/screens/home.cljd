@@ -1,0 +1,25 @@
+(ns mail-app.desktop.screens.home
+  (:require ["package:flutter/material.dart" :as m]
+            [cljd.flutter :as f]
+            [mail-app.desktop.screens.signup :as signup]
+            [mail-app.desktop.widgets.error-banner :as err]
+            [mail-app.desktop.widgets.mailbox :as mailbox]
+            [mail-app.desktop.widgets.topbar :as topbar]
+            [mail-app.state.store :as store]))
+
+(defn screen []
+  (f/widget
+   :watch [{:keys [accounts]} store/app-state]
+   (if (empty? accounts)
+     (signup/screen)
+     (m/Scaffold
+      .body
+      (m/SafeArea
+       .child
+       (m/Column
+        .crossAxisAlignment m.CrossAxisAlignment/start
+        .children
+        [(topbar/mail-box)
+         (err/banner)
+         (m/Divider .thickness 1.0 .height 1.0)
+         (m/Expanded .child (mailbox/mailbox-list))]))))))

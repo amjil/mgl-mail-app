@@ -1,0 +1,295 @@
+(ns mail-app.services.compose-export
+  "Export block-editor document state to plain text / simple HTML for sendMail.
+   Also parse quoted originals out of received plain bodies."
+  (:require [clojure.string :as str]
+            [block-editor.utils.persistence :as persist]))
+
+(defn- walk-contents
+  "Depth-first collect non-empty :content strings from root blocks."
+  [state]
+  (let [blocks (:blocks state {})
+        root (:root state [])
+        out (atom [])]
+    (letfn [(walk [ids]
+              (doseq [id ids]
+                (when-let [b (get blocks id)]
+                  (let [t (:type b :paragraph)
+                        content (or (:content b) "")]
+                    (when (and (not= t :divider)
+                               (not= t :image)
+                               (seq content))
+                      (swap! out conj content))
+                    (when (seq (:children b))
+                      (walk (:children b)))))))]
+      (walk root)
+      @out)))
+
+(defn to-plain-text
+  "Join block contents with newlines."
+  [state]
+  (clojure.string/join "\n" (walk-contents state)))
+
+(defn- escape-html [s]
+  (-> (or s "")
+      (clojure.string/replace "&" "&amp;")
+      (clojure.string/replace "<" "&lt;")
+      (clojure.string/replace ">" "&gt;")
+      (clojure.string/replace "\"" "&quot;")))
+
+(defn to-html
+  "Simple paragraph HTML from block contents."
+  [state]
+  (let [parts (walk-contents state)]
+    (if (empty? parts)
+      "<p></p>"
+      (clojure.string/join
+       ""
+       (map (fn [c] (str "<p>" (escape-html c) "</p>")) parts)))))
+
+(defn state-from-plain-text
+  "Build editor state from plain text (one paragraph per line)."
+  [plain]
+  (let [lines (str/split-lines (or plain ""))
+        lines (if (seq lines) lines [""])
+        pairs (mapv (fn [line]
+                      (let [id (str "b-" (random-uuid))]
+                        [id {:id id
+                             :type :paragraph
+                             :content line
+                             :children []}]))
+                    lines)
+        root (mapv first pairs)
+        blocks (into {} pairs)]
+    (merge (persist/create-empty-state)
+           {:root root
+            :blocks blocks
+            :active-block-id (first root)})))
+
+(defn format-quote-plain
+  "Wire format for quoted original — easy to re-parse later."
+  [from date body]
+  (str "---\n"
+       "From: " (or from "") "\n"
+       (when (seq date) (str "Date: " date "\n"))
+       "\n"
+       (or body "")))
+
+(defn- strip-prefix [line prefix]
+  (let [t (str/trim (or line ""))]
+    (when (str/starts-with? (str/lower-case t) (str/lower-case prefix))
+      (str/trim (subs t (count prefix))))))
+
+(defn- header-name
+  "Lower-case header name if line is 'Name: value'."
+  [line]
+  (when-let [m (re-find #"^([A-Za-z0-9][A-Za-z0-9-]*)\s*:" (or line ""))]
+    (str/lower-case (nth m 1))))
+
+(defn- cut-raw-dump
+  "Drop trailing Sina/Outlook raw header dump from a quote block."
+  [s]
+  (let [s (or s "")]
+    (if-let [m (re-find #"^([\s\S]*?)\n(?=X-Mda-Received:|X-Sina-|X-SMAIL-|DKIM-Signature:|Return-Path:)" s)]
+      (str/trim (nth m 1))
+      s)))
+
+(defn- mime-junk-body?
+  [body]
+  (let [b (str/trim (or body ""))]
+    (or (empty? b)
+        (str/starts-with? b "--")
+        (str/starts-with? b "Content-Type:")
+        (str/includes? (subs b 0 (min 80 (count b))) "boundary="))))
+
+(defn- raw-rfc822-start?
+  [s]
+  (let [t (str/trim (or s ""))]
+    (or (str/starts-with? t "X-Mda-Received:")
+        (str/starts-with? t "X-Sina-")
+        (str/starts-with? t "X-SMAIL-")
+        (str/starts-with? t "Received: from")
+        (str/starts-with? t "Return-Path:")
+        (str/starts-with? t "DKIM-Signature:"))))
+
+(defn- parse-rfc822-block
+  "Parse raw message headers into a short quote suitable for the panel.
+   Keeps From/Date/Subject; drops DKIM/Received/X-* noise and MIME junk."
+  [raw]
+  (let [lines (str/split-lines (or raw ""))
+        headers (atom {})
+        body-lines (atom [])
+        in-headers? (atom true)
+        current-key (atom nil)]
+    (doseq [line lines]
+      (if @in-headers?
+        (cond
+          (str/blank? line)
+          (reset! in-headers? false)
+
+          (and (seq line)
+               (or (str/starts-with? line " ") (str/starts-with? line "\t")))
+          (when @current-key
+            (swap! headers update @current-key
+                   (fn [v] (str (or v "") " " (str/trim line)))))
+
+          :else
+          (if-let [name (header-name line)]
+            (let [t (str/trim line)
+                  idx (.indexOf t ":")
+                  val (if (neg? idx) "" (str/trim (subs t (inc idx))))]
+              (reset! current-key name)
+              (swap! headers assoc name val))
+            (do (reset! in-headers? false)
+                (swap! body-lines conj line))))
+        (swap! body-lines conj line)))
+    (let [from (get @headers "from")
+          date (get @headers "date")
+          subject (get @headers "subject")
+          to (get @headers "to")
+          body (str/trim (str/join "\n" @body-lines))
+          body (if (mime-junk-body? body) "" body)
+          summary (str/trim
+                   (str/join "\n"
+                             (filter seq
+                                     [(when (seq subject) (str "Subject: " subject))
+                                      (when (and (seq to) (empty? body))
+                                        (str "To: " to))
+                                      body])))]
+      {:quote-from (or from "")
+       :quote-date date
+       :quote-body (if (seq summary) summary "(original message)")})))
+
+(defn- parse-quote-header-block
+  "Parse our short ---/From:/Date: quote (not full RFC822)."
+  [after]
+  (let [after (cut-raw-dump after)
+        lines (str/split-lines (or after ""))
+        from (atom nil)
+        date (atom nil)
+        body-lines (atom [])
+        in-headers? (atom true)]
+    (doseq [line lines]
+      (if @in-headers?
+        (cond
+          (str/blank? line)
+          nil
+
+          (strip-prefix line "From:")
+          (reset! from (strip-prefix line "From:"))
+
+          (strip-prefix line "Date:")
+          (reset! date (strip-prefix line "Date:"))
+
+          (strip-prefix line "To:") nil
+          (strip-prefix line "Subject:") nil
+
+          (and (nil? @from)
+               (str/includes? line " · ")
+               (str/starts-with? (str/trim line) "From:"))
+          (let [rest (strip-prefix line "From:")
+                parts (str/split rest #" · " 2)]
+            (reset! from (first parts))
+            (when (second parts) (reset! date (second parts))))
+
+          :else
+          (do (reset! in-headers? false)
+              (swap! body-lines conj line)))
+        (swap! body-lines conj line)))
+    {:quote-from @from
+     :quote-date @date
+     :quote-body (str/trim (str/join "\n" @body-lines))}))
+
+(defn parse-quoted-plain
+  "Split plain body into reply + quoted original.
+   Supports ---/From:/Date:, Original Message, and raw RFC822 dumps
+   (X-Mda-Received / Sina / DKIM header blocks)."
+  [plain]
+  (let [text (or plain "")
+        empty {:reply text :quote-from nil :quote-date nil :quote-body nil}]
+    (cond
+      ;; 1) Our wire format
+      (re-find #"^([\s\S]*?)\n---\s*\n+([\s\S]*)$" text)
+      (let [m (re-find #"^([\s\S]*?)\n---\s*\n+([\s\S]*)$" text)
+            reply (str/trim (nth m 1))
+            after (str/trim (nth m 2))]
+        (cond
+          (raw-rfc822-start? after)
+          (merge {:reply (if (seq reply) reply "")}
+                 (parse-rfc822-block after))
+
+          (or (str/starts-with? after "From:")
+              (str/starts-with? after "-----Original")
+              (str/starts-with? after "----- Original"))
+          (merge {:reply (if (seq reply) reply "")}
+                 (parse-quote-header-block after))
+
+          :else empty))
+
+      ;; 2) Classic Outlook marker
+      (re-find #"^([\s\S]*?)\n-----Original Message-----\s*\n+([\s\S]*)$" text)
+      (let [m (re-find #"^([\s\S]*?)\n-----Original Message-----\s*\n+([\s\S]*)$" text)
+            after (str/trim (nth m 2))]
+        (merge {:reply (str/trim (nth m 1))}
+               (if (raw-rfc822-start? after)
+                 (parse-rfc822-block after)
+                 (parse-quote-header-block after))))
+
+      ;; 3) Raw original (Sina LMTP / full headers) embedded in plain text
+      (re-find #"^([\s\S]*?)\n(X-Mda-Received:[\s\S]*)$" text)
+      (let [m (re-find #"^([\s\S]*?)\n(X-Mda-Received:[\s\S]*)$" text)]
+        (merge {:reply (str/trim (nth m 1))}
+               (parse-rfc822-block (nth m 2))))
+
+      (re-find #"^([\s\S]*?)\n(X-Sina-MID:[\s\S]*)$" text)
+      (let [m (re-find #"^([\s\S]*?)\n(X-Sina-MID:[\s\S]*)$" text)]
+        (merge {:reply (str/trim (nth m 1))}
+               (parse-rfc822-block (nth m 2))))
+
+      (raw-rfc822-start? text)
+      (merge {:reply ""}
+             (parse-rfc822-block (str/trim text)))
+
+      :else empty)))
+
+(defn quote-toggle-state
+  "Collapsed quote panel state wrapping the original body."
+  [from date plain]
+  (let [toggle-id (str "b-" (random-uuid))
+        lines (str/split-lines (or plain ""))
+        lines (if (seq lines) lines [""])
+        child-pairs (mapv (fn [line]
+                            (let [id (str "b-" (random-uuid))]
+                              [id {:id id
+                                   :type :paragraph
+                                   :content line
+                                   :children []
+                                   :parent toggle-id}]))
+                          lines)
+        child-ids (mapv first child-pairs)
+        header (cond-> (str "From: " (or from ""))
+                 (seq date) (str " · " date))
+        toggle-block {:id toggle-id
+                      :type :toggle
+                      :content header
+                      :collapsed? true
+                      :children child-ids
+                      :parent :root}
+        blocks (into {toggle-id toggle-block} child-pairs)]
+    {:root [toggle-id]
+     :blocks blocks
+     :collapsed? true
+     :quote-from from
+     :quote-date date
+     :quote-body plain}))
+
+(defn quote-state-to-plain
+  "Serialize quote panel state back to the wire ---/From:/Date: format."
+  [quote-state]
+  (when quote-state
+    (format-quote-plain
+     (:quote-from quote-state)
+     (:quote-date quote-state)
+     (or (:quote-body quote-state)
+         (let [tid (first (:root quote-state))
+               ids (get-in quote-state [:blocks tid :children] [])]
+           (str/join "\n" (map #(get-in quote-state [:blocks % :content] "") ids)))))))

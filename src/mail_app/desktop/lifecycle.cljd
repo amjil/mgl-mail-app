@@ -1,0 +1,30 @@
+(ns mail-app.desktop.lifecycle
+  "Desktop app lifecycle → MailBridge onAppBackground / dispose."
+  (:require ["package:flutter/material.dart" :as m]
+            [cljd.flutter :as f]
+            [mail-app.services.mail-core :as mail]))
+
+(defn- on-lifecycle-change [state]
+  (cond
+    (= state m.AppLifecycleState/resumed)
+    (mail/on-app-background! false)
+
+    (or (= state m.AppLifecycleState/paused)
+        (= state m.AppLifecycleState/hidden)
+        (= state m.AppLifecycleState/detached))
+    (mail/on-app-background! true))
+  nil)
+
+(defn- dispose-listener! [^m/AppLifecycleListener l]
+  (.dispose l)
+  (mail/dispose!)
+  nil)
+
+(defn wrap
+  "Attach AppLifecycleListener around child."
+  [child]
+  (f/widget
+   :managed [listener (m/AppLifecycleListener.
+                       .onStateChange on-lifecycle-change)
+             :dispose dispose-listener!]
+   child))

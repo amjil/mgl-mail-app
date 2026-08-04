@@ -1,0 +1,165 @@
+(ns mail-app.desktop.screens.signup
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            ["package:flutter_styled_toast/flutter_styled_toast.dart" :as toast]
+            [cljd.flutter :as f]
+            [clojure.string :as str]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]))
+
+(def ^:private font-family "MongolianBaiZheng")
+
+(defn- field [controller hint & {:keys [obscure?] :or {obscure? false}}]
+  (f/widget
+   :get {{{primary-color .-primary} .-colorScheme} m/Theme}
+   (m/TextFormField
+    .controller controller
+    .obscureText obscure?
+    .decoration
+    (m/InputDecoration
+     .focusedBorder
+     (m/OutlineInputBorder
+      .borderRadius (m.BorderRadius/circular 5.0)
+      .borderSide (m/BorderSide .color primary-color .width 2.0))
+     .enabledBorder
+     (m/OutlineInputBorder
+      .borderRadius (m.BorderRadius/circular 5.0)
+      .borderSide (m/BorderSide .color m.Colors/grey))
+     .contentPadding (m.EdgeInsets/all 14.0)
+     .hintText hint
+     .hintStyle (m/TextStyle .fontSize 14.0)))))
+
+(defn- submit!
+  [ctx navigator !busy email-ctrl password-ctrl imap-ctrl smtp-ctrl]
+  (reset! !busy true)
+  (-> (mail/add-account!
+       {:email (str/trim (.-text email-ctrl))
+        :password (.-text password-ctrl)
+        :imap-host (let [h (str/trim (.-text imap-ctrl))]
+                     (when (seq h) h))
+        :smtp-host (let [h (str/trim (.-text smtp-ctrl))]
+                     (when (seq h) h))})
+      (.then (fn [_]
+               (reset! !busy false)
+               (toast/showToast "Account added"
+                                .context ctx
+                                .duration (dart:core/Duration. .seconds 2))
+               (when (.canPop navigator)
+                 (.pop navigator))
+               nil))
+      (.catchError (fn [e]
+                     (reset! !busy false)
+                     (dart:core/print (str "add account failed: " e))
+                     (toast/showToast (str e)
+                                      .context ctx
+                                      .duration (dart:core/Duration. .seconds 3))
+                     nil)))
+  nil)
+
+(defn- submit-outlook!
+  [ctx navigator !busy]
+  (reset! !busy true)
+  (-> (mail/add-outlook-account!)
+      (.then (fn [_]
+               (reset! !busy false)
+               (toast/showToast "Outlook account added"
+                                .context ctx
+                                .duration (dart:core/Duration. .seconds 2))
+               (when (.canPop navigator)
+                 (.pop navigator))
+               nil))
+      (.catchError (fn [e]
+                     (reset! !busy false)
+                     (dart:core/print (str "add outlook account failed: " e))
+                     (toast/showToast (str e)
+                                      .context ctx
+                                      .duration (dart:core/Duration. .seconds 4))
+                     nil)))
+  nil)
+
+(defn screen
+  []
+  (let [!busy (atom false)]
+    (f/widget
+     :context ctx
+     :get [m/Navigator]
+     :managed [email-ctrl (m/TextEditingController.)
+               password-ctrl (m/TextEditingController.)
+               imap-ctrl (m/TextEditingController.)
+               smtp-ctrl (m/TextEditingController.)]
+     :watch [{:keys [accounts]} store/app-state
+             busy? !busy]
+     (m/Scaffold
+      .body
+      (m/SafeArea
+       .child
+       (m/Center
+        .child
+        (m/SingleChildScrollView
+         .child
+         (m/Container
+          .width 420.0
+          .padding (m.EdgeInsets/all 24.0)
+          .child
+          (m/Column
+           .mainAxisSize m.MainAxisSize/min
+           .crossAxisAlignment m.CrossAxisAlignment/stretch
+           .children
+           [(m/Row
+             .children
+             (cond-> []
+               (seq accounts)
+               (conj (m/IconButton
+                      .icon (m/Icon m.Icons/arrow_back_ios_new)
+                      .onPressed (fn [] (.pop navigator) nil)))
+               true
+               (conj (m/Text "Add account"
+                             .style (m/TextStyle .fontSize 22.0
+                                                 .fontWeight m/FontWeight.bold)))))
+            (m/SizedBox .height 8.0)
+            (m/Text
+             "Email + password (IMAP/SMTP auto from domain)"
+             .style (m/TextStyle .fontSize 14.0
+                                 .fontFamily font-family
+                                 .color m.Colors/black54))
+            (m/SizedBox .height 24.0)
+            (m/OutlinedButton.icon
+             .onPressed (if busy?
+                          nil
+                          #(submit-outlook! ctx navigator !busy))
+             .icon (m/Icon m.Icons/mail_outline)
+             .label (m/Text "Sign in with Microsoft (Outlook)")
+             .style (m/OutlinedButton.styleFrom
+                     .padding (m.EdgeInsets/symmetric .vertical 14.0)))
+            (m/SizedBox .height 20.0)
+            (m/Row
+             .children
+             [(m/Expanded .child (m/Divider.))
+              (m/Padding
+               .padding (m.EdgeInsets/symmetric .horizontal 12.0)
+               .child (m/Text "or"
+                              .style (m/TextStyle .color m.Colors/black45
+                                                  .fontSize 13.0)))
+              (m/Expanded .child (m/Divider.))])
+            (m/SizedBox .height 20.0)
+            (field email-ctrl "Email")
+            (m/SizedBox .height 16.0)
+            (field password-ctrl "Password" :obscure? true)
+            (m/SizedBox .height 16.0)
+            (field imap-ctrl "IMAP host (optional)")
+            (m/SizedBox .height 16.0)
+            (field smtp-ctrl "SMTP host (optional)")
+            (m/SizedBox .height 28.0)
+            (m/ElevatedButton
+             .onPressed (if busy?
+                          nil
+                          #(submit! ctx navigator !busy email-ctrl password-ctrl
+                                    imap-ctrl smtp-ctrl))
+             .child (if busy?
+                      (m/SizedBox
+                       .width 22.0
+                       .height 22.0
+                       .child (m/CircularProgressIndicator.
+                               .strokeWidth 2.0
+                               .color m.Colors/white))
+                      (m/Text "Done")))])))))))))

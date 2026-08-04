@@ -1,0 +1,30 @@
+(ns mail-app.main
+  (:require ["package:flutter/material.dart" :as m]
+            [cljd.flutter :as f]
+            [mail-app.platform :as platform]
+            [mail-app.bootstrap.desktop :as desktop-boot]
+            [mail-app.bootstrap.mobile :as mobile-boot]
+            [mail-app.desktop :as desktop]
+            [mail-app.mobile :as mobile]
+            [mail-app.services.mail-core :as mail]))
+
+(defn main []
+  (m/WidgetsFlutterBinding.ensureInitialized)
+
+  (try
+    (if (platform/desktop?)
+      (await (desktop-boot/init!))
+      (mobile-boot/init!))
+    (catch Exception e
+      (dart:core/print (str "bootstrap failed: " e))))
+
+  ;; MailBridge init — soft-fail so UI still launches without DB issues
+  (try
+    (await (mail/init!))
+    (catch Exception e
+      (dart:core/print (str "mail-core init failed: " e))))
+
+  (f/run
+   (if (platform/desktop?)
+     (desktop/app)
+     (mobile/app))))

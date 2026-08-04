@@ -1,0 +1,28 @@
+(ns mail-app.desktop
+  (:require ["package:flutter/material.dart" :as m]
+            [cljd.flutter :as f]
+            [mail-app.desktop.lifecycle :as life]
+            [mail-app.desktop.screens.home :as home]
+            [mail-app.desktop.screens.compose :as compose]
+            [mail-app.desktop.screens.mail-list :as mail-list]
+            [mail-app.desktop.screens.mail-detail :as mail-detail]
+            [mail-app.desktop.screens.search :as search]
+            [mail-app.desktop.screens.signup :as signup]))
+
+(defn app []
+  (life/wrap
+   (f/widget
+    (m/MaterialApp
+     .title "MGL Mail"
+     .debugShowCheckedModeBanner false
+     .theme (m/ThemeData
+             .primarySwatch m.Colors/blue
+             .fontFamily "MongolianBaiZheng"
+             .scaffoldBackgroundColor m.Colors/white)
+     .initialRoute "/"
+     .routes {"/" (fn ^m/Widget [_] (home/screen))
+              "/signup" (fn ^m/Widget [_] (signup/screen))
+              "/compose" (fn ^m/Widget [_] (compose/screen))
+              "/mail_list" (fn ^m/Widget [_] (mail-list/screen))
+              "/mail_detail" (fn ^m/Widget [_] (mail-detail/screen))
+              "/search" (fn ^m/Widget [_] (search/screen))}))))

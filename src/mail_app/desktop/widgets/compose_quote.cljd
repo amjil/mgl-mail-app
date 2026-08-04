@@ -1,0 +1,88 @@
+(ns mail-app.desktop.widgets.compose-quote
+  "Quoted original — collapse/uncollapse control; body as normal blocks."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            [cljd.flutter :as f]
+            [clojure.string :as str]
+            [block-editor.widgets.reader :as reader]
+            [mail-app.services.compose-export :as export]))
+
+(def ^:private font-family "MongolianBaiZheng")
+
+(def ^:private reader-cfg
+  {:block-style
+   (fn [_b-type]
+     (m/TextStyle .fontSize 16.0
+                  .color m.Colors/black87
+                  .fontFamily font-family))
+   :block-plugins []})
+
+(defn- label-style []
+  (m/TextStyle .fontSize 14.0
+               .color m.Colors/black54
+               .fontFamily font-family))
+
+(defn- flip-collapsed! [!quote-state]
+  (swap! !quote-state update :collapsed? #(not (boolean %)))
+  nil)
+
+(defn- quote-plain 
+  "Build plain text for normal blocks: From / Date / body."
+  [state]
+  (let [from (:quote-from state)
+        date (:quote-date state)
+        body (or (:quote-body state) "")
+        lines (cond-> []
+                (seq from) (conj (str "From: " from))
+                (seq date) (conj (str "Date: " date))
+                (and (or (seq from) (seq date)) (seq body)) (conj "")
+                (seq body) (into (str/split-lines body)))]
+    (str/join "\n" (if (seq lines) lines [""]))))
+
+(defn- content-blocks [plain]
+  (let [state (export/state-from-plain-text plain)
+        root (:root state)
+        blocks (:blocks state)]
+    (mapv (fn [id]
+            (m/Padding
+             .padding (m.EdgeInsets/only .left 16.0)
+             .child
+             (reader/block-reader-view (get blocks id) [] reader-cfg)))
+          root)))
+
+(defn panel
+  "Collapse control shows only 'collapse' / 'uncollapse'.
+   Quoted From/Date/body render as ordinary blocks when expanded."
+  [!quote-state]
+  (f/widget
+   :watch [state !quote-state]
+   (let [collapsed? (boolean (:collapsed? state true))
+         label (if collapsed? "uncollapse" "collapse")
+         plain (quote-plain state)]
+     (m/Container
+      .decoration (m/BoxDecoration
+                   .border (m/Border
+                            .left (m/BorderSide .color m.Colors/black12)))
+      .padding (m.EdgeInsets/only .left 8.0 .top 16.0 .bottom 16.0 .right 8.0)
+      .child
+      (m/SingleChildScrollView
+       .scrollDirection m.Axis/horizontal
+       .child
+       (m/Row
+        .crossAxisAlignment m.CrossAxisAlignment/start
+        .children
+        (vec
+         (concat
+          [(m/Material
+            .color m.Colors/transparent
+            .child
+            (m/InkWell
+             .onTap #(flip-collapsed! !quote-state)
+             .borderRadius (m/BorderRadius.circular 4.0)
+             .child
+             (m/Padding
+              .padding (m.EdgeInsets/all 8.0)
+              .child
+              (mgl/MongolText label .style (label-style)))))]
+          (when-not collapsed?
+            (content-blocks plain))))))))))

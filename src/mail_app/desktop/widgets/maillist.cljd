@@ -1,0 +1,105 @@
+(ns mail-app.desktop.widgets.maillist
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            [cljd.flutter :as f]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]))
+
+(def ^:private font-family "MongolianBaiZheng")
+
+(defn- subject-of [^mc/MailMessageDto msg]
+  (let [s (.-subject msg)]
+    (if (or (nil? s) (empty? s)) "No Subject" s)))
+
+(defn- pad2 [n]
+  (.padLeft (.toString n) 2 "0"))
+
+(defn- format-date [^DateTime d]
+  (when d
+    (str (pad2 (.month d)) "/" (pad2 (.day d)))))
+
+(defn- message-item [^mc/MailMessageDto msg]
+  (f/widget
+   :get [m/Navigator]
+   (mgl/MongolListTile
+    .title (m/Padding
+            .padding (m.EdgeInsets/only .top 8.0)
+            .child
+            (mgl/MongolText
+             (subject-of msg)
+             .style (m/TextStyle
+                     .fontSize 16.0
+                     .fontFamily font-family
+                     .fontWeight (if (.-isRead msg)
+                                   m/FontWeight.normal
+                                   m/FontWeight.bold))))
+    .subtitle (m/Column
+               .crossAxisAlignment m.CrossAxisAlignment/start
+               .mainAxisSize m.MainAxisSize/min
+               .children
+               [(mgl/MongolText
+                 (or (.-fromName msg) (.-from msg) "")
+                 .style (m/TextStyle .fontSize 13.0
+                                     .fontFamily font-family
+                                     .color m.Colors/black54))
+                (m/SizedBox .height 4.0)
+                (m/Text (or (format-date (.-date msg)) "")
+                        .style (m/TextStyle .fontSize 11.0
+                                            .color m.Colors/black45))])
+    .trailing (when (.-hasAttachment msg)
+                (m/Icon m.Icons/attach_file .size 16.0 .color m.Colors/black45))
+    .onTap (fn []
+             (mail/open-message! (.-id msg))
+             (.pushNamed navigator "/mail_detail")
+             nil))))
+
+(defn- outbox-item [^mc/MailOutboxDto row]
+  (f/widget
+   :get [m/Navigator]
+   (mgl/MongolListTile
+    .title (m/Padding
+            .padding (m.EdgeInsets/only .top 8.0)
+            .child
+            (mgl/MongolText
+             (or (.-subject row) "No Subject")
+             .style (m/TextStyle .fontSize 16.0 .fontFamily font-family)))
+    .subtitle (mgl/MongolText
+               (str (.-status row)
+                    (when (.-lastError row)
+                      (str " · " (.-lastError row))))
+               .style (m/TextStyle .fontSize 12.0
+                                   .fontFamily font-family
+                                   .color m.Colors/black54))
+    .trailing (when (or (= (.-status row) "failed")
+                         (= (.-status row) "pending"))
+                (m/IconButton
+                 .icon (m/Icon m.Icons/refresh)
+                 .tooltip "Retry"
+                 .onPressed (fn []
+                              (mail/retry-outbox! (.-id row))
+                              nil)))
+    .onTap (fn []
+             (mail/open-message! (.-messageId row))
+             (.pushNamed navigator "/mail_detail")
+             nil))))
+
+(defn list-view
+  []
+  (f/widget
+   :watch [{:keys [selected-mailbox mail-list outbox-list]} store/app-state]
+   (let [outbox? (= selected-mailbox :outbox)
+         items (if outbox? outbox-list mail-list)]
+     (if (empty? items)
+       (m/Center
+        .child (mgl/MongolText
+                "empty."
+                .style (m/TextStyle .fontFamily font-family
+                                    .color m.Colors/black54)))
+       (m/ListView
+        .scrollDirection m.Axis/horizontal
+        .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+        .children
+        (if outbox?
+          (mapv outbox-item items)
+          (mapv message-item items)))))))

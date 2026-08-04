@@ -1,0 +1,5 @@
+(ns mail-app.bootstrap.mobile
+  "Mobile-only startup stub. Virtual keyboard wiring comes later.")
+
+(defn init! []
+  (dart:core/print "bootstrap.mobile: stub ready"))

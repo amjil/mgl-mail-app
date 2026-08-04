@@ -1,0 +1,44 @@
+(ns mail-app.desktop.widgets.compose-fields
+  "To / Cc / Subject columns using rich-editor text-field."
+  (:require ["package:flutter/material.dart" :as m]
+            [rich-editor.components.text-field :as custom-tf]))
+
+(def ^:private font-family "MongolianBaiZheng")
+
+(defonce !header-ime
+  (atom {:external-keyboard-delegate nil}))
+
+(defn- field-column
+  "Vertical Mongol text field column with fixed width."
+  [!ime controller focus-node hint & {:keys [width]
+                                      :or {width 72.0}}]
+  (m/Container
+   .width width
+   .padding (m.EdgeInsets/symmetric .horizontal 4.0 .vertical 8.0)
+   .child
+   (custom-tf/text-field
+    !ime
+    {:controller controller
+     :focus-node focus-node
+     :hint hint
+     :max-lines nil
+     :style (m/TextStyle .fontSize 18.0
+                         .fontFamily font-family
+                         .color m.Colors/black87)
+     :decoration (m/InputDecoration .border m/InputBorder.none)})))
+
+(defn header-row
+  "Row of To / optional Cc / Subject fields. Controllers managed by caller."
+  [{:keys [to-ctrl to-focus
+           cc-ctrl cc-focus
+           subject-ctrl subject-focus
+           show-cc?]}]
+  (m/Row
+   .crossAxisAlignment m.CrossAxisAlignment/stretch
+   .children
+   (cond-> [(field-column !header-ime to-ctrl to-focus "To" :width 80.0)]
+     show-cc?
+     (conj (field-column !header-ime cc-ctrl cc-focus "Cc" :width 80.0))
+
+     true
+     (conj (field-column !header-ime subject-ctrl subject-focus "Subject" :width 96.0)))))

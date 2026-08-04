@@ -1,0 +1,18 @@
+(ns mail-app.desktop.screens.mail-list
+  (:require ["package:flutter/material.dart" :as m]
+            [mail-app.desktop.widgets.error-banner :as err]
+            [mail-app.desktop.widgets.maillist :as maillist]
+            [mail-app.desktop.widgets.topbar :as topbar]))
+
+(defn screen []
+  (m/Scaffold
+   .body
+   (m/SafeArea
+    .child
+    (m/Column
+     .crossAxisAlignment m.CrossAxisAlignment/start
+     .children
+     [(topbar/mail-list)
+      (err/banner)
+      (m/Divider .thickness 1.0 .height 1.0)
+      (m/Expanded .child (maillist/list-view))]))))
