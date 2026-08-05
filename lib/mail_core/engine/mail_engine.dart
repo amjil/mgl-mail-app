@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:enough_mail/enough_mail.dart';
-import 'package:enough_mail_html/enough_mail_html.dart';
 import 'package:uuid/uuid.dart';
 
 import '../bridge/dto/mail_dtos.dart';
@@ -16,6 +15,7 @@ import '../oauth/outlook_oauth.dart';
 import '../search/fts_indexer.dart';
 import '../search/mail_search_service.dart';
 import '../secure/account_credential_store.dart';
+import '../smtp/outgoing_mime.dart';
 import 'account_context.dart';
 import 'account_engine.dart';
 
@@ -476,17 +476,47 @@ class MailEngine {
     }
     if (!message.isRead) {
       await db.messageDao.markRead(messageId);
+      final eng = _accounts[message.accountId];
+      if (eng != null) {
+        unawaited(eng.setMessageFlags(messageId, seen: true).catchError((_) {}));
+      }
     }
     final body = await db.messageBodyDao.find(messageId);
     final atts = await db.attachmentDao.listForMessage(messageId);
+    String? folderRole;
+    if (message.folderId != null) {
+      final folder = await db.folderDao.findById(message.folderId!);
+      folderRole = folder?.role;
+    }
     return MailMessageWithBody(
       message: MailMapper.toMessageDto(
-        message,
+        message.copyWith(isRead: true),
         hasBody: body?.isDownloaded == true,
+        folderRole: folderRole,
       ),
       body: MailMapper.toBodyDto(body),
       attachments: atts.map(MailMapper.toAttachmentDto).toList(),
     );
+  }
+
+  Future<void> setRead(int messageId, {required bool read}) async {
+    final message = await db.messageDao.findById(messageId);
+    if (message == null) return;
+    await db.messageDao.markRead(messageId, read: read);
+    try {
+      await _accounts[message.accountId]
+          ?.setMessageFlags(messageId, seen: read);
+    } catch (_) {}
+  }
+
+  Future<void> setStarred(int messageId, {required bool starred}) async {
+    final message = await db.messageDao.findById(messageId);
+    if (message == null) return;
+    await db.messageDao.markStarred(messageId, starred: starred);
+    try {
+      await _accounts[message.accountId]
+          ?.setMessageFlags(messageId, flagged: starred);
+    } catch (_) {}
   }
 
   Future<void> ensureBodyDownloaded(int messageId) async {
@@ -523,31 +553,77 @@ class MailEngine {
     required String accountId,
     required List<String> to,
     List<String>? cc,
+    List<String>? bcc,
     required String subject,
     String? plainText,
     String? htmlText,
     List<String>? attachmentPaths,
+    String? inReplyTo,
+    String? references,
+    int? draftMessageId,
   }) async {
     if (!_accounts.containsKey(accountId)) {
       throw StateError('Account $accountId is not registered');
     }
-    final clientMessageId = _uuid.v4();
-    final rfcId = '<$clientMessageId@local>';
-    final messageId = await db.messageDao.insertMessage(
-      MessagesCompanion.insert(
-        accountId: accountId,
-        clientMessageId: Value(clientMessageId),
-        messageId: Value(rfcId),
-        fromAddr: Value((await db.accountDao.findById(accountId))!.email),
-        toAddr: Value(to.join(', ')),
-        ccAddr: Value(cc?.join(', ')),
-        subject: Value(subject),
-        date: DateTime.now(),
-        state: const Value('outbox'),
-        isRead: const Value(true),
-        hasAttachment: Value(attachmentPaths?.isNotEmpty == true),
-      ),
-    );
+    final account = (await db.accountDao.findById(accountId))!;
+    final toJoined = to.join(', ');
+    final ccJoined = cc?.join(', ');
+    final bccJoined = bcc?.join(', ');
+    final hasAtt = attachmentPaths?.isNotEmpty == true;
+
+    late final int messageId;
+    late final String clientMessageId;
+    late final String rfcId;
+
+    if (draftMessageId != null) {
+      final existing = await db.messageDao.findById(draftMessageId);
+      if (existing == null || existing.accountId != accountId) {
+        throw StateError('Draft $draftMessageId not found');
+      }
+      messageId = draftMessageId;
+      clientMessageId = existing.clientMessageId ?? _uuid.v4();
+      rfcId = existing.messageId ?? '<$clientMessageId@local>';
+      await db.messageDao.updateMessage(
+        messageId,
+        MessagesCompanion(
+          toAddr: Value(toJoined),
+          ccAddr: Value(ccJoined),
+          bccAddr: Value(bccJoined),
+          subject: Value(subject),
+          inReplyTo: Value(inReplyTo),
+          referencesHeader: Value(references),
+          state: const Value('outbox'),
+          isRead: const Value(true),
+          hasAttachment: Value(hasAtt),
+          date: Value(DateTime.now()),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await db.attachmentDao.deleteForMessage(messageId);
+      await db.outboxDao.deleteByMessageId(messageId);
+    } else {
+      clientMessageId = _uuid.v4();
+      rfcId = '<$clientMessageId@local>';
+      messageId = await db.messageDao.insertMessage(
+        MessagesCompanion.insert(
+          accountId: accountId,
+          clientMessageId: Value(clientMessageId),
+          messageId: Value(rfcId),
+          fromAddr: Value(account.email),
+          toAddr: Value(toJoined),
+          ccAddr: Value(ccJoined),
+          bccAddr: Value(bccJoined),
+          subject: Value(subject),
+          inReplyTo: Value(inReplyTo),
+          referencesHeader: Value(references),
+          date: DateTime.now(),
+          state: const Value('outbox'),
+          isRead: const Value(true),
+          hasAttachment: Value(hasAtt),
+        ),
+      );
+    }
+
     await db.messageBodyDao.upsert(
       MessageBodiesCompanion.insert(
         messageId: Value(messageId),
@@ -564,6 +640,9 @@ class MailEngine {
           AttachmentsCompanion.insert(
             messageId: messageId,
             filename: file.uri.pathSegments.last,
+            mimeType: Value(
+              MediaType.guessFromFileName(file.uri.pathSegments.last).text,
+            ),
             localPath: Value(path),
             isDownloaded: const Value(true),
             size: Value(await file.exists() ? await file.length() : null),
@@ -576,7 +655,7 @@ class MailEngine {
       accountId: accountId,
       subject: subject,
       body: plainText ?? htmlText,
-      toAddr: to.join(', '),
+      toAddr: toJoined,
     );
     await db.outboxDao.insert(
       OutboxCompanion.insert(
@@ -591,41 +670,84 @@ class MailEngine {
   }
 
   /// Save a compose draft locally (and APPEND to IMAP Drafts when available).
-  /// Recipients may be empty.
+  /// Recipients may be empty. Pass [draftMessageId] to update an existing draft.
   Future<int> saveDraft({
     required String accountId,
     List<String>? to,
     List<String>? cc,
+    List<String>? bcc,
     required String subject,
     String? plainText,
     String? htmlText,
     List<String>? attachmentPaths,
+    String? inReplyTo,
+    String? references,
+    int? draftMessageId,
   }) async {
     if (!_accounts.containsKey(accountId)) {
       throw StateError('Account $accountId is not registered');
     }
     final account = (await db.accountDao.findById(accountId))!;
     final draftFolder = await db.folderDao.findDraft(accountId);
-    final clientMessageId = _uuid.v4();
-    final rfcId = '<$clientMessageId@local>';
     final toJoined = (to ?? const []).join(', ');
     final ccJoined = cc?.join(', ');
-    final messageId = await db.messageDao.insertMessage(
-      MessagesCompanion.insert(
-        accountId: accountId,
-        folderId: Value(draftFolder?.id),
-        clientMessageId: Value(clientMessageId),
-        messageId: Value(rfcId),
-        fromAddr: Value(account.email),
-        toAddr: Value(toJoined),
-        ccAddr: Value(ccJoined),
-        subject: Value(subject),
-        date: DateTime.now(),
-        state: const Value('draft'),
-        isRead: const Value(true),
-        hasAttachment: Value(attachmentPaths?.isNotEmpty == true),
-      ),
-    );
+    final bccJoined = bcc?.join(', ');
+    final hasAtt = attachmentPaths?.isNotEmpty == true;
+
+    late final int messageId;
+    late final String clientMessageId;
+    late final String rfcId;
+
+    if (draftMessageId != null) {
+      final existing = await db.messageDao.findById(draftMessageId);
+      if (existing == null || existing.accountId != accountId) {
+        throw StateError('Draft $draftMessageId not found');
+      }
+      messageId = draftMessageId;
+      clientMessageId = existing.clientMessageId ?? _uuid.v4();
+      rfcId = existing.messageId ?? '<$clientMessageId@local>';
+      await db.messageDao.updateMessage(
+        messageId,
+        MessagesCompanion(
+          folderId: Value(draftFolder?.id ?? existing.folderId),
+          toAddr: Value(toJoined),
+          ccAddr: Value(ccJoined),
+          bccAddr: Value(bccJoined),
+          subject: Value(subject),
+          inReplyTo: Value(inReplyTo),
+          referencesHeader: Value(references),
+          state: const Value('draft'),
+          isRead: const Value(true),
+          hasAttachment: Value(hasAtt),
+          date: Value(DateTime.now()),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await db.attachmentDao.deleteForMessage(messageId);
+    } else {
+      clientMessageId = _uuid.v4();
+      rfcId = '<$clientMessageId@local>';
+      messageId = await db.messageDao.insertMessage(
+        MessagesCompanion.insert(
+          accountId: accountId,
+          folderId: Value(draftFolder?.id),
+          clientMessageId: Value(clientMessageId),
+          messageId: Value(rfcId),
+          fromAddr: Value(account.email),
+          toAddr: Value(toJoined),
+          ccAddr: Value(ccJoined),
+          bccAddr: Value(bccJoined),
+          subject: Value(subject),
+          inReplyTo: Value(inReplyTo),
+          referencesHeader: Value(references),
+          date: DateTime.now(),
+          state: const Value('draft'),
+          isRead: const Value(true),
+          hasAttachment: Value(hasAtt),
+        ),
+      );
+    }
+
     await db.messageBodyDao.upsert(
       MessageBodiesCompanion.insert(
         messageId: Value(messageId),
@@ -642,6 +764,9 @@ class MailEngine {
           AttachmentsCompanion.insert(
             messageId: messageId,
             filename: file.uri.pathSegments.last,
+            mimeType: Value(
+              MediaType.guessFromFileName(file.uri.pathSegments.last).text,
+            ),
             localPath: Value(path),
             isDownloaded: const Value(true),
             size: Value(await file.exists() ? await file.length() : null),
@@ -658,15 +783,20 @@ class MailEngine {
     );
 
     try {
-      final mime = _buildOutgoingMime(
+      final atts = await db.attachmentDao.listForMessage(messageId);
+      final mime = await OutgoingMime.build(
         account: account,
         toAddr: toJoined,
         ccAddr: ccJoined ?? '',
+        bccAddr: bccJoined ?? '',
         subject: subject,
         plainText: plainText,
         htmlText: htmlText,
         clientMessageId: clientMessageId,
         messageIdHeader: rfcId,
+        inReplyTo: inReplyTo,
+        references: references,
+        attachments: atts,
       );
       final uid = await _accounts[accountId]?.appendDraft(mime);
       if (uid != null) {
@@ -674,63 +804,60 @@ class MailEngine {
           messageId,
           MessagesCompanion(
             uid: Value(uid),
+            folderId: Value(draftFolder?.id),
             updatedAt: Value(DateTime.now()),
           ),
         );
       }
     } catch (e) {
-      // Local draft is kept even if IMAP APPEND fails.
       // ignore: avoid_print
       print('saveDraft IMAP APPEND failed: $e');
     }
     return messageId;
   }
 
-  MimeMessage _buildOutgoingMime({
-    required Account account,
-    required String toAddr,
-    required String ccAddr,
-    required String subject,
-    String? plainText,
-    String? htmlText,
-    required String clientMessageId,
-    String? messageIdHeader,
-  }) {
-    final builder = MessageBuilder()
-      ..from = [
-        MailAddress(account.displayName ?? account.email, account.email),
-      ]
-      ..to = _parseAddresses(toAddr)
-      ..cc = _parseAddresses(ccAddr)
-      ..subject = subject;
-
-    builder.addHeader('X-Client-Message-Id', clientMessageId);
-    if (messageIdHeader != null) {
-      builder.addHeader('Message-ID', messageIdHeader);
+  /// Update password-account hosts / password / display name.
+  Future<MailAccountDto> updateAccount({
+    required String accountId,
+    String? displayName,
+    String? password,
+    String? imapHost,
+    int? imapPort,
+    String? smtpHost,
+    int? smtpPort,
+  }) async {
+    final existing = await db.accountDao.findById(accountId);
+    if (existing == null) {
+      throw StateError('Account $accountId not found');
     }
-
-    final html = htmlText;
-    final plain = plainText ??
-        (html != null ? HtmlToPlainTextConverter.convert(html) : '');
-    if (html != null && html.isNotEmpty) {
-      builder.addMultipartAlternative(
-        plainText: plain,
-        htmlText: html,
-      );
-    } else {
-      builder.text = plain;
+    if (existing.authType == 'oauth2' && password != null) {
+      throw StateError('Cannot set password on OAuth account');
     }
-    return builder.buildMimeMessage();
-  }
-
-  List<MailAddress> _parseAddresses(String raw) {
-    if (raw.trim().isEmpty) return [];
-    return raw
-        .split(',')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .map((e) => MailAddress(null, e))
-        .toList();
+    await db.accountDao.upsert(
+      AccountsCompanion(
+        id: Value(accountId),
+        email: Value(existing.email),
+        displayName: Value(displayName ?? existing.displayName),
+        imapHost: Value(imapHost ?? existing.imapHost),
+        imapPort: Value(imapPort ?? existing.imapPort),
+        imapSsl: Value(existing.imapSsl),
+        smtpHost: Value(smtpHost ?? existing.smtpHost),
+        smtpPort: Value(smtpPort ?? existing.smtpPort),
+        smtpSsl: Value(existing.smtpSsl),
+        username: Value(existing.username),
+        authType: Value(existing.authType),
+        provider: Value(existing.provider),
+        createdAt: Value(existing.createdAt),
+      ),
+    );
+    if (password != null && password.isNotEmpty) {
+      await credentials.savePassword(accountId, password);
+    }
+    final engine = _accounts.remove(accountId);
+    await engine?.stop();
+    final updated = (await db.accountDao.findById(accountId))!;
+    await _register(updated, start: true);
+    return MailMapper.toAccountDto(updated);
   }
 
   Future<void> retryOutbox(int outboxId) async {

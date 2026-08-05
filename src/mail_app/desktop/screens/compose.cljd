@@ -32,7 +32,7 @@
                     .fontFamily font-family)))})
 
 (defn- apply-fields!
-  [draft to-ctrl cc-ctrl subject-ctrl !show-cc?]
+  [draft to-ctrl cc-ctrl bcc-ctrl subject-ctrl !show-cc? !show-bcc?]
   (when draft
     (when-let [to (:to draft)]
       (set! (.-text to-ctrl) (str to)))
@@ -40,6 +40,10 @@
       (when (seq (str/trim (str cc)))
         (reset! !show-cc? true)
         (set! (.-text cc-ctrl) (str cc))))
+    (when-let [bcc (:bcc draft)]
+      (when (seq (str/trim (str bcc)))
+        (reset! !show-bcc? true)
+        (set! (.-text bcc-ctrl) (str bcc))))
     (when-let [subject (:subject draft)]
       (set! (.-text subject-ctrl) (str subject)))))
 
@@ -55,21 +59,29 @@
         !doc-state (atom (initial-doc-state draft))
         !quote-state (atom (:quote-state draft))
         !show-cc? (atom false)
-        !attachment-paths (atom [])
+        !show-bcc? (atom false)
+        !attachment-paths (atom (vec (or (:attachment-paths draft) [])))
         !fields-draft (atom draft)
+        draft-meta (select-keys (or draft {})
+                                [:draft-message-id :in-reply-to :references
+                                 :account-id])
         has-quote? (some? (:quote-state draft))]
     (f/widget
      :managed [to-ctrl (m/TextEditingController.)
                to-focus (m/FocusNode.)
                cc-ctrl (m/TextEditingController.)
                cc-focus (m/FocusNode.)
+               bcc-ctrl (m/TextEditingController.)
+               bcc-focus (m/FocusNode.)
                subject-ctrl (m/TextEditingController.)
                subject-focus (m/FocusNode.)]
-     :watch [show-cc? !show-cc?]
+     :watch [show-cc? !show-cc?
+             show-bcc? !show-bcc?]
      (do
        (when-let [d @!fields-draft]
          (reset! !fields-draft nil)
-         (apply-fields! d to-ctrl cc-ctrl subject-ctrl !show-cc?))
+         (apply-fields! d to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                        !show-cc? !show-bcc?))
        (m/Scaffold
         .backgroundColor m.Colors/white
         .body
@@ -83,9 +95,12 @@
                             :!quote-state !quote-state
                             :to-ctrl to-ctrl
                             :cc-ctrl cc-ctrl
+                            :bcc-ctrl bcc-ctrl
                             :subject-ctrl subject-ctrl
                             :!show-cc? !show-cc?
-                            :!attachment-paths !attachment-paths})
+                            :!show-bcc? !show-bcc?
+                            :!attachment-paths !attachment-paths
+                            :draft-meta draft-meta})
             (m/Divider .thickness 1.0 .height 1.0)
             (m/Expanded
              .child
@@ -96,8 +111,10 @@
                 [(fields/header-row
                   {:to-ctrl to-ctrl :to-focus to-focus
                    :cc-ctrl cc-ctrl :cc-focus cc-focus
+                   :bcc-ctrl bcc-ctrl :bcc-focus bcc-focus
                    :subject-ctrl subject-ctrl :subject-focus subject-focus
-                   :show-cc? show-cc?})
+                   :show-cc? show-cc?
+                   :show-bcc? show-bcc?})
                  (m/VerticalDivider .width 1.0 .thickness 1.0)
                  (m/Expanded
                   .flex 2

@@ -61,6 +61,14 @@ class MessageDao extends DatabaseAccessor<AppDatabase> with _$MessageDaoMixin {
         ),
       );
 
+  Future<void> markStarred(int id, {bool starred = true}) => updateMessage(
+        id,
+        MessagesCompanion(
+          isStarred: Value(starred),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+
   Future<void> markDeleted(int id) => updateMessage(
         id,
         MessagesCompanion(

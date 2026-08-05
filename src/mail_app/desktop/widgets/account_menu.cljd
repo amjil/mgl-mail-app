@@ -1,11 +1,96 @@
 (ns mail-app.desktop.widgets.account-menu
-  "Account switcher + remove / add account actions."
+  "Account switcher + remove / add / edit account actions."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [cljd.flutter :as f]
+            [clojure.string :as str]
             [mail-app.desktop.toast :as toast]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]))
+
+(defn- edit-account-dialog!
+  [ctx ^mc/MailAccountDto account]
+  (let [oauth? (= (.-authType account) "oauth2")
+        display-ctrl (m/TextEditingController.
+                      .text (or (.-displayName account) ""))
+        pass-ctrl (m/TextEditingController.)
+        imap-ctrl (m/TextEditingController.
+                   .text (or (.-imapHost account) ""))
+        smtp-ctrl (m/TextEditingController.
+                   .text (or (.-smtpHost account) ""))
+        imap-port-ctrl (m/TextEditingController.
+                        .text (str (or (.-imapPort account) 993)))
+        smtp-port-ctrl (m/TextEditingController.
+                        .text (str (or (.-smtpPort account) 465)))]
+    (-> (m/showDialog
+         .context ctx
+         .builder
+         (fn [dialog-ctx]
+           (m/AlertDialog
+            .title (m/Text "Edit account")
+            .content
+            (m/SizedBox
+             .width 360.0
+             .child
+             (m/SingleChildScrollView
+              .child
+              (m/Column
+               .mainAxisSize m.MainAxisSize/min
+               .children
+               [(m/Text (.-email account)
+                        .style (m/TextStyle .color m.Colors/black54))
+                (m/SizedBox .height 12.0)
+                (m/TextField .controller display-ctrl
+                             .decoration (m/InputDecoration .labelText "Display name"))
+                (when-not oauth?
+                  (m/TextField .controller pass-ctrl
+                               .obscureText true
+                               .decoration (m/InputDecoration
+                                            .labelText "New password (optional)")))
+                (m/TextField .controller imap-ctrl
+                             .decoration (m/InputDecoration .labelText "IMAP host"))
+                (m/TextField .controller imap-port-ctrl
+                             .keyboardType m.TextInputType/number
+                             .decoration (m/InputDecoration .labelText "IMAP port"))
+                (m/TextField .controller smtp-ctrl
+                             .decoration (m/InputDecoration .labelText "SMTP host"))
+                (m/TextField .controller smtp-port-ctrl
+                             .keyboardType m.TextInputType/number
+                             .decoration (m/InputDecoration .labelText "SMTP port"))])))
+            .actions
+            [(m/TextButton
+              .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) false) nil)
+              .child (m/Text "Cancel"))
+             (m/TextButton
+              .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) true) nil)
+              .child (m/Text "Save"))])))
+        (.then (fn [ok?]
+                 (when ok?
+                   (let [imap-port (try (int (str/trim (.-text imap-port-ctrl)))
+                                        (catch Exception _ nil))
+                         smtp-port (try (int (str/trim (.-text smtp-port-ctrl)))
+                                        (catch Exception _ nil))
+                         pass (str/trim (.-text pass-ctrl))]
+                     (-> (mail/update-account!
+                          {:account-id (.-id account)
+                           :display-name (let [d (str/trim (.-text display-ctrl))]
+                                           (when (seq d) d))
+                           :password (when (and (not oauth?) (seq pass)) pass)
+                           :imap-host (let [h (str/trim (.-text imap-ctrl))]
+                                        (when (seq h) h))
+                           :imap-port imap-port
+                           :smtp-host (let [h (str/trim (.-text smtp-ctrl))]
+                                        (when (seq h) h))
+                           :smtp-port smtp-port})
+                         (.then (fn [_]
+                                  (toast/success! ctx "Account updated")
+                                  nil))
+                         (.catchError (fn [e]
+                                        (toast/error! ctx (str e))
+                                        nil)))))
+                 nil))
+        (.catchError (fn [_] nil)))
+    nil))
 
 (defn account-chip
   []
@@ -32,6 +117,11 @@
 
           (= value :all)
           (do (mail/set-current-account! nil) nil)
+
+          (= value :edit)
+          (when current
+            (edit-account-dialog! ctx current)
+            nil)
 
           (= value :remove)
           (when current-account-id
@@ -64,6 +154,9 @@
                  accounts)
            [(m/PopupMenuDivider.)
             (m/PopupMenuItem .value :add .child (m/Text "Add account"))
+            (m/PopupMenuItem .value :edit
+                             .enabled (some? current)
+                             .child (m/Text "Edit current"))
             (m/PopupMenuItem .value :remove .child (m/Text "Remove current"))]))))
       .child
       (m/Padding

@@ -57,6 +57,26 @@ class MailBridge {
     return _engine.addOutlookAccount(startWorkers: startWorkers);
   }
 
+  Future<MailAccountDto> updateAccount({
+    required String accountId,
+    String? displayName,
+    String? password,
+    String? imapHost,
+    int? imapPort,
+    String? smtpHost,
+    int? smtpPort,
+  }) {
+    return _engine.updateAccount(
+      accountId: accountId,
+      displayName: displayName,
+      password: password,
+      imapHost: imapHost,
+      imapPort: imapPort,
+      smtpHost: smtpHost,
+      smtpPort: smtpPort,
+    );
+  }
+
   Future<void> removeAccount(String accountId) =>
       _engine.removeAccount(accountId);
 
@@ -105,6 +125,12 @@ class MailBridge {
   Future<MailMessageWithBody> openMessage(int messageId) =>
       _engine.openMessage(messageId);
 
+  Future<void> setRead(int messageId, {required bool read}) =>
+      _engine.setRead(messageId, read: read);
+
+  Future<void> setStarred(int messageId, {required bool starred}) =>
+      _engine.setStarred(messageId, starred: starred);
+
   Future<void> ensureBodyDownloaded(int messageId) =>
       _engine.ensureBodyDownloaded(messageId);
 
@@ -121,19 +147,27 @@ class MailBridge {
     required String accountId,
     required List<String> to,
     List<String>? cc,
+    List<String>? bcc,
     required String subject,
     String? plainText,
     String? htmlText,
     List<String>? attachmentPaths,
+    String? inReplyTo,
+    String? references,
+    int? draftMessageId,
   }) {
     return _engine.sendMail(
       accountId: accountId,
       to: to,
       cc: cc,
+      bcc: bcc,
       subject: subject,
       plainText: plainText,
       htmlText: htmlText,
       attachmentPaths: attachmentPaths,
+      inReplyTo: inReplyTo,
+      references: references,
+      draftMessageId: draftMessageId,
     );
   }
 
@@ -141,19 +175,27 @@ class MailBridge {
     required String accountId,
     List<String>? to,
     List<String>? cc,
+    List<String>? bcc,
     required String subject,
     String? plainText,
     String? htmlText,
     List<String>? attachmentPaths,
+    String? inReplyTo,
+    String? references,
+    int? draftMessageId,
   }) {
     return _engine.saveDraft(
       accountId: accountId,
       to: to,
       cc: cc,
+      bcc: bcc,
       subject: subject,
       plainText: plainText,
       htmlText: htmlText,
       attachmentPaths: attachmentPaths,
+      inReplyTo: inReplyTo,
+      references: references,
+      draftMessageId: draftMessageId,
     );
   }
 

@@ -132,7 +132,7 @@ class ImapSyncService {
         ),
       );
     }
-    // Repair stale custom roles (e.g.「草稿夹」「归档」left as custom).
+    // Repair stale custom roles (e.g. localized Drafts/Archive left as custom).
     await _remapFolderRolesByName();
     await _mergeUnicodePathDuplicates();
     await _dedupeFolders();
@@ -267,7 +267,7 @@ class ImapSyncService {
     return mapRoleFromName(box.name);
   }
 
-  /// Public so UI/engine can treat「草稿夹」「归档」as special even if role was custom.
+  /// Public so UI/engine can treat localized Drafts/Archive as special even if role was custom.
   static String mapRoleFromName(String name) {
     final n = name.toLowerCase().trim();
     if (n == 'inbox') return 'inbox';
@@ -318,7 +318,7 @@ class ImapSyncService {
   Future<void> syncFolderByRole(String role, {int limit = 50}) async {
     await connect();
     // Probe live LIST candidates and keep the mailbox that actually has mail.
-    // Chinese ISPs often expose both an empty "Drafts" and a populated「草稿夹」.
+    // Chinese ISPs often expose both an empty "Drafts" and a populated localized drafts folder.
     final best = await _pickBestMailboxForRole(role);
     if (best != null) {
       final id = await db.folderDao.upsertFolder(
@@ -801,6 +801,8 @@ class ImapSyncService {
     final messageId =
         mime.getHeaderValue('message-id') ?? mime.envelope?.messageId;
     final clientId = mime.getHeaderValue('x-client-message-id');
+    final inReplyTo = mime.getHeaderValue('in-reply-to');
+    final references = mime.getHeaderValue('references');
     // ENVELOPE-only FETCH has no bodystructure; treat as unknown/false.
     final hasAtt = mime.hasAttachments();
     final state = folder.role == 'sent'
@@ -827,6 +829,8 @@ class ImapSyncService {
             toAddr: Value(to),
             ccAddr: Value(cc),
             subject: Value(subject),
+            inReplyTo: Value(inReplyTo ?? existing.inReplyTo),
+            referencesHeader: Value(references ?? existing.referencesHeader),
             date: Value(date),
             isRead: Value(mime.isSeen),
             isStarred: Value(mime.isFlagged),
@@ -895,6 +899,8 @@ class ImapSyncService {
         toAddr: Value(to),
         ccAddr: Value(cc),
         subject: Value(subject),
+        inReplyTo: Value(inReplyTo),
+        referencesHeader: Value(references),
         date: date,
         state: Value(state),
         isRead: Value(mime.isSeen),
@@ -1494,6 +1500,52 @@ class ImapSyncService {
         await _expungeUid(sequence);
         // ignore: avoid_print
         print('IMAP deleted uid=$uid via \\Deleted+EXPUNGE in ${folder.path}');
+      });
+
+  /// Store IMAP flags (`\Seen`, `\Flagged`) for a local message that has uid.
+  Future<void> setRemoteFlags(
+    Message message, {
+    bool? seen,
+    bool? flagged,
+  }) =>
+      _serialized(() async {
+        if (seen == null && flagged == null) return;
+        final uidStr = message.uid;
+        final folderId = message.folderId;
+        if (uidStr == null || folderId == null) return;
+
+        final folder = await db.folderDao.findById(folderId);
+        if (folder == null || folder.path.trim().isEmpty) return;
+
+        final uid = int.tryParse(uidStr);
+        if (uid == null) return;
+
+        await connect();
+        await _selectFolder(folder);
+        final sequence = MessageSequence.fromId(uid, isUid: true);
+
+        Future<void> store(List<String> flags, StoreAction action) async {
+          if (flags.isEmpty) return;
+          await client.uidStore(
+            sequence,
+            flags,
+            action: action,
+            silent: true,
+          );
+        }
+
+        if (seen != null) {
+          await store(
+            [MessageFlags.seen],
+            seen ? StoreAction.add : StoreAction.remove,
+          );
+        }
+        if (flagged != null) {
+          await store(
+            [MessageFlags.flagged],
+            flagged ? StoreAction.add : StoreAction.remove,
+          );
+        }
       });
 
   Future<void> _expungeUid(MessageSequence sequence) async {

@@ -2,11 +2,10 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:drift/drift.dart';
-import 'package:enough_mail/enough_mail.dart';
-import 'package:enough_mail_html/enough_mail_html.dart';
 
 import '../db/app_database.dart';
 import '../smtp/imap_append_service.dart';
+import '../smtp/outgoing_mime.dart';
 import '../smtp/smtp_service.dart';
 
 class OutboxWorker {
@@ -70,7 +69,21 @@ class OutboxWorker {
       if (message == null) {
         throw StateError('Outbox message ${item.messageId} missing');
       }
-      final mime = _buildMime(message, body, item.clientMessageId);
+      final atts = await db.attachmentDao.listForMessage(item.messageId);
+      final mime = await OutgoingMime.build(
+        account: account,
+        toAddr: message.toAddr,
+        ccAddr: message.ccAddr ?? '',
+        bccAddr: message.bccAddr ?? '',
+        subject: message.subject ?? '',
+        plainText: body?.plainText,
+        htmlText: body?.htmlText,
+        clientMessageId: item.clientMessageId,
+        messageIdHeader: message.messageId,
+        inReplyTo: message.inReplyTo,
+        references: message.referencesHeader,
+        attachments: atts,
+      );
       await smtp.send(mime);
       await db.outboxDao.markSent(item.id);
       await db.messageDao.updateMessage(
@@ -107,47 +120,5 @@ class OutboxWorker {
         ),
       );
     }
-  }
-
-  MimeMessage _buildMime(
-    Message message,
-    MessageBody? body,
-    String clientMessageId,
-  ) {
-    final builder = MessageBuilder()
-      ..from = [
-        MailAddress(account.displayName ?? account.email, account.email),
-      ]
-      ..to = _parseAddresses(message.toAddr)
-      ..cc = _parseAddresses(message.ccAddr ?? '')
-      ..subject = message.subject ?? '';
-
-    builder.addHeader('X-Client-Message-Id', clientMessageId);
-    if (message.messageId != null) {
-      builder.addHeader('Message-ID', message.messageId!);
-    }
-
-    final html = body?.htmlText;
-    final plain = body?.plainText ??
-        (html != null ? HtmlToPlainTextConverter.convert(html) : '');
-    if (html != null && html.isNotEmpty) {
-      builder.addMultipartAlternative(
-        plainText: plain,
-        htmlText: html,
-      );
-    } else {
-      builder.text = plain;
-    }
-    return builder.buildMimeMessage();
-  }
-
-  List<MailAddress> _parseAddresses(String raw) {
-    if (raw.trim().isEmpty) return [];
-    return raw
-        .split(',')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .map((e) => MailAddress(null, e))
-        .toList();
   }
 }

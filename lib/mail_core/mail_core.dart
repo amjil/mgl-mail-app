@@ -9,3 +9,4 @@ export 'engine/account_engine.dart';
 export 'engine/mail_engine.dart';
 export 'oauth/oauth_config.dart';
 export 'secure/account_credential_store.dart';
+export 'smtp/outgoing_mime.dart';

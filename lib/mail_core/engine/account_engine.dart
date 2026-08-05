@@ -126,7 +126,7 @@ class AccountEngine {
     if (s == null) return;
     final worker = imapWorker;
     // For well-known roles, re-probe live LIST so we don't sync an empty twin.
-    // Name can still map「草稿夹」「归档」even when DB role is stale custom.
+    // Name can still map localized Drafts/Archive even when DB role is stale custom.
     Future<void> action() async {
       final role = s.effectiveRole(folder);
       if (role == 'draft' ||
@@ -256,6 +256,27 @@ class AccountEngine {
       return worker.runExclusive(() => append.appendToDrafts(mime));
     }
     return append.appendToDrafts(mime);
+  }
+
+  /// Best-effort flag sync to IMAP (`\Seen` / `\Flagged`).
+  Future<void> setMessageFlags(
+    int messageId, {
+    bool? seen,
+    bool? flagged,
+  }) async {
+    final message = await db.messageDao.findById(messageId);
+    if (message == null || message.accountId != account.id) return;
+    if (message.uid == null || message.folderId == null) return;
+    final s = sync;
+    if (s == null) return;
+    final worker = imapWorker;
+    if (worker != null) {
+      await worker.runExclusive(
+        () => s.setRemoteFlags(message, seen: seen, flagged: flagged),
+      );
+    } else {
+      await s.setRemoteFlags(message, seen: seen, flagged: flagged);
+    }
   }
 
   Future<void> setBackground(bool background) async {

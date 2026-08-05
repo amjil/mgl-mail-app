@@ -6,6 +6,11 @@ class MailMessageDto {
     required this.from,
     required this.fromName,
     required this.to,
+    this.cc,
+    this.bcc,
+    this.rfcMessageId,
+    this.inReplyTo,
+    this.referencesHeader,
     required this.date,
     required this.isRead,
     required this.isStarred,
@@ -21,6 +26,12 @@ class MailMessageDto {
   final String from;
   final String fromName;
   final String to;
+  final String? cc;
+  final String? bcc;
+  /// RFC Message-ID header value when known.
+  final String? rfcMessageId;
+  final String? inReplyTo;
+  final String? referencesHeader;
   final DateTime date;
   final bool isRead;
   final bool isStarred;
@@ -124,11 +135,23 @@ class MailAccountDto {
     required this.id,
     required this.email,
     this.displayName,
+    this.imapHost,
+    this.imapPort,
+    this.smtpHost,
+    this.smtpPort,
+    this.authType,
+    this.provider,
   });
 
   final String id;
   final String email;
   final String? displayName;
+  final String? imapHost;
+  final int? imapPort;
+  final String? smtpHost;
+  final int? smtpPort;
+  final String? authType;
+  final String? provider;
 }
 
 class MailMessageWithBody {

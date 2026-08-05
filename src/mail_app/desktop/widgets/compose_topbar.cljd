@@ -28,9 +28,37 @@
                nil))
       (.catchError (fn [_] nil))))
 
+(defn- compose-body
+  [!doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl show-cc?
+   show-bcc? attachment-paths draft-meta]
+  (let [reply-plain (export/to-plain-text @!doc-state)
+        reply-html (export/to-html @!doc-state)
+        quote-state (when !quote-state @!quote-state)
+        quote-plain (when quote-state (export/quote-state-to-plain quote-state))
+        quote-html (when quote-state (export/quote-state-to-html quote-state))
+        plain (if (seq quote-plain)
+                (str reply-plain (when (seq reply-plain) "\n\n") quote-plain)
+                reply-plain)
+        html (if (seq quote-html)
+               (str (if (or (str/blank? reply-html) (= reply-html "<p></p>"))
+                      ""
+                      reply-html)
+                    quote-html)
+               reply-html)]
+    (merge
+     {:to (.-text to-ctrl)
+      :cc (when show-cc? (.-text cc-ctrl))
+      :bcc (when show-bcc? (.-text bcc-ctrl))
+      :subject (.-text subject-ctrl)
+      :plain-text plain
+      :html-text html
+      :attachment-paths attachment-paths}
+     (select-keys (or draft-meta {})
+                  [:draft-message-id :in-reply-to :references :account-id]))))
+
 (defn- send-pressed!
-  [ctx navigator !doc-state !quote-state to-ctrl cc-ctrl subject-ctrl
-   show-cc? sending? current-account-id attachment-paths]
+  [ctx navigator !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+   show-cc? show-bcc? sending? current-account-id attachment-paths draft-meta]
   (let [tctx (toast/safe-ctx ctx)]
     (cond
       sending?
@@ -44,7 +72,8 @@
 
       :else
       (let [payload (compose-body !doc-state !quote-state to-ctrl cc-ctrl
-                                  subject-ctrl show-cc? attachment-paths)]
+                                  bcc-ctrl subject-ctrl show-cc? show-bcc?
+                                  attachment-paths draft-meta)]
         (-> (mail/send! payload)
             (.then (fn [_]
                      (toast/success! tctx "Queued for send")
@@ -55,39 +84,9 @@
                            nil)))))
     nil))
 
-(defn- compose-body
-  [!doc-state !quote-state to-ctrl cc-ctrl subject-ctrl show-cc?
-   attachment-paths]
-  (let [reply-plain (export/to-plain-text @!doc-state)
-        reply-html (export/to-html @!doc-state)
-        quote-state (when !quote-state @!quote-state)
-        quote-plain (when quote-state (export/quote-state-to-plain quote-state))
-        quote-html (when (seq quote-plain)
-                     (str/join ""
-                               (map (fn [c]
-                                      (str "<p>"
-                                           (-> c
-                                               (str/replace "&" "&amp;")
-                                               (str/replace "<" "&lt;")
-                                               (str/replace ">" "&gt;"))
-                                           "</p>"))
-                                    (str/split-lines quote-plain))))
-        plain (if (seq quote-plain)
-                (str reply-plain (when (seq reply-plain) "\n\n") quote-plain)
-                reply-plain)
-        html (if (seq quote-html)
-               (str (if (= reply-html "<p></p>") "" reply-html) quote-html)
-               reply-html)]
-    {:to (.-text to-ctrl)
-     :cc (when show-cc? (.-text cc-ctrl))
-     :subject (.-text subject-ctrl)
-     :plain-text plain
-     :html-text html
-     :attachment-paths attachment-paths}))
-
 (defn- save-draft-pressed!
-  [ctx navigator !doc-state !quote-state to-ctrl cc-ctrl subject-ctrl
-   show-cc? sending? current-account-id attachment-paths]
+  [ctx navigator !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+   show-cc? show-bcc? sending? current-account-id attachment-paths draft-meta]
   (let [tctx (toast/safe-ctx ctx)]
     (cond
       sending?
@@ -98,7 +97,8 @@
 
       :else
       (let [payload (compose-body !doc-state !quote-state to-ctrl cc-ctrl
-                                  subject-ctrl show-cc? attachment-paths)]
+                                  bcc-ctrl subject-ctrl show-cc? show-bcc?
+                                  attachment-paths draft-meta)]
         (-> (mail/save-draft! payload)
             (.then (fn [_]
                      (toast/success! tctx "Saved to Drafts")
@@ -110,14 +110,15 @@
     nil))
 
 (defn topbar
-  "Back, Cc toggle, attach, Save Draft, and Send."
-  [{:keys [!doc-state !quote-state to-ctrl cc-ctrl subject-ctrl
-           !show-cc? !attachment-paths]}]
+  "Back, Cc/Bcc toggle, attach, Save Draft, and Send."
+  [{:keys [!doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+           !show-cc? !show-bcc? !attachment-paths draft-meta]}]
   (f/widget
    :context ctx
    :get [m/Navigator]
    :watch [{:keys [sending? current-account-id]} store/app-state
            show-cc? !show-cc?
+           show-bcc? !show-bcc?
            attachment-paths !attachment-paths]
    (m/SafeArea
     .bottom false
@@ -146,6 +147,14 @@
             (m/IconButton
              .padding (m.EdgeInsets/all 10.0)
              .constraints (m/BoxConstraints.)
+             .tooltip (if show-bcc? "Hide Bcc" "Show Bcc")
+             .onPressed (fn [] (swap! !show-bcc? not) nil)
+             .icon (m/Icon (if show-bcc?
+                             m.Icons/visibility_off
+                             m.Icons/visibility)))
+            (m/IconButton
+             .padding (m.EdgeInsets/all 10.0)
+             .constraints (m/BoxConstraints.)
              .tooltip "Attach"
              .onPressed (fn [] (pick-attachments! !attachment-paths) nil)
              .icon (m/Icon m.Icons/attach_file))
@@ -155,9 +164,10 @@
              .tooltip "Save Draft"
              .onPressed (fn []
                           (save-draft-pressed! ctx navigator !doc-state !quote-state
-                                               to-ctrl cc-ctrl subject-ctrl
-                                               show-cc? sending? current-account-id
-                                               attachment-paths))
+                                               to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                                               show-cc? show-bcc? sending?
+                                               current-account-id
+                                               attachment-paths draft-meta))
              .icon (m/Icon m.Icons/drafts))
             (m/IconButton
              .padding (m.EdgeInsets/all 10.0)
@@ -165,9 +175,10 @@
              .tooltip "Send"
              .onPressed (fn []
                           (send-pressed! ctx navigator !doc-state !quote-state
-                                         to-ctrl cc-ctrl subject-ctrl
-                                         show-cc? sending? current-account-id
-                                         attachment-paths))
+                                         to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                                         show-cc? show-bcc? sending?
+                                         current-account-id
+                                         attachment-paths draft-meta))
              .icon (if sending?
                      (m/SizedBox
                       .width 20.0

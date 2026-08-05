@@ -72,24 +72,12 @@
          .flex 1
          .child (quote/panel !quote-state))]))))
 
-(defn- strip-tags [html]
-  (-> (or html "")
-      (str/replace #"<br\s*/?>" "\n")
-      (str/replace #"</p>" "\n")
-      (str/replace #"<[^>]+>" "")
-      (str/replace "&nbsp;" " ")
-      (str/replace "&amp;" "&")
-      (str/replace "&lt;" "<")
-      (str/replace "&gt;" ">")
-      (str/replace "&quot;" "\"")
-      str/trim))
-
 (defn- body-text [^mc/MailMessageWithBody detail]
   (let [body (.-body detail)]
     (cond
       (nil? body) ""
       (seq (.-plainText body)) (.-plainText body)
-      (seq (.-html body)) (strip-tags (.-html body))
+      (seq (.-html body)) (mail/html->plain (.-html body))
       :else "")))
 
 (defn- pad2 [n]
@@ -110,15 +98,27 @@
       s
       (str prefix s))))
 
+(defn- build-references [^mc/MailMessageDto msg]
+  (let [mid (.-rfcMessageId msg)
+        prev (.-referencesHeader msg)]
+    (cond
+      (and (seq prev) (seq mid)) (str prev " " mid)
+      (seq mid) mid
+      (seq prev) prev
+      :else nil)))
+
 (defn- start-reply! [navigator ^mc/MailMessageWithBody detail]
   (let [^mc/MailMessageDto msg (.-message detail)
         from (or (.-from msg) "")
         subject (ensure-prefix (.-subject msg) "Re: ")
         text (body-text detail)
-        date (format-date (.-date msg))]
+        date (format-date (.-date msg))
+        mid (.-rfcMessageId msg)]
     (store/set-compose-draft!
      {:to from
       :subject subject
+      :in-reply-to mid
+      :references (build-references msg)
       :quote-state (export/quote-toggle-state from date text)})
     (.pushNamed navigator "/compose")
     nil))
@@ -134,6 +134,15 @@
       :subject subject
       :quote-state (export/quote-toggle-state from date text)})
     (.pushNamed navigator "/compose")
+    nil))
+
+(defn- start-edit-draft! [navigator ^mc/MailMessageWithBody detail]
+  (let [^mc/MailMessageDto msg (.-message detail)]
+    (-> (mail/edit-draft! (.-id msg))
+        (.then (fn [_]
+                 (.pushNamed navigator "/compose")
+                 nil))
+        (.catchError (fn [_] nil)))
     nil))
 
 (defn- confirm-delete! [ctx navigator ^mc/MailMessageWithBody detail]
@@ -302,18 +311,38 @@
      (m/Column
       .crossAxisAlignment m.CrossAxisAlignment/start
       .children
-      [(let [archived? (when message-detail
-                         (let [^mc/MailMessageDto msg
-                               (.-message ^mc/MailMessageWithBody message-detail)]
-                           (or (= (.-state msg) "archive")
-                               (= (.-folderRole msg) "archive"))))]
+      [(let [msg (when message-detail
+                   (.-message ^mc/MailMessageWithBody message-detail))
+             archived? (when msg
+                         (or (= (.-state ^mc/MailMessageDto msg) "archive")
+                             (= (.-folderRole ^mc/MailMessageDto msg) "archive")))
+             draft? (when msg
+                      (or (= (.-state ^mc/MailMessageDto msg) "draft")
+                          (= (.-folderRole ^mc/MailMessageDto msg) "draft")))
+             starred? (when msg (.-isStarred ^mc/MailMessageDto msg))
+             read? (when msg (.-isRead ^mc/MailMessageDto msg))]
          (topbar/mail-detail
           :archived? archived?
-          :on-reply (when message-detail
+          :draft? draft?
+          :starred? starred?
+          :read? read?
+          :on-reply (when (and message-detail (not draft?))
                       #(start-reply! navigator message-detail))
-          :on-forward (when message-detail
+          :on-forward (when (and message-detail (not draft?))
                         #(start-forward! navigator message-detail))
-          :on-archive (when (and message-detail (not archived?))
+          :on-edit-draft (when (and message-detail draft?)
+                           #(start-edit-draft! navigator message-detail))
+          :on-star (when msg
+                     (fn []
+                       (let [^mc/MailMessageDto m msg]
+                         (mail/set-starred! (.-id m) (not (.-isStarred m)))
+                         nil)))
+          :on-toggle-read (when msg
+                            (fn []
+                              (let [^mc/MailMessageDto m msg]
+                                (mail/set-read! (.-id m) (not (.-isRead m)))
+                                nil)))
+          :on-archive (when (and message-detail (not archived?) (not draft?))
                         #(archive-pressed! ctx navigator message-detail))
           :on-unarchive (when (and message-detail archived?)
                           #(move-to-inbox-pressed! ctx navigator message-detail))

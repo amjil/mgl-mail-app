@@ -1,7 +1,9 @@
 (ns mail-app.services.compose-export
-  "Export block-editor document state to plain text / simple HTML for sendMail.
+  "Export block-editor document state to plain text / HTML for sendMail.
+   HTML uses block-editor.utils.html (headings, lists, inline styles, …).
    Also parse quoted originals out of received plain bodies."
   (:require [clojure.string :as str]
+            [block-editor.utils.html :as html]
             [block-editor.utils.persistence :as persist]))
 
 (defn- walk-contents
@@ -29,22 +31,14 @@
   [state]
   (clojure.string/join "\n" (walk-contents state)))
 
-(defn- escape-html [s]
-  (-> (or s "")
-      (clojure.string/replace "&" "&amp;")
-      (clojure.string/replace "<" "&lt;")
-      (clojure.string/replace ">" "&gt;")
-      (clojure.string/replace "\"" "&quot;")))
-
 (defn to-html
-  "Simple paragraph HTML from block contents."
+  "Export editor state to an HTML fragment via block-editor.utils.html.
+   Empty documents become an empty paragraph so MIME still has a text/html part."
   [state]
-  (let [parts (walk-contents state)]
-    (if (empty? parts)
+  (let [fragment (html/export-to-html state)]
+    (if (str/blank? fragment)
       "<p></p>"
-      (clojure.string/join
-       ""
-       (map (fn [c] (str "<p>" (escape-html c) "</p>")) parts)))))
+      fragment)))
 
 (defn state-from-plain-text
   "Build editor state from plain text (one paragraph per line)."
@@ -293,3 +287,12 @@
          (let [tid (first (:root quote-state))
                ids (get-in quote-state [:blocks tid :children] [])]
            (str/join "\n" (map #(get-in quote-state [:blocks % :content] "") ids)))))))
+
+(defn quote-state-to-html
+  "HTML for the quoted original: blockquote wrapping From/Date/body paragraphs."
+  [quote-state]
+  (when-let [plain (quote-state-to-plain quote-state)]
+    (when (seq (str/trim plain))
+      (str "<blockquote>"
+           (html/export-to-html (state-from-plain-text plain))
+           "</blockquote>"))))

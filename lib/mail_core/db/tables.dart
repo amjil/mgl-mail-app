@@ -55,7 +55,15 @@ class Messages extends Table {
   TextColumn get fromName => text().nullable()();
   TextColumn get toAddr => text().withDefault(const Constant(''))();
   TextColumn get ccAddr => text().nullable()();
+  TextColumn get bccAddr => text().nullable()();
   TextColumn get subject => text().nullable()();
+
+  /// RFC Message-ID of the message being replied to (In-Reply-To).
+  TextColumn get inReplyTo => text().nullable()();
+
+  /// Space-separated References chain for threading.
+  TextColumn get referencesHeader => text().nullable()();
+
   DateTimeColumn get date => dateTime()();
 
   /// inbox | sent | draft | outbox | failed

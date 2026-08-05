@@ -22,37 +22,58 @@
 (defn- message-item [^mc/MailMessageDto msg]
   (f/widget
    :get [m/Navigator]
-   (mgl/MongolListTile
-    .title (m/Padding
-            .padding (m.EdgeInsets/only .top 8.0)
-            .child
-            (mgl/MongolText
-             (subject-of msg)
-             .style (m/TextStyle
-                     .fontSize 16.0
-                     .fontFamily font-family
-                     .fontWeight (if (.-isRead msg)
-                                   m/FontWeight.normal
-                                   m/FontWeight.bold))))
-    .subtitle (m/Column
-               .crossAxisAlignment m.CrossAxisAlignment/start
-               .mainAxisSize m.MainAxisSize/min
-               .children
-               [(mgl/MongolText
-                 (or (.-fromName msg) (.-from msg) "")
-                 .style (m/TextStyle .fontSize 13.0
-                                     .fontFamily font-family
-                                     .color m.Colors/black54))
-                (m/SizedBox .height 4.0)
-                (m/Text (or (format-date (.-date msg)) "")
-                        .style (m/TextStyle .fontSize 11.0
-                                            .color m.Colors/black45))])
-    .trailing (when (.-hasAttachment msg)
-                (m/Icon m.Icons/attach_file .size 16.0 .color m.Colors/black45))
-    .onTap (fn []
-             (mail/open-message! (.-id msg))
-             (.pushNamed navigator "/mail_detail")
-             nil))))
+   :watch [{:keys [selected-mailbox]} store/app-state]
+   (let [draft? (or (= selected-mailbox :draft)
+                    (= (.-state msg) "draft")
+                    (= (.-folderRole msg) "draft"))]
+     (mgl/MongolListTile
+      .title (m/Padding
+              .padding (m.EdgeInsets/only .top 8.0)
+              .child
+              (mgl/MongolText
+               (subject-of msg)
+               .style (m/TextStyle
+                       .fontSize 16.0
+                       .fontFamily font-family
+                       .fontWeight (if (.-isRead msg)
+                                     m/FontWeight.normal
+                                     m/FontWeight.bold))))
+      .subtitle (m/Column
+                 .crossAxisAlignment m.CrossAxisAlignment/start
+                 .mainAxisSize m.MainAxisSize/min
+                 .children
+                 [(mgl/MongolText
+                   (or (.-fromName msg) (.-from msg) "")
+                   .style (m/TextStyle .fontSize 13.0
+                                       .fontFamily font-family
+                                       .color m.Colors/black54))
+                  (m/SizedBox .height 4.0)
+                  (m/Text (or (format-date (.-date msg)) "")
+                          .style (m/TextStyle .fontSize 11.0
+                                              .color m.Colors/black45))])
+      .trailing (m/Row
+                 .mainAxisSize m.MainAxisSize/min
+                 .children
+                 (cond-> []
+                   (.-isStarred msg)
+                   (conj (m/Icon m.Icons/star .size 14.0 .color m.Colors/amber))
+                   (.-hasAttachment msg)
+                   (conj (m/Icon m.Icons/attach_file .size 16.0
+                                 .color m.Colors/black45))))
+      .onTap (fn []
+               (if draft?
+                 (-> (mail/edit-draft! (.-id msg))
+                     (.then (fn [_]
+                              (.pushNamed navigator "/compose")
+                              nil))
+                     (.catchError (fn [_]
+                                    (mail/open-message! (.-id msg))
+                                    (.pushNamed navigator "/mail_detail")
+                                    nil)))
+                 (do
+                   (mail/open-message! (.-id msg))
+                   (.pushNamed navigator "/mail_detail")))
+               nil)))))
 
 (defn- outbox-item [^mc/MailOutboxDto row]
   (f/widget

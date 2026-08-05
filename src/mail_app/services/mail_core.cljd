@@ -378,18 +378,39 @@
        (remove empty?)
        vec))
 
+(defn html->plain
+  "Best-effort HTML → plain for compose / detail when no text/plain part."
+  [html]
+  (-> (or html "")
+      (str/replace #"(?i)<br\s*/?>" "\n")
+      (str/replace #"(?i)</p>" "\n")
+      (str/replace #"(?i)</div>" "\n")
+      (str/replace #"<[^>]+>" "")
+      (str/replace "&nbsp;" " ")
+      (str/replace "&amp;" "&")
+      (str/replace "&lt;" "<")
+      (str/replace "&gt;" ">")
+      (str/replace "&quot;" "\"")
+      str/trim))
+
+(defn- addr-list [v]
+  (cond
+    (nil? v) nil
+    (string? v) (let [xs (split-addrs v)]
+                  (when (seq xs) xs))
+    (seq v) (vec v)
+    :else nil))
+
 (defn send!
-  "Enqueue mail via MailBridge. Optional :attachment-paths (seq of file paths)."
-  [{:keys [to cc subject plain-text html-text account-id attachment-paths]}]
+  "Enqueue mail via MailBridge. Optional :attachment-paths, :bcc, :in-reply-to,
+   :references, :draft-message-id."
+  [{:keys [to cc bcc subject plain-text html-text account-id attachment-paths
+           in-reply-to references draft-message-id]}]
   (let [b @!bridge
         aid (or account-id (:current-account-id @store/app-state))
         to-list (if (string? to) (split-addrs to) (vec (or to [])))
-        cc-list (cond
-                  (nil? cc) nil
-                  (string? cc) (let [xs (split-addrs cc)]
-                                 (when (seq xs) xs))
-                  (seq cc) (vec cc)
-                  :else nil)
+        cc-list (addr-list cc)
+        bcc-list (addr-list bcc)
         paths (when (seq attachment-paths) (vec attachment-paths))]
     (cond
       (nil? b)
@@ -415,10 +436,14 @@
                        .accountId aid
                        .to to-list
                        .cc cc-list
+                       .bcc bcc-list
                        .subject (or subject "")
                        .plainText plain-text
                        .htmlText html-text
-                       .attachmentPaths paths)
+                       .attachmentPaths paths
+                       .inReplyTo in-reply-to
+                       .references references
+                       .draftMessageId draft-message-id)
             (.then (fn [id]
                      (store/set-sending! false)
                      id))
@@ -429,16 +454,13 @@
 
 (defn save-draft!
   "Save compose content to Drafts (local + IMAP APPEND). To may be empty."
-  [{:keys [to cc subject plain-text html-text account-id attachment-paths]}]
+  [{:keys [to cc bcc subject plain-text html-text account-id attachment-paths
+           in-reply-to references draft-message-id]}]
   (let [b @!bridge
         aid (or account-id (:current-account-id @store/app-state))
         to-list (if (string? to) (split-addrs to) (vec (or to [])))
-        cc-list (cond
-                  (nil? cc) nil
-                  (string? cc) (let [xs (split-addrs cc)]
-                                 (when (seq xs) xs))
-                  (seq cc) (vec cc)
-                  :else nil)
+        cc-list (addr-list cc)
+        bcc-list (addr-list bcc)
         paths (when (seq attachment-paths) (vec attachment-paths))]
     (cond
       (nil? b)
@@ -459,10 +481,14 @@
                         .accountId aid
                         .to (when (seq to-list) to-list)
                         .cc cc-list
+                        .bcc bcc-list
                         .subject (or subject "")
                         .plainText plain-text
                         .htmlText html-text
-                        .attachmentPaths paths)
+                        .attachmentPaths paths
+                        .inReplyTo in-reply-to
+                        .references references
+                        .draftMessageId draft-message-id)
             (.then (fn [id]
                      (store/set-sending! false)
                      id))
@@ -470,3 +496,82 @@
                            (store/set-sending! false)
                            (store/set-error! (str e))
                            (throw e))))))))
+
+(defn set-read!
+  [message-id read?]
+  (when-let [b @!bridge]
+    (-> (.setRead ^mc/MailBridge b message-id .read (boolean read?))
+        (.then (fn [_]
+                 (when-let [d (:message-detail @store/app-state)]
+                   (when (= message-id (:selected-message-id @store/app-state))
+                     (open-message! message-id)))
+                 true))
+        (.catchError (fn [e]
+                       (store/set-error! (str e))
+                       false)))))
+
+(defn set-starred!
+  [message-id starred?]
+  (when-let [b @!bridge]
+    (-> (.setStarred ^mc/MailBridge b message-id .starred (boolean starred?))
+        (.then (fn [_]
+                 (when (= message-id (:selected-message-id @store/app-state))
+                   (open-message! message-id))
+                 true))
+        (.catchError (fn [e]
+                       (store/set-error! (str e))
+                       false)))))
+
+(defn edit-draft!
+  "Load a draft into compose-draft and navigate caller to /compose."
+  [message-id]
+  (when-let [b @!bridge]
+    (-> (.openMessage ^mc/MailBridge b message-id)
+        (.then (fn [^mc/MailMessageWithBody detail]
+                 (let [^mc/MailMessageDto msg (.-message detail)
+                       body (.-body detail)
+                       plain (or (when body (.-plainText body)) "")
+                       html (when body (.-html body))
+                       text (cond
+                              (seq plain) plain
+                              (seq html) (html->plain html)
+                              :else "")
+                       atts (vec (or (.-attachments detail) []))
+                       paths (->> atts
+                                  (map #(.-localPath ^mc/MailAttachmentDto %))
+                                  (filter seq)
+                                  vec)]
+                   (store/set-compose-draft!
+                    {:draft-message-id (.-id msg)
+                     :account-id (.-accountId msg)
+                     :to (.-to msg)
+                     :cc (.-cc msg)
+                     :bcc (.-bcc msg)
+                     :subject (.-subject msg)
+                     :in-reply-to (.-inReplyTo msg)
+                     :references (.-referencesHeader msg)
+                     :body-plain text
+                     :attachment-paths paths})
+                   detail)))
+        (.catchError (fn [e]
+                       (store/set-error! (str e))
+                       nil)))))
+
+(defn update-account!
+  [{:keys [account-id display-name password imap-host imap-port
+           smtp-host smtp-port]}]
+  (when-let [b @!bridge]
+    (-> (.updateAccount ^mc/MailBridge b
+                        .accountId account-id
+                        .displayName display-name
+                        .password password
+                        .imapHost imap-host
+                        .imapPort imap-port
+                        .smtpHost smtp-host
+                        .smtpPort smtp-port)
+        (.then (fn [a]
+                 (await (refresh-accounts!))
+                 a))
+        (.catchError (fn [e]
+                       (store/set-error! (str e))
+                       (throw e))))))

@@ -1,5 +1,5 @@
 (ns mail-app.desktop.widgets.compose-fields
-  "To / Cc / Subject columns using rich-editor text-field."
+  "To / Cc / Bcc / Subject columns using rich-editor text-field."
   (:require ["package:flutter/material.dart" :as m]
             [rich-editor.components.text-field :as custom-tf]))
 
@@ -28,17 +28,21 @@
      :decoration (m/InputDecoration .border m/InputBorder.none)})))
 
 (defn header-row
-  "Row of To / optional Cc / Subject fields. Controllers managed by caller."
+  "Row of To / optional Cc / Bcc / Subject fields."
   [{:keys [to-ctrl to-focus
            cc-ctrl cc-focus
+           bcc-ctrl bcc-focus
            subject-ctrl subject-focus
-           show-cc?]}]
+           show-cc? show-bcc?]}]
   (m/Row
    .crossAxisAlignment m.CrossAxisAlignment/stretch
    .children
    (cond-> [(field-column !header-ime to-ctrl to-focus "To" :width 80.0)]
      show-cc?
      (conj (field-column !header-ime cc-ctrl cc-focus "Cc" :width 80.0))
+
+     show-bcc?
+     (conj (field-column !header-ime bcc-ctrl bcc-focus "Bcc" :width 80.0))
 
      true
      (conj (field-column !header-ime subject-ctrl subject-focus "Subject" :width 96.0)))))

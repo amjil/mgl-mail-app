@@ -84,7 +84,9 @@
          .icon (m/Icon m.Icons/edit))])]))))
 
 (defn mail-detail
-  [& {:keys [on-reply on-forward on-archive on-unarchive on-delete archived?]}]
+  [& {:keys [on-reply on-forward on-archive on-unarchive on-delete
+             on-star on-toggle-read on-edit-draft
+             archived? draft? starred? read?]}]
   (f/widget
    :get [m/Navigator]
    (m/SafeArea
@@ -104,34 +106,70 @@
        .icon (m/Icon m.Icons/arrow_back_ios_new))
       (m/Row
        .children
-       [(m/IconButton
-         .padding (m.EdgeInsets/all 10.0)
-         .constraints (m/BoxConstraints.)
-         .tooltip "Reply"
-         .onPressed on-reply
-         .icon (m/Icon m.Icons/reply))
-        (m/IconButton
-         .padding (m.EdgeInsets/all 10.0)
-         .constraints (m/BoxConstraints.)
-         .tooltip "Forward"
-         .onPressed on-forward
-         .icon (m/Icon m.Icons/forward))
-        (if archived?
-          (m/IconButton
-           .padding (m.EdgeInsets/all 10.0)
-           .constraints (m/BoxConstraints.)
-           .tooltip "Move to Inbox"
-           .onPressed on-unarchive
-           .icon (m/Icon m.Icons/unarchive_outlined))
-          (m/IconButton
-           .padding (m.EdgeInsets/all 10.0)
-           .constraints (m/BoxConstraints.)
-           .tooltip "Archive"
-           .onPressed on-archive
-           .icon (m/Icon m.Icons/archive_outlined)))
-        (m/IconButton
-         .padding (m.EdgeInsets/all 10.0)
-         .constraints (m/BoxConstraints.)
-         .tooltip "Delete"
-         .onPressed on-delete
-         .icon (m/Icon m.Icons/delete_outline))])]))))
+       (cond-> []
+         on-edit-draft
+         (conj (m/IconButton
+                .padding (m.EdgeInsets/all 10.0)
+                .constraints (m/BoxConstraints.)
+                .tooltip "Edit draft"
+                .onPressed on-edit-draft
+                .icon (m/Icon m.Icons/edit_note)))
+
+         on-reply
+         (conj (m/IconButton
+                .padding (m.EdgeInsets/all 10.0)
+                .constraints (m/BoxConstraints.)
+                .tooltip "Reply"
+                .onPressed on-reply
+                .icon (m/Icon m.Icons/reply)))
+
+         on-forward
+         (conj (m/IconButton
+                .padding (m.EdgeInsets/all 10.0)
+                .constraints (m/BoxConstraints.)
+                .tooltip "Forward"
+                .onPressed on-forward
+                .icon (m/Icon m.Icons/forward)))
+
+         on-star
+         (conj (m/IconButton
+                .padding (m.EdgeInsets/all 10.0)
+                .constraints (m/BoxConstraints.)
+                .tooltip (if starred? "Unstar" "Star")
+                .onPressed on-star
+                .icon (m/Icon (if starred? m.Icons/star m.Icons/star_border)
+                              .color (when starred? m.Colors/amber))))
+
+         on-toggle-read
+         (conj (m/IconButton
+                .padding (m.EdgeInsets/all 10.0)
+                .constraints (m/BoxConstraints.)
+                .tooltip (if read? "Mark unread" "Mark read")
+                .onPressed on-toggle-read
+                .icon (m/Icon (if read?
+                                m.Icons/mark_email_unread_outlined
+                                m.Icons/mark_email_read_outlined))))
+
+         (and (not draft?) (not archived?) on-archive)
+         (conj (m/IconButton
+                .padding (m.EdgeInsets/all 10.0)
+                .constraints (m/BoxConstraints.)
+                .tooltip "Archive"
+                .onPressed on-archive
+                .icon (m/Icon m.Icons/archive_outlined)))
+
+         (and archived? on-unarchive)
+         (conj (m/IconButton
+                .padding (m.EdgeInsets/all 10.0)
+                .constraints (m/BoxConstraints.)
+                .tooltip "Move to Inbox"
+                .onPressed on-unarchive
+                .icon (m/Icon m.Icons/unarchive_outlined)))
+
+         on-delete
+         (conj (m/IconButton
+                .padding (m.EdgeInsets/all 10.0)
+                .constraints (m/BoxConstraints.)
+                .tooltip "Delete"
+                .onPressed on-delete
+                .icon (m/Icon m.Icons/delete_outline)))))]))))

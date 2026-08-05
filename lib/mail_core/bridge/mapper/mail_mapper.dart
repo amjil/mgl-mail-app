@@ -14,6 +14,11 @@ class MailMapper {
       from: m.fromAddr,
       fromName: m.fromName ?? '',
       to: m.toAddr,
+      cc: m.ccAddr,
+      bcc: m.bccAddr,
+      rfcMessageId: m.messageId,
+      inReplyTo: m.inReplyTo,
+      referencesHeader: m.referencesHeader,
       date: m.date,
       isRead: m.isRead,
       isStarred: m.isStarred,
@@ -58,6 +63,12 @@ class MailMapper {
       id: a.id,
       email: a.email,
       displayName: a.displayName,
+      imapHost: a.imapHost,
+      imapPort: a.imapPort,
+      smtpHost: a.smtpHost,
+      smtpPort: a.smtpPort,
+      authType: a.authType,
+      provider: a.provider,
     );
   }
 

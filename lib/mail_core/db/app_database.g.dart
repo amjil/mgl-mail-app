@@ -1086,11 +1086,29 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
   late final GeneratedColumn<String> ccAddr = GeneratedColumn<String>(
       'cc_addr', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _bccAddrMeta =
+      const VerificationMeta('bccAddr');
+  @override
+  late final GeneratedColumn<String> bccAddr = GeneratedColumn<String>(
+      'bcc_addr', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _subjectMeta =
       const VerificationMeta('subject');
   @override
   late final GeneratedColumn<String> subject = GeneratedColumn<String>(
       'subject', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _inReplyToMeta =
+      const VerificationMeta('inReplyTo');
+  @override
+  late final GeneratedColumn<String> inReplyTo = GeneratedColumn<String>(
+      'in_reply_to', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _referencesHeaderMeta =
+      const VerificationMeta('referencesHeader');
+  @override
+  late final GeneratedColumn<String> referencesHeader = GeneratedColumn<String>(
+      'references_header', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _dateMeta = const VerificationMeta('date');
   @override
@@ -1184,7 +1202,10 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
         fromName,
         toAddr,
         ccAddr,
+        bccAddr,
         subject,
+        inReplyTo,
+        referencesHeader,
         date,
         state,
         isRead,
@@ -1249,9 +1270,25 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
       context.handle(_ccAddrMeta,
           ccAddr.isAcceptableOrUnknown(data['cc_addr']!, _ccAddrMeta));
     }
+    if (data.containsKey('bcc_addr')) {
+      context.handle(_bccAddrMeta,
+          bccAddr.isAcceptableOrUnknown(data['bcc_addr']!, _bccAddrMeta));
+    }
     if (data.containsKey('subject')) {
       context.handle(_subjectMeta,
           subject.isAcceptableOrUnknown(data['subject']!, _subjectMeta));
+    }
+    if (data.containsKey('in_reply_to')) {
+      context.handle(
+          _inReplyToMeta,
+          inReplyTo.isAcceptableOrUnknown(
+              data['in_reply_to']!, _inReplyToMeta));
+    }
+    if (data.containsKey('references_header')) {
+      context.handle(
+          _referencesHeaderMeta,
+          referencesHeader.isAcceptableOrUnknown(
+              data['references_header']!, _referencesHeaderMeta));
     }
     if (data.containsKey('date')) {
       context.handle(
@@ -1326,8 +1363,14 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
           .read(DriftSqlType.string, data['${effectivePrefix}to_addr'])!,
       ccAddr: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}cc_addr']),
+      bccAddr: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}bcc_addr']),
       subject: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}subject']),
+      inReplyTo: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}in_reply_to']),
+      referencesHeader: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}references_header']),
       date: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}date'])!,
       state: attachedDatabase.typeMapping
@@ -1368,7 +1411,14 @@ class Message extends DataClass implements Insertable<Message> {
   final String? fromName;
   final String toAddr;
   final String? ccAddr;
+  final String? bccAddr;
   final String? subject;
+
+  /// RFC Message-ID of the message being replied to (In-Reply-To).
+  final String? inReplyTo;
+
+  /// Space-separated References chain for threading.
+  final String? referencesHeader;
   final DateTime date;
 
   /// inbox | sent | draft | outbox | failed
@@ -1392,7 +1442,10 @@ class Message extends DataClass implements Insertable<Message> {
       this.fromName,
       required this.toAddr,
       this.ccAddr,
+      this.bccAddr,
       this.subject,
+      this.inReplyTo,
+      this.referencesHeader,
       required this.date,
       required this.state,
       required this.isRead,
@@ -1428,8 +1481,17 @@ class Message extends DataClass implements Insertable<Message> {
     if (!nullToAbsent || ccAddr != null) {
       map['cc_addr'] = Variable<String>(ccAddr);
     }
+    if (!nullToAbsent || bccAddr != null) {
+      map['bcc_addr'] = Variable<String>(bccAddr);
+    }
     if (!nullToAbsent || subject != null) {
       map['subject'] = Variable<String>(subject);
+    }
+    if (!nullToAbsent || inReplyTo != null) {
+      map['in_reply_to'] = Variable<String>(inReplyTo);
+    }
+    if (!nullToAbsent || referencesHeader != null) {
+      map['references_header'] = Variable<String>(referencesHeader);
     }
     map['date'] = Variable<DateTime>(date);
     map['state'] = Variable<String>(state);
@@ -1467,9 +1529,18 @@ class Message extends DataClass implements Insertable<Message> {
       toAddr: Value(toAddr),
       ccAddr:
           ccAddr == null && nullToAbsent ? const Value.absent() : Value(ccAddr),
+      bccAddr: bccAddr == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bccAddr),
       subject: subject == null && nullToAbsent
           ? const Value.absent()
           : Value(subject),
+      inReplyTo: inReplyTo == null && nullToAbsent
+          ? const Value.absent()
+          : Value(inReplyTo),
+      referencesHeader: referencesHeader == null && nullToAbsent
+          ? const Value.absent()
+          : Value(referencesHeader),
       date: Value(date),
       state: Value(state),
       isRead: Value(isRead),
@@ -1497,7 +1568,10 @@ class Message extends DataClass implements Insertable<Message> {
       fromName: serializer.fromJson<String?>(json['fromName']),
       toAddr: serializer.fromJson<String>(json['toAddr']),
       ccAddr: serializer.fromJson<String?>(json['ccAddr']),
+      bccAddr: serializer.fromJson<String?>(json['bccAddr']),
       subject: serializer.fromJson<String?>(json['subject']),
+      inReplyTo: serializer.fromJson<String?>(json['inReplyTo']),
+      referencesHeader: serializer.fromJson<String?>(json['referencesHeader']),
       date: serializer.fromJson<DateTime>(json['date']),
       state: serializer.fromJson<String>(json['state']),
       isRead: serializer.fromJson<bool>(json['isRead']),
@@ -1524,7 +1598,10 @@ class Message extends DataClass implements Insertable<Message> {
       'fromName': serializer.toJson<String?>(fromName),
       'toAddr': serializer.toJson<String>(toAddr),
       'ccAddr': serializer.toJson<String?>(ccAddr),
+      'bccAddr': serializer.toJson<String?>(bccAddr),
       'subject': serializer.toJson<String?>(subject),
+      'inReplyTo': serializer.toJson<String?>(inReplyTo),
+      'referencesHeader': serializer.toJson<String?>(referencesHeader),
       'date': serializer.toJson<DateTime>(date),
       'state': serializer.toJson<String>(state),
       'isRead': serializer.toJson<bool>(isRead),
@@ -1549,7 +1626,10 @@ class Message extends DataClass implements Insertable<Message> {
           Value<String?> fromName = const Value.absent(),
           String? toAddr,
           Value<String?> ccAddr = const Value.absent(),
+          Value<String?> bccAddr = const Value.absent(),
           Value<String?> subject = const Value.absent(),
+          Value<String?> inReplyTo = const Value.absent(),
+          Value<String?> referencesHeader = const Value.absent(),
           DateTime? date,
           String? state,
           bool? isRead,
@@ -1573,7 +1653,12 @@ class Message extends DataClass implements Insertable<Message> {
         fromName: fromName.present ? fromName.value : this.fromName,
         toAddr: toAddr ?? this.toAddr,
         ccAddr: ccAddr.present ? ccAddr.value : this.ccAddr,
+        bccAddr: bccAddr.present ? bccAddr.value : this.bccAddr,
         subject: subject.present ? subject.value : this.subject,
+        inReplyTo: inReplyTo.present ? inReplyTo.value : this.inReplyTo,
+        referencesHeader: referencesHeader.present
+            ? referencesHeader.value
+            : this.referencesHeader,
         date: date ?? this.date,
         state: state ?? this.state,
         isRead: isRead ?? this.isRead,
@@ -1599,7 +1684,12 @@ class Message extends DataClass implements Insertable<Message> {
       fromName: data.fromName.present ? data.fromName.value : this.fromName,
       toAddr: data.toAddr.present ? data.toAddr.value : this.toAddr,
       ccAddr: data.ccAddr.present ? data.ccAddr.value : this.ccAddr,
+      bccAddr: data.bccAddr.present ? data.bccAddr.value : this.bccAddr,
       subject: data.subject.present ? data.subject.value : this.subject,
+      inReplyTo: data.inReplyTo.present ? data.inReplyTo.value : this.inReplyTo,
+      referencesHeader: data.referencesHeader.present
+          ? data.referencesHeader.value
+          : this.referencesHeader,
       date: data.date.present ? data.date.value : this.date,
       state: data.state.present ? data.state.value : this.state,
       isRead: data.isRead.present ? data.isRead.value : this.isRead,
@@ -1628,7 +1718,10 @@ class Message extends DataClass implements Insertable<Message> {
           ..write('fromName: $fromName, ')
           ..write('toAddr: $toAddr, ')
           ..write('ccAddr: $ccAddr, ')
+          ..write('bccAddr: $bccAddr, ')
           ..write('subject: $subject, ')
+          ..write('inReplyTo: $inReplyTo, ')
+          ..write('referencesHeader: $referencesHeader, ')
           ..write('date: $date, ')
           ..write('state: $state, ')
           ..write('isRead: $isRead, ')
@@ -1655,7 +1748,10 @@ class Message extends DataClass implements Insertable<Message> {
         fromName,
         toAddr,
         ccAddr,
+        bccAddr,
         subject,
+        inReplyTo,
+        referencesHeader,
         date,
         state,
         isRead,
@@ -1681,7 +1777,10 @@ class Message extends DataClass implements Insertable<Message> {
           other.fromName == this.fromName &&
           other.toAddr == this.toAddr &&
           other.ccAddr == this.ccAddr &&
+          other.bccAddr == this.bccAddr &&
           other.subject == this.subject &&
+          other.inReplyTo == this.inReplyTo &&
+          other.referencesHeader == this.referencesHeader &&
           other.date == this.date &&
           other.state == this.state &&
           other.isRead == this.isRead &&
@@ -1705,7 +1804,10 @@ class MessagesCompanion extends UpdateCompanion<Message> {
   final Value<String?> fromName;
   final Value<String> toAddr;
   final Value<String?> ccAddr;
+  final Value<String?> bccAddr;
   final Value<String?> subject;
+  final Value<String?> inReplyTo;
+  final Value<String?> referencesHeader;
   final Value<DateTime> date;
   final Value<String> state;
   final Value<bool> isRead;
@@ -1727,7 +1829,10 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     this.fromName = const Value.absent(),
     this.toAddr = const Value.absent(),
     this.ccAddr = const Value.absent(),
+    this.bccAddr = const Value.absent(),
     this.subject = const Value.absent(),
+    this.inReplyTo = const Value.absent(),
+    this.referencesHeader = const Value.absent(),
     this.date = const Value.absent(),
     this.state = const Value.absent(),
     this.isRead = const Value.absent(),
@@ -1750,7 +1855,10 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     this.fromName = const Value.absent(),
     this.toAddr = const Value.absent(),
     this.ccAddr = const Value.absent(),
+    this.bccAddr = const Value.absent(),
     this.subject = const Value.absent(),
+    this.inReplyTo = const Value.absent(),
+    this.referencesHeader = const Value.absent(),
     required DateTime date,
     this.state = const Value.absent(),
     this.isRead = const Value.absent(),
@@ -1774,7 +1882,10 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     Expression<String>? fromName,
     Expression<String>? toAddr,
     Expression<String>? ccAddr,
+    Expression<String>? bccAddr,
     Expression<String>? subject,
+    Expression<String>? inReplyTo,
+    Expression<String>? referencesHeader,
     Expression<DateTime>? date,
     Expression<String>? state,
     Expression<bool>? isRead,
@@ -1797,7 +1908,10 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       if (fromName != null) 'from_name': fromName,
       if (toAddr != null) 'to_addr': toAddr,
       if (ccAddr != null) 'cc_addr': ccAddr,
+      if (bccAddr != null) 'bcc_addr': bccAddr,
       if (subject != null) 'subject': subject,
+      if (inReplyTo != null) 'in_reply_to': inReplyTo,
+      if (referencesHeader != null) 'references_header': referencesHeader,
       if (date != null) 'date': date,
       if (state != null) 'state': state,
       if (isRead != null) 'is_read': isRead,
@@ -1822,7 +1936,10 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       Value<String?>? fromName,
       Value<String>? toAddr,
       Value<String?>? ccAddr,
+      Value<String?>? bccAddr,
       Value<String?>? subject,
+      Value<String?>? inReplyTo,
+      Value<String?>? referencesHeader,
       Value<DateTime>? date,
       Value<String>? state,
       Value<bool>? isRead,
@@ -1844,7 +1961,10 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       fromName: fromName ?? this.fromName,
       toAddr: toAddr ?? this.toAddr,
       ccAddr: ccAddr ?? this.ccAddr,
+      bccAddr: bccAddr ?? this.bccAddr,
       subject: subject ?? this.subject,
+      inReplyTo: inReplyTo ?? this.inReplyTo,
+      referencesHeader: referencesHeader ?? this.referencesHeader,
       date: date ?? this.date,
       state: state ?? this.state,
       isRead: isRead ?? this.isRead,
@@ -1891,8 +2011,17 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     if (ccAddr.present) {
       map['cc_addr'] = Variable<String>(ccAddr.value);
     }
+    if (bccAddr.present) {
+      map['bcc_addr'] = Variable<String>(bccAddr.value);
+    }
     if (subject.present) {
       map['subject'] = Variable<String>(subject.value);
+    }
+    if (inReplyTo.present) {
+      map['in_reply_to'] = Variable<String>(inReplyTo.value);
+    }
+    if (referencesHeader.present) {
+      map['references_header'] = Variable<String>(referencesHeader.value);
     }
     if (date.present) {
       map['date'] = Variable<DateTime>(date.value);
@@ -1940,7 +2069,10 @@ class MessagesCompanion extends UpdateCompanion<Message> {
           ..write('fromName: $fromName, ')
           ..write('toAddr: $toAddr, ')
           ..write('ccAddr: $ccAddr, ')
+          ..write('bccAddr: $bccAddr, ')
           ..write('subject: $subject, ')
+          ..write('inReplyTo: $inReplyTo, ')
+          ..write('referencesHeader: $referencesHeader, ')
           ..write('date: $date, ')
           ..write('state: $state, ')
           ..write('isRead: $isRead, ')
@@ -4032,7 +4164,10 @@ typedef $$MessagesTableCreateCompanionBuilder = MessagesCompanion Function({
   Value<String?> fromName,
   Value<String> toAddr,
   Value<String?> ccAddr,
+  Value<String?> bccAddr,
   Value<String?> subject,
+  Value<String?> inReplyTo,
+  Value<String?> referencesHeader,
   required DateTime date,
   Value<String> state,
   Value<bool> isRead,
@@ -4055,7 +4190,10 @@ typedef $$MessagesTableUpdateCompanionBuilder = MessagesCompanion Function({
   Value<String?> fromName,
   Value<String> toAddr,
   Value<String?> ccAddr,
+  Value<String?> bccAddr,
   Value<String?> subject,
+  Value<String?> inReplyTo,
+  Value<String?> referencesHeader,
   Value<DateTime> date,
   Value<String> state,
   Value<bool> isRead,
@@ -4108,8 +4246,18 @@ class $$MessagesTableFilterComposer
   ColumnFilters<String> get ccAddr => $composableBuilder(
       column: $table.ccAddr, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<String> get bccAddr => $composableBuilder(
+      column: $table.bccAddr, builder: (column) => ColumnFilters(column));
+
   ColumnFilters<String> get subject => $composableBuilder(
       column: $table.subject, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get inReplyTo => $composableBuilder(
+      column: $table.inReplyTo, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get referencesHeader => $composableBuilder(
+      column: $table.referencesHeader,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get date => $composableBuilder(
       column: $table.date, builder: (column) => ColumnFilters(column));
@@ -4182,8 +4330,18 @@ class $$MessagesTableOrderingComposer
   ColumnOrderings<String> get ccAddr => $composableBuilder(
       column: $table.ccAddr, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get bccAddr => $composableBuilder(
+      column: $table.bccAddr, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get subject => $composableBuilder(
       column: $table.subject, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get inReplyTo => $composableBuilder(
+      column: $table.inReplyTo, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get referencesHeader => $composableBuilder(
+      column: $table.referencesHeader,
+      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<DateTime> get date => $composableBuilder(
       column: $table.date, builder: (column) => ColumnOrderings(column));
@@ -4256,8 +4414,17 @@ class $$MessagesTableAnnotationComposer
   GeneratedColumn<String> get ccAddr =>
       $composableBuilder(column: $table.ccAddr, builder: (column) => column);
 
+  GeneratedColumn<String> get bccAddr =>
+      $composableBuilder(column: $table.bccAddr, builder: (column) => column);
+
   GeneratedColumn<String> get subject =>
       $composableBuilder(column: $table.subject, builder: (column) => column);
+
+  GeneratedColumn<String> get inReplyTo =>
+      $composableBuilder(column: $table.inReplyTo, builder: (column) => column);
+
+  GeneratedColumn<String> get referencesHeader => $composableBuilder(
+      column: $table.referencesHeader, builder: (column) => column);
 
   GeneratedColumn<DateTime> get date =>
       $composableBuilder(column: $table.date, builder: (column) => column);
@@ -4323,7 +4490,10 @@ class $$MessagesTableTableManager extends RootTableManager<
             Value<String?> fromName = const Value.absent(),
             Value<String> toAddr = const Value.absent(),
             Value<String?> ccAddr = const Value.absent(),
+            Value<String?> bccAddr = const Value.absent(),
             Value<String?> subject = const Value.absent(),
+            Value<String?> inReplyTo = const Value.absent(),
+            Value<String?> referencesHeader = const Value.absent(),
             Value<DateTime> date = const Value.absent(),
             Value<String> state = const Value.absent(),
             Value<bool> isRead = const Value.absent(),
@@ -4346,7 +4516,10 @@ class $$MessagesTableTableManager extends RootTableManager<
             fromName: fromName,
             toAddr: toAddr,
             ccAddr: ccAddr,
+            bccAddr: bccAddr,
             subject: subject,
+            inReplyTo: inReplyTo,
+            referencesHeader: referencesHeader,
             date: date,
             state: state,
             isRead: isRead,
@@ -4369,7 +4542,10 @@ class $$MessagesTableTableManager extends RootTableManager<
             Value<String?> fromName = const Value.absent(),
             Value<String> toAddr = const Value.absent(),
             Value<String?> ccAddr = const Value.absent(),
+            Value<String?> bccAddr = const Value.absent(),
             Value<String?> subject = const Value.absent(),
+            Value<String?> inReplyTo = const Value.absent(),
+            Value<String?> referencesHeader = const Value.absent(),
             required DateTime date,
             Value<String> state = const Value.absent(),
             Value<bool> isRead = const Value.absent(),
@@ -4392,7 +4568,10 @@ class $$MessagesTableTableManager extends RootTableManager<
             fromName: fromName,
             toAddr: toAddr,
             ccAddr: ccAddr,
+            bccAddr: bccAddr,
             subject: subject,
+            inReplyTo: inReplyTo,
+            referencesHeader: referencesHeader,
             date: date,
             state: state,
             isRead: isRead,
