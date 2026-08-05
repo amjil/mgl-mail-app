@@ -37,6 +37,7 @@ dependencies:
   vibration: ^1.8.4
   enough_mail: ^2.1.7
   enough_mail_html: ^2.0.2
+  html: ^0.15.6
   introduction_screen: ^4.0.0
   shared_preferences: ^2.5.5
   flutter_styled_toast: ^2.3.0
