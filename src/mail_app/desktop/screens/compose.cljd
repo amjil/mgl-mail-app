@@ -8,7 +8,6 @@
             [clojure.string :as str]
             [block-editor.widgets.editor :as editor]
             [block-editor.widgets.toolbar :as toolbar]
-            [block-editor.utils.persistence :as persist]
             [shared-ime.overlay-view :as overlay]
             [mail-app.desktop.shortcuts :as shortcuts]
             [mail-app.desktop.widgets.compose-fields :as fields]
@@ -50,11 +49,16 @@
     (when-let [subject (:subject draft)]
       (set! (.-text subject-ctrl) (str subject)))))
 
-(defn- initial-doc-state [draft]
+(defn- initial-doc-state [draft signature]
   (cond
+    ;; Reopen from drafts: restore saved editor state as-is.
     (:body-state draft) (:body-state draft)
+    ;; Plain-text draft restore (also skip re-injecting signature).
     (:body-plain draft) (export/state-from-plain-text (:body-plain draft))
-    :else (persist/create-empty-state)))
+    ;; New / reply / forward: seed signature with two blank lines above.
+    :else
+    (let [text (if (seq signature) (str "\n\n-- \n" signature) "")]
+      (export/state-from-plain-text text))))
 
 (defn- dispose-auto-save!
   "Cancel pending timer and detach listeners registered by auto-save setup."
@@ -71,7 +75,9 @@
 (defn screen []
   (let [draft (:compose-draft @store/app-state)
         _ (when draft (store/clear-compose-draft!))
-        !doc-state (atom (initial-doc-state draft))
+        aid (or (:account-id draft) (:current-account-id @store/app-state))
+        signature (store/get-signature aid)
+        !doc-state (atom (initial-doc-state draft signature))
         !quote-state (atom (:quote-state draft))
         !show-cc? (atom false)
         !show-bcc? (atom false)

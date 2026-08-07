@@ -26,7 +26,9 @@
          :selected-message-ids #{}
          :last-clicked-index nil
          ;; expanded conversation thread keys
-         :expanded-threads #{}}))
+         :expanded-threads #{}
+         ;; account-id -> signature plain text
+         :signatures {}}))
 
 (defn set-accounts! [accounts]
   (swap! app-state assoc :accounts (or accounts [])))
@@ -115,3 +117,10 @@
 
 (defn clear-thread-expansion! []
   (swap! app-state assoc :expanded-threads #{}))
+
+(defn set-signature! [account-id sig]
+  (swap! app-state assoc-in [:signatures account-id] sig))
+
+(defn get-signature [account-id]
+  (get-in @app-state [:signatures account-id]
+          "Sent from MGL Mail\nwww.mglmail.com"))
