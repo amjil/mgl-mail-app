@@ -1,0 +1,31 @@
+(ns mail-app.desktop.shortcuts
+  "Nested CallbackShortcuts: page bindings fire first, then bubble to app root."
+  (:require ["package:flutter/foundation.dart" :as foundation]
+            ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as s]))
+
+(defn- apple? []
+  (let [p foundation/defaultTargetPlatform]
+    (or (= p foundation.TargetPlatform/macOS)
+        (= p foundation.TargetPlatform/iOS))))
+
+(defn cmd-key
+  "Cmd on Apple, Ctrl elsewhere. Returns a SingleActivator for binding maps."
+  [^s/LogicalKeyboardKey logical-key]
+  (if (apple?)
+    (m/SingleActivator logical-key .meta true)
+    (m/SingleActivator logical-key .control true)))
+
+(defn raw-key
+  "Unmodified key (no Cmd/Ctrl/Alt). Returns a SingleActivator for binding maps."
+  [^s/LogicalKeyboardKey logical-key]
+  (m/SingleActivator logical-key))
+
+(defn with-shortcuts
+  "Wrap `child` with CallbackShortcuts. `binding-map` keys are ShortcutActivator
+   (e.g. from cmd-key); values are zero-arg fns (return nil). Unhandled keys
+   continue up the focus chain to ancestor shortcut widgets."
+  [binding-map child]
+  (m/CallbackShortcuts
+   .bindings binding-map
+   .child child))

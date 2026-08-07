@@ -1,5 +1,6 @@
 (ns mail-app.desktop.screens.mail-detail
   (:require ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as s]
             ["package:mongol/mongol.dart" :as mgl]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             ["package:url_launcher/url_launcher.dart" :as ul]
@@ -8,6 +9,7 @@
             [block-editor.utils.html :as be-html]
             [block-editor.plugins.core :as be-plugins]
             [block-editor.widgets.reader :as reader]
+            [mail-app.desktop.shortcuts :as shortcuts]
             [mail-app.desktop.toast :as toast]
             [mail-app.desktop.widgets.topbar :as topbar]
             [mail-app.desktop.widgets.compose-quote :as quote]
@@ -341,139 +343,157 @@
    :get [m/Navigator]
    :watch [{:keys [message-detail downloading-attachment-ids last-error]}
            store/app-state]
-   (m/Scaffold
-    .body
-    (m/SafeArea
-     .child
-     (m/Column
-      .crossAxisAlignment m.CrossAxisAlignment/start
-      .children
-      [(let [msg (when message-detail
-                   (.-message ^mc/MailMessageWithBody message-detail))
-             archived? (when msg
-                         (or (= (.-state ^mc/MailMessageDto msg) "archive")
-                             (= (.-folderRole ^mc/MailMessageDto msg) "archive")))
-             draft? (when msg
-                      (or (= (.-state ^mc/MailMessageDto msg) "draft")
-                          (= (.-folderRole ^mc/MailMessageDto msg) "draft")))
-             starred? (when msg (.-isStarred ^mc/MailMessageDto msg))
-             read? (when msg (.-isRead ^mc/MailMessageDto msg))]
-         (topbar/mail-detail
-          :archived? archived?
-          :draft? draft?
-          :starred? starred?
-          :read? read?
-          :on-reply (when (and message-detail (not draft?))
-                      #(start-reply! navigator message-detail))
-          :on-forward (when (and message-detail (not draft?))
-                        #(start-forward! navigator message-detail))
-          :on-edit-draft (when (and message-detail draft?)
-                           #(start-edit-draft! navigator message-detail))
-          :on-star (when msg
-                     (fn []
-                       (let [^mc/MailMessageDto m msg]
-                         (mail/set-starred! (.-id m) (not (.-isStarred m)))
-                         nil)))
-          :on-toggle-read (when msg
-                            (fn []
-                              (let [^mc/MailMessageDto m msg]
-                                (mail/set-read! (.-id m) (not (.-isRead m)))
-                                nil)))
-          :on-archive (when (and message-detail (not archived?) (not draft?))
-                        #(archive-pressed! ctx navigator message-detail))
-          :on-unarchive (when (and message-detail archived?)
-                          #(move-to-inbox-pressed! ctx navigator message-detail))
-          :on-delete (when message-detail
-                       #(confirm-delete! ctx navigator message-detail))))
-       (m/Divider .thickness 1.0 .height 1.0)
-       (m/Expanded
+   (let [msg (when message-detail
+               (.-message ^mc/MailMessageWithBody message-detail))
+         archived? (when msg
+                     (or (= (.-state ^mc/MailMessageDto msg) "archive")
+                         (= (.-folderRole ^mc/MailMessageDto msg) "archive")))
+         draft? (when msg
+                  (or (= (.-state ^mc/MailMessageDto msg) "draft")
+                      (= (.-folderRole ^mc/MailMessageDto msg) "draft")))
+         starred? (when msg (.-isStarred ^mc/MailMessageDto msg))
+         read? (when msg (.-isRead ^mc/MailMessageDto msg))]
+     (shortcuts/with-shortcuts
+      {;; Cmd/Ctrl + R -> reply (overrides global sync while detail is focused)
+       (shortcuts/cmd-key s/LogicalKeyboardKey.keyR)
+       (fn []
+         (when (and message-detail (not draft?))
+           (start-reply! navigator message-detail))
+         nil)
+
+       ;; Delete / Backspace -> delete current message
+       (shortcuts/raw-key s/LogicalKeyboardKey.delete)
+       (fn []
+         (when message-detail (confirm-delete! ctx navigator message-detail))
+         nil)
+       (shortcuts/raw-key s/LogicalKeyboardKey.backspace)
+       (fn []
+         (when message-detail (confirm-delete! ctx navigator message-detail))
+         nil)}
+
+      (m/Scaffold
+       .body
+       (m/SafeArea
         .child
-        (cond
-          (nil? message-detail)
-          (m/Center
+        (m/Column
+         .crossAxisAlignment m.CrossAxisAlignment/start
+         .children
+         [(topbar/mail-detail
+           :archived? archived?
+           :draft? draft?
+           :starred? starred?
+           :read? read?
+           :on-reply (when (and message-detail (not draft?))
+                       #(start-reply! navigator message-detail))
+           :on-forward (when (and message-detail (not draft?))
+                         #(start-forward! navigator message-detail))
+           :on-edit-draft (when (and message-detail draft?)
+                            #(start-edit-draft! navigator message-detail))
+           :on-star (when msg
+                      (fn []
+                        (let [^mc/MailMessageDto m msg]
+                          (mail/set-starred! (.-id m) (not (.-isStarred m)))
+                          nil)))
+           :on-toggle-read (when msg
+                             (fn []
+                               (let [^mc/MailMessageDto m msg]
+                                 (mail/set-read! (.-id m) (not (.-isRead m)))
+                                 nil)))
+           :on-archive (when (and message-detail (not archived?) (not draft?))
+                         #(archive-pressed! ctx navigator message-detail))
+           :on-unarchive (when (and message-detail archived?)
+                           #(move-to-inbox-pressed! ctx navigator message-detail))
+           :on-delete (when message-detail
+                        #(confirm-delete! ctx navigator message-detail)))
+          (m/Divider .thickness 1.0 .height 1.0)
+          (m/Expanded
            .child
-           (if (seq last-error)
-             (m/Padding
-              .padding (m.EdgeInsets/all 24.0)
+           (cond
+             (nil? message-detail)
+             (m/Center
               .child
-              (m/Text (str last-error)
-                      .textAlign m.TextAlign/center
-                      .style (m/TextStyle .color m.Colors/red .fontSize 13.0)))
-             (m/CircularProgressIndicator.)))
+              (if (seq last-error)
+                (m/Padding
+                 .padding (m.EdgeInsets/all 24.0)
+                 .child
+                 (m/Text (str last-error)
+                         .textAlign m.TextAlign/center
+                         .style (m/TextStyle .color m.Colors/red .fontSize 13.0)))
+                (m/CircularProgressIndicator.)))
 
-          :else
-          (let [^mc/MailMessageWithBody detail message-detail
-                ^mc/MailMessageDto msg (.-message detail)
-                subject (let [s (.-subject msg)]
-                          (if (or (nil? s) (empty? s)) "No Subject" s))
-                from (or (.-fromName msg) (.-from msg) "")
-                to (or (.-to msg) "")
-                date (format-date (.-date msg))
-                loading-body? (not (.-hasBody msg))
-                att-panel (attachments-panel ctx detail downloading-attachment-ids)]
-            (m/Row
-             .crossAxisAlignment m.CrossAxisAlignment/stretch
-             .children
-             [(m/Padding
-               .padding (m.EdgeInsets/all 16.0)
-               .child
-               (m/Column
-                .crossAxisAlignment m.CrossAxisAlignment/start
+             :else
+             (let [^mc/MailMessageWithBody detail message-detail
+                   ^mc/MailMessageDto msg (.-message detail)
+                   subject (let [s (.-subject msg)]
+                             (if (or (nil? s) (empty? s)) "No Subject" s))
+                   from (or (.-fromName msg) (.-from msg) "")
+                   to (or (.-to msg) "")
+                   date (format-date (.-date msg))
+                   loading-body? (not (.-hasBody msg))
+                   att-panel (attachments-panel ctx detail downloading-attachment-ids)]
+               (m/Row
+                .crossAxisAlignment m.CrossAxisAlignment/stretch
                 .children
-                (cond->
-                  [(mgl/MongolText
-                    subject
-                    .style (m/TextStyle .fontSize 20.0
-                                        .fontFamily font-family
-                                        .fontWeight m/FontWeight.bold))
-                   (m/SizedBox .height 12.0)
-                   (mgl/MongolText
-                    from
-                    .style (m/TextStyle .fontSize 14.0
-                                        .fontFamily font-family
-                                        .color m.Colors/black54))]
-                  (seq to)
-                  (conj
-                   (m/Padding
-                    .padding (m.EdgeInsets/only .top 8.0)
-                    .child
-                    (mgl/MongolText
-                     (str "To: " to)
-                     .style (m/TextStyle .fontSize 12.0
-                                         .fontFamily font-family
-                                         .color m.Colors/black45))))
-                  date
-                  (conj
-                   (m/Padding
-                    .padding (m.EdgeInsets/only .top 8.0)
-                    .child
-                    (m/Text date
-                            .style (m/TextStyle .fontSize 11.0
-                                                .color m.Colors/black45)))))))
-              (m/VerticalDivider .width 1.0 .thickness 1.0)
-              (m/Expanded
-               .child
-               (cond
-                 loading-body?
-                 (m/Center
+                [(m/Padding
+                  .padding (m.EdgeInsets/all 16.0)
                   .child
-                  (if (seq last-error)
-                    (m/Padding
-                     .padding (m.EdgeInsets/all 24.0)
+                  (m/Row
+                   .crossAxisAlignment m.CrossAxisAlignment/start
+                   .children
+                   (cond->
+                     [(mgl/MongolText
+                       subject
+                       .style (m/TextStyle .fontSize 20.0
+                                           .fontFamily font-family
+                                           .fontWeight m/FontWeight.bold))
+                      (m/SizedBox .width 12.0)
+                      (mgl/MongolText
+                       from
+                       .style (m/TextStyle .fontSize 14.0
+                                           .fontFamily font-family
+                                           .color m.Colors/black54))]
+                     (seq to)
+                     (conj
+                      (m/Padding
+                       .padding (m.EdgeInsets/only .left 8.0)
+                       .child
+                       (mgl/MongolText
+                        (str "To: " to)
+                        .style (m/TextStyle .fontSize 12.0
+                                            .fontFamily font-family
+                                            .color m.Colors/black45))))
+                     date
+                     (conj
+                      (m/Padding
+                       .padding (m.EdgeInsets/only .left 8.0)
+                       .child
+                       (mgl/MongolText date
+                                       .style (m/TextStyle .fontSize 11.0
+                                                           .color m.Colors/black45)))))))
+                 (m/VerticalDivider .width 1.0 .thickness 1.0)
+                 (m/Expanded
+                  .child
+                  (cond
+                    loading-body?
+                    (m/Center
                      .child
-                     (m/Text (str "Failed to load body:\n" last-error)
-                             .textAlign m.TextAlign/center
-                             .style (m/TextStyle .color m.Colors/red
-                                                 .fontSize 13.0)))
-                    (m/Column
-                     .mainAxisSize m.MainAxisSize/min
-                     .children
-                     [(m/CircularProgressIndicator.)
-                      (m/SizedBox .height 12.0)
-                      (m/Text "Loading body..."
-                              .style (m/TextStyle .color m.Colors/black45
-                                                  .fontSize 12.0))])))
+                     (if (seq last-error)
+                       (m/Padding
+                        .padding (m.EdgeInsets/all 24.0)
+                        .child
+                        (m/Text (str "Failed to load body:\n" last-error)
+                                .textAlign m.TextAlign/center
+                                .style (m/TextStyle .color m.Colors/red
+                                                    .fontSize 13.0)))
+                       (m/Column
+                        .mainAxisSize m.MainAxisSize/min
+                        .children
+                        [(m/CircularProgressIndicator.)
+                         (m/SizedBox .height 12.0)
+                         (m/Text "Loading body..."
+                                 .style (m/TextStyle .color m.Colors/black45
+                                                     .fontSize 12.0))])))
 
-                 :else
-                 (body-view detail)))
-              (if att-panel att-panel (m/SizedBox.shrink))]))))])))))
+                    :else
+                    (body-view detail)))
+                 (if att-panel att-panel (m/SizedBox.shrink))]))))])))))))

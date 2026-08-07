@@ -56,7 +56,7 @@
      (select-keys (or draft-meta {})
                   [:draft-message-id :in-reply-to :references :account-id]))))
 
-(defn- send-pressed!
+(defn send-pressed!
   [ctx navigator !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
    show-cc? show-bcc? sending? current-account-id attachment-paths draft-meta]
   (let [tctx (toast/safe-ctx ctx)]
@@ -84,7 +84,7 @@
                            nil)))))
     nil))
 
-(defn- save-draft-pressed!
+(defn save-draft-pressed!
   [ctx navigator !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
    show-cc? show-bcc? sending? current-account-id attachment-paths draft-meta]
   (let [tctx (toast/safe-ctx ctx)]

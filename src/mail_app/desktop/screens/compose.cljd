@@ -2,12 +2,14 @@
   "Desktop compose: header text fields + mongol block editor body.
    Reply/forward shows original mail in a toggle panel (toggle.cljd)."
   (:require ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as s]
             [cljd.flutter :as f]
             [clojure.string :as str]
             [block-editor.widgets.editor :as editor]
             [block-editor.widgets.toolbar :as toolbar]
             [block-editor.utils.persistence :as persist]
             [shared-ime.overlay-view :as overlay]
+            [mail-app.desktop.shortcuts :as shortcuts]
             [mail-app.desktop.widgets.compose-fields :as fields]
             [mail-app.desktop.widgets.compose-quote :as quote]
             [mail-app.desktop.widgets.compose-topbar :as topbar]
@@ -75,59 +77,84 @@
                bcc-focus (m/FocusNode.)
                subject-ctrl (m/TextEditingController.)
                subject-focus (m/FocusNode.)]
+     :context ctx
+     :get [m/Navigator]
      :watch [show-cc? !show-cc?
-             show-bcc? !show-bcc?]
+             show-bcc? !show-bcc?
+             {:keys [sending? current-account-id]} store/app-state
+             attachment-paths !attachment-paths]
      (do
        (when-let [d @!fields-draft]
          (reset! !fields-draft nil)
          (apply-fields! d to-ctrl cc-ctrl bcc-ctrl subject-ctrl
                         !show-cc? !show-bcc?))
-       (m/Scaffold
-        .backgroundColor m.Colors/white
-        .body
-        (overlay/ime-global-wrapper
-         (m/SafeArea
-          .child
-          (m/Column
-           .crossAxisAlignment m.CrossAxisAlignment/stretch
-           .children
-           [(topbar/topbar {:!doc-state !doc-state
-                            :!quote-state !quote-state
-                            :to-ctrl to-ctrl
-                            :cc-ctrl cc-ctrl
-                            :bcc-ctrl bcc-ctrl
-                            :subject-ctrl subject-ctrl
-                            :!show-cc? !show-cc?
-                            :!show-bcc? !show-bcc?
-                            :!attachment-paths !attachment-paths
-                            :draft-meta draft-meta})
-            (m/Divider .thickness 1.0 .height 1.0)
-            (m/Expanded
-             .child
-             (m/Row
-              .crossAxisAlignment m.CrossAxisAlignment/stretch
-              .children
-              (cond->
-                [(fields/header-row
-                  {:to-ctrl to-ctrl :to-focus to-focus
-                   :cc-ctrl cc-ctrl :cc-focus cc-focus
-                   :bcc-ctrl bcc-ctrl :bcc-focus bcc-focus
-                   :subject-ctrl subject-ctrl :subject-focus subject-focus
-                   :show-cc? show-cc?
-                   :show-bcc? show-bcc?})
-                 (m/VerticalDivider .width 1.0 .thickness 1.0)
-                 (m/Expanded
-                  .flex 2
-                  .child
-                  (editor/mongol-block-editor
-                   !doc-state
-                   :editor-config compose-editor-config
-                   :toolbar (toolbar/editor-toolbar !doc-state compose-editor-config)
-                   :background-color m.Colors/white
-                   :show-block-handles? false
-                   :padding (m.EdgeInsets/all 24.0)))]
-                has-quote?
-                (conj (m/Expanded
-                       .flex 1
-                       .child (quote/panel !quote-state))))))]))
-         "compose-header-ime"))))))
+       (shortcuts/with-shortcuts
+        {;; Send: needs this page's controllers / doc state
+         (shortcuts/cmd-key s/LogicalKeyboardKey.enter)
+         (fn []
+           (topbar/send-pressed! ctx navigator !doc-state !quote-state
+                                 to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                                 show-cc? show-bcc? sending?
+                                 current-account-id
+                                 attachment-paths draft-meta)
+           nil)
+
+         ;; Save draft: same local state
+         (shortcuts/cmd-key s/LogicalKeyboardKey.keyS)
+         (fn []
+           (topbar/save-draft-pressed! ctx navigator !doc-state !quote-state
+                                       to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                                       show-cc? show-bcc? sending?
+                                       current-account-id
+                                       attachment-paths draft-meta)
+           nil)}
+
+        (m/Scaffold
+         .backgroundColor m.Colors/white
+         .body
+         (overlay/ime-global-wrapper
+          (m/SafeArea
+           .child
+           (m/Column
+            .crossAxisAlignment m.CrossAxisAlignment/stretch
+            .children
+            [(topbar/topbar {:!doc-state !doc-state
+                             :!quote-state !quote-state
+                             :to-ctrl to-ctrl
+                             :cc-ctrl cc-ctrl
+                             :bcc-ctrl bcc-ctrl
+                             :subject-ctrl subject-ctrl
+                             :!show-cc? !show-cc?
+                             :!show-bcc? !show-bcc?
+                             :!attachment-paths !attachment-paths
+                             :draft-meta draft-meta})
+             (m/Divider .thickness 1.0 .height 1.0)
+             (m/Expanded
+              .child
+              (m/Row
+               .crossAxisAlignment m.CrossAxisAlignment/stretch
+               .children
+               (cond->
+                 [(fields/header-row
+                   {:to-ctrl to-ctrl :to-focus to-focus
+                    :cc-ctrl cc-ctrl :cc-focus cc-focus
+                    :bcc-ctrl bcc-ctrl :bcc-focus bcc-focus
+                    :subject-ctrl subject-ctrl :subject-focus subject-focus
+                    :show-cc? show-cc?
+                    :show-bcc? show-bcc?})
+                  (m/VerticalDivider .width 1.0 .thickness 1.0)
+                  (m/Expanded
+                   .flex 2
+                   .child
+                   (editor/mongol-block-editor
+                    !doc-state
+                    :editor-config compose-editor-config
+                    :toolbar (toolbar/editor-toolbar !doc-state compose-editor-config)
+                    :background-color m.Colors/white
+                    :show-block-handles? false
+                    :padding (m.EdgeInsets/all 24.0)))]
+                 has-quote?
+                 (conj (m/Expanded
+                        .flex 1
+                        .child (quote/panel !quote-state))))))]))
+          "compose-header-ime")))))))

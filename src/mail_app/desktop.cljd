@@ -1,41 +1,67 @@
 (ns mail-app.desktop
   (:require ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as s]
             ["package:flutter_styled_toast/flutter_styled_toast.dart" :as st]
             [cljd.flutter :as f]
             [mail-app.desktop.lifecycle :as life]
+            [mail-app.desktop.shortcuts :as shortcuts]
             [mail-app.desktop.toast :as toast]
             [mail-app.desktop.screens.home :as home]
             [mail-app.desktop.screens.compose :as compose]
             [mail-app.desktop.screens.mail-list :as mail-list]
             [mail-app.desktop.screens.mail-detail :as mail-detail]
             [mail-app.desktop.screens.search :as search]
-            [mail-app.desktop.screens.signup :as signup]))
+            [mail-app.desktop.screens.signup :as signup]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]))
 
 (defn app []
   (life/wrap
    (f/widget
-    ;; StyledToast must wrap *inside* MaterialApp.builder so toast Overlay
-    ;; sits under MaterialApp (theme + navigator), not outside it.
-    (m/MaterialApp
-     .title "MGL Mail"
-     .debugShowCheckedModeBanner false
-     .theme (m/ThemeData
-             .primarySwatch m.Colors/blue
-             .fontFamily "MongolianBaiZheng"
-             .scaffoldBackgroundColor m.Colors/white)
-     .builder
-     (fn [_ctx child]
-       (st/StyledToast
-        .child
-        (f/widget
-         :context host-ctx
-         (do
-           (toast/remember-root-ctx! host-ctx)
-           (or child (m/SizedBox.shrink))))))
-     .initialRoute "/"
-     .routes {"/" (fn ^m/Widget [_] (home/screen))
-              "/signup" (fn ^m/Widget [_] (signup/screen))
-              "/compose" (fn ^m/Widget [_] (compose/screen))
-              "/mail_list" (fn ^m/Widget [_] (mail-list/screen))
-              "/mail_detail" (fn ^m/Widget [_] (mail-detail/screen))
-              "/search" (fn ^m/Widget [_] (search/screen))}))))
+    :managed [nav-key (#/(m/GlobalKey m/NavigatorState))]
+    (shortcuts/with-shortcuts
+     {;; Global compose: Cmd/Ctrl + N
+      (shortcuts/cmd-key s/LogicalKeyboardKey.keyN)
+      (fn []
+        (when-let [nav (.-currentState nav-key)]
+          (store/clear-compose-draft!)
+          (.pushNamed nav "/compose"))
+        nil)
+
+      ;; Global search: Cmd/Ctrl + F
+      (shortcuts/cmd-key s/LogicalKeyboardKey.keyF)
+      (fn []
+        (when-let [nav (.-currentState nav-key)]
+          (.pushNamed nav "/search"))
+        nil)
+
+      ;; Global sync: Cmd/Ctrl + R
+      (shortcuts/cmd-key s/LogicalKeyboardKey.keyR)
+      (fn []
+        (mail/sync!)
+        nil)}
+
+     (m/MaterialApp
+      .navigatorKey nav-key
+      .title "MGL Mail"
+      .debugShowCheckedModeBanner false
+      .theme (m/ThemeData
+              .primarySwatch m.Colors/blue
+              .fontFamily "MongolianBaiZheng"
+              .scaffoldBackgroundColor m.Colors/white)
+      .builder
+      (fn [_ctx child]
+        (st/StyledToast
+         .child
+         (f/widget
+          :context host-ctx
+          (do
+            (toast/remember-root-ctx! host-ctx)
+            (or child (m/SizedBox.shrink))))))
+      .initialRoute "/"
+      .routes {"/" (fn ^m/Widget [_] (home/screen))
+               "/signup" (fn ^m/Widget [_] (signup/screen))
+               "/compose" (fn ^m/Widget [_] (compose/screen))
+               "/mail_list" (fn ^m/Widget [_] (mail-list/screen))
+               "/mail_detail" (fn ^m/Widget [_] (mail-detail/screen))
+               "/search" (fn ^m/Widget [_] (search/screen))})))))
