@@ -39,13 +39,23 @@
    (let [draft? (or (= selected-mailbox :draft)
                     (= (.-state msg) "draft")
                     (= (.-folderRole msg) "draft"))
-         selected? (contains? selected-message-ids (.-id msg))]
+         selected? (contains? selected-message-ids (.-id msg))
+         unread? (not (.-isRead msg))
+         title-color (if unread? m.Colors/black87 m.Colors/black45)
+         subtitle-color (if unread? m.Colors/black54 m.Colors/black38)]
      (m/Container
       .color (if selected?
                (-> m.Colors/blue (.withOpacity 0.1))
                m.Colors/transparent)
       .child
       (mgl/MongolListTile
+       .leading (when unread?
+                  (m/Container
+                   .width 8.0
+                   .height 8.0
+                   .decoration (m/BoxDecoration
+                                .color m.Colors/blue
+                                .shape m.BoxShape/circle)))
        .title (m/Padding
                .padding (m.EdgeInsets/only .top 8.0)
                .child
@@ -54,9 +64,10 @@
                 .style (m/TextStyle
                         .fontSize 16.0
                         .fontFamily font-family
-                        .fontWeight (if (.-isRead msg)
-                                      m/FontWeight.normal
-                                      m/FontWeight.bold))))
+                        .color title-color
+                        .fontWeight (if unread?
+                                      m/FontWeight.bold
+                                      m/FontWeight.normal))))
        .subtitle (m/Column
                   .crossAxisAlignment m.CrossAxisAlignment/start
                   .mainAxisSize m.MainAxisSize/min
@@ -65,7 +76,7 @@
                     (or (.-fromName msg) (.-from msg) "")
                     .style (m/TextStyle .fontSize 13.0
                                         .fontFamily font-family
-                                        .color m.Colors/black54))
+                                        .color subtitle-color))
                    (m/SizedBox .height 4.0)
                    (m/Text (or (format-date (.-date msg)) "")
                            .style (m/TextStyle .fontSize 11.0

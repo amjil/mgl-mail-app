@@ -203,10 +203,28 @@ class MailEngine {
   Stream<List<MailFolderDto>> watchFolders({String? accountId}) {
     // Capture filter once; callers re-subscribe when account changes.
     final filter = accountId ?? context.currentAccountId;
+    // Repair stale unreadCount=0 for already-synced local messages.
+    unawaited(_refreshUnreadCounts(accountId: filter));
     return db.folderDao.watchSelectable(accountId: filter).asyncMap(
       (rows) async =>
           _dedupeFolderDtos(rows.map(MailMapper.toFolderDto).toList()),
     );
+  }
+
+  Future<void> _refreshUnreadCounts({String? accountId}) async {
+    final rows = await db.folderDao.listSelectable(accountId: accountId);
+    for (final f in rows) {
+      final n = await db.messageDao.countUnreadInFolder(f.id);
+      if (f.unreadCount != n) {
+        await db.folderDao.setUnreadCount(f.id, n);
+      }
+    }
+  }
+
+  Future<void> _refreshFolderUnread(int? folderId) async {
+    if (folderId == null) return;
+    final n = await db.messageDao.countUnreadInFolder(folderId);
+    await db.folderDao.setUnreadCount(folderId, n);
   }
 
   /// Collapse duplicate special-use / same-name folders per account.
@@ -476,6 +494,7 @@ class MailEngine {
     }
     if (!message.isRead) {
       await db.messageDao.markRead(messageId);
+      await _refreshFolderUnread(message.folderId);
       final eng = _accounts[message.accountId];
       if (eng != null) {
         unawaited(eng.setMessageFlags(messageId, seen: true).catchError((_) {}));
@@ -503,6 +522,7 @@ class MailEngine {
     final message = await db.messageDao.findById(messageId);
     if (message == null) return;
     await db.messageDao.markRead(messageId, read: read);
+    await _refreshFolderUnread(message.folderId);
     try {
       await _accounts[message.accountId]
           ?.setMessageFlags(messageId, seen: read);

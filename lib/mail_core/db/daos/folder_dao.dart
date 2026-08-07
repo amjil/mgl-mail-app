@@ -79,6 +79,11 @@ class FolderDao extends DatabaseAccessor<AppDatabase> with _$FolderDaoMixin {
         FoldersCompanion(selectable: Value(selectable)),
       );
 
+  Future<void> setUnreadCount(int id, int count) =>
+      (update(folders)..where((f) => f.id.equals(id))).write(
+        FoldersCompanion(unreadCount: Value(count)),
+      );
+
   Future<void> updatePath(int id, String path) =>
       (update(folders)..where((f) => f.id.equals(id))).write(
         FoldersCompanion(path: Value(path)),
@@ -108,6 +113,7 @@ class FolderDao extends DatabaseAccessor<AppDatabase> with _$FolderDaoMixin {
           name: row.name,
           role: row.role,
           selectable: row.selectable,
+          // Preserve existing unreadCount unless explicitly provided.
           unreadCount: row.unreadCount,
         ),
       );

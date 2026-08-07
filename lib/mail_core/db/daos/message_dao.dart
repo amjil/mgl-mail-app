@@ -124,6 +124,20 @@ class MessageDao extends DatabaseAccessor<AppDatabase> with _$MessageDaoMixin {
     return rows.length;
   }
 
+  Future<int> countUnreadInFolder(int folderId) async {
+    final rows = await (select(messages)
+          ..where(
+            (m) =>
+                m.folderId.equals(folderId) &
+                m.deleted.equals(false) &
+                m.isRead.equals(false) &
+                m.state.isNotValue('outbox') &
+                m.state.isNotValue('failed'),
+          ))
+        .get();
+    return rows.length;
+  }
+
   Stream<List<Message>> watchByState(String state, {String? accountId}) {
     final q = select(messages)
       ..where((m) => m.state.equals(state) & m.deleted.equals(false))

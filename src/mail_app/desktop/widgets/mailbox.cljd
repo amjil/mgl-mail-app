@@ -48,28 +48,50 @@
       (= role "trash") :trash
       :else nil)))
 
-(defn- mailbox-item [key label selected?]
+(defn- unread-badge [badge-count]
+  (m/Positioned
+   .right 4.0
+   .top 4.0
+   .child
+   (m/Container
+    .padding (m.EdgeInsets/all 4.0)
+    .decoration (m/BoxDecoration
+                 .color m.Colors/red
+                 .shape m.BoxShape/circle)
+    .child
+    (m/Text (if (> badge-count 99) "99+" (str badge-count))
+            .style (m/TextStyle .color m.Colors/white
+                                .fontSize 10.0
+                                .fontWeight m/FontWeight.bold)))))
+
+(defn- mailbox-item [key label selected? badge-count]
   (f/widget
    :get [m/Navigator]
-   (mgl/MongolListTile
-    .selected selected?
-    .title (m/Padding
-            .padding (m.EdgeInsets/only .top 8.0)
-            .child
-            (mgl/MongolText
-             label
-             .style (m/TextStyle .fontSize 18.0 .fontFamily font-family)))
-    .onTap (fn []
-             (mail/select-mailbox! key)
-             (.pushNamed navigator "/mail_list")
-             nil))))
-
+   (let [tile (mgl/MongolListTile
+               .selected selected?
+               .title (m/Padding
+                       .padding (m.EdgeInsets/only .top 8.0)
+                       .child
+                       (mgl/MongolText
+                        label
+                        .style (m/TextStyle .fontSize 18.0 .fontFamily font-family)))
+               .onTap (fn []
+                        (mail/select-mailbox! key)
+                        (.pushNamed navigator "/mail_list")
+                        nil))
+         children (cond-> [tile]
+                    (and badge-count (> badge-count 0))
+                    (conj (unread-badge badge-count)))]
+     (m/Stack
+      .alignment m.Alignment/topRight
+      .children children))))
 (defn- folder-item [^mc/MailFolderDto f selected]
   (let [id (.-id f)
         role (.-role f)
         name (.-name f)
         rk (role-key role name)
         key (or rk id)
+        count (.-unreadCount f)
         selected? (or (= selected key)
                       (= selected id)
                       (and (= selected :inbox) (or (= role "inbox") (= rk :inbox)))
@@ -77,17 +99,17 @@
                       (and (= selected :draft) (or (= role "draft") (= rk :draft)))
                       (and (= selected :archive) (or (= role "archive") (= rk :archive)))
                       (and (= selected :trash) (or (= role "trash") (= rk :trash))))]
-    (mailbox-item key (or name role "Folder") selected?)))
+    (mailbox-item key (or name role "Folder") selected? count)))
 
 (defn- build-items [folder-list selected]
   (let [folders (->> folder-list (sort-by folder-sort-key) vec)
         head (cond-> []
                (not (has-role? folders "inbox"))
-               (conj (mailbox-item :inbox "Inbox" (= selected :inbox)))
+               (conj (mailbox-item :inbox "Inbox" (= selected :inbox) nil))
                (not (has-role? folders "sent"))
-               (conj (mailbox-item :sent "Sent" (= selected :sent))))
+               (conj (mailbox-item :sent "Sent" (= selected :sent) nil)))
         mid (mapv #(folder-item % selected) folders)
-        tail [(mailbox-item :outbox "Outbox" (= selected :outbox))]]
+        tail [(mailbox-item :outbox "Outbox" (= selected :outbox) nil)]]
     (into (into head mid) tail)))
 
 (defn mailbox-list

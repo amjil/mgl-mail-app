@@ -136,6 +136,7 @@ class ImapSyncService {
     await _remapFolderRolesByName();
     await _mergeUnicodePathDuplicates();
     await _dedupeFolders();
+    await refreshAllUnreadCounts();
   }
 
   Future<void> _remapFolderRolesByName() async {
@@ -486,27 +487,29 @@ class ImapSyncService {
     }
     // Prefer server LIST encodedPath if current SELECT looks empty.
     var active = await _canonicalFolder(folder);
-    if (mailbox!.messagesExists == 0) {
-      final live = await _resolveLiveMailbox(active);
-      if (live != null) {
-        final retry = await _selectMailboxTryingPaths(live);
-        if (retry != null && retry.$1.messagesExists > mailbox.messagesExists) {
-          mailbox = retry.$1;
-          try {
-            active = await _adoptWorkingPath(active, retry.$2);
-          } catch (e) {
+    try {
+      if (mailbox!.messagesExists == 0) {
+        final live = await _resolveLiveMailbox(active);
+        if (live != null) {
+          final retry = await _selectMailboxTryingPaths(live);
+          if (retry != null &&
+              retry.$1.messagesExists > mailbox.messagesExists) {
+            mailbox = retry.$1;
+            try {
+              active = await _adoptWorkingPath(active, retry.$2);
+            } catch (e) {
+              // ignore: avoid_print
+              print('adopt after empty-select retry failed: $e');
+            }
             // ignore: avoid_print
-            print('adopt after empty-select retry failed: $e');
+            print(
+              're-SELECT empty→exists name="${active.name}" '
+              'path="${retry.$2}" exists=${mailbox.messagesExists}',
+            );
           }
-          // ignore: avoid_print
-          print(
-            're-SELECT empty→exists name="${active.name}" '
-            'path="${retry.$2}" exists=${mailbox.messagesExists}',
-          );
         }
       }
-    }
-    final validity = mailbox.uidValidity;
+      final validity = mailbox.uidValidity;
 
     // ignore: avoid_print
     print(
@@ -600,6 +603,22 @@ class ImapSyncService {
       'syncFolderMessages done localCount='
       '${await db.messageDao.countInFolder(active.id)}',
     );
+    } finally {
+      await refreshUnreadCount(active.id);
+    }
+  }
+
+  /// Recompute [Folders.unreadCount] from local unread messages.
+  Future<void> refreshUnreadCount(int folderId) async {
+    final n = await db.messageDao.countUnreadInFolder(folderId);
+    await db.folderDao.setUnreadCount(folderId, n);
+  }
+
+  Future<void> refreshAllUnreadCounts() async {
+    final rows = await db.folderDao.listSelectable(accountId: account.id);
+    for (final f in rows) {
+      await refreshUnreadCount(f.id);
+    }
   }
 
   Future<Folder> _canonicalFolder(Folder folder) async {
