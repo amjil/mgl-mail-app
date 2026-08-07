@@ -191,6 +191,7 @@
   (store/set-outbox-list! [])
   (store/clear-message-detail!)
   (store/clear-message-selection!)
+  (store/clear-thread-expansion!)
   (when-let [b @!bridge]
     (let [aid (:current-account-id @store/app-state)]
       (cond
@@ -398,10 +399,11 @@
 (defn html->plain
   "Best-effort HTML → plain for compose / detail when no text/plain part."
   [html]
+  ;; Dart RegExp has no (?i); use character classes for case-insensitivity.
   (-> (or html "")
-      (str/replace #"(?i)<br\s*/?>" "\n")
-      (str/replace #"(?i)</p>" "\n")
-      (str/replace #"(?i)</div>" "\n")
+      (str/replace #"<[Bb][Rr]\s*/?>" "\n")
+      (str/replace #"</[Pp]>" "\n")
+      (str/replace #"</[Dd][Ii][Vv]>" "\n")
       (str/replace #"<[^>]+>" "")
       (str/replace "&nbsp;" " ")
       (str/replace "&amp;" "&")

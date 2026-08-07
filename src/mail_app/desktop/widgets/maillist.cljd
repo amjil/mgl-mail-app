@@ -4,10 +4,44 @@
             ["package:mongol/mongol.dart" :as mgl]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [cljd.flutter :as f]
+            [clojure.string :as str]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]))
 
 (def ^:private font-family "MongolianBaiZheng")
+
+;; --- Conversation threading ---
+
+(defn- clean-subject
+  "Strip reply/forward prefixes for conversation grouping."
+  [^mc/MailMessageDto msg]
+  (let [s (str/trim (or (.-subject msg) ""))]
+    (if (empty? s)
+      (str "id-" (.-id msg)) ;; no-subject messages stay independent
+      ;; Dart RegExp has no (?i); lower-case first then strip prefixes.
+      (-> s
+          str/lower-case
+          (str/replace #"^(re|fwd|fw|回复|转发|答复)\s*[:：]\s*" "")
+          str/trim))))
+
+(defn- thread-messages
+  "Group a flat mail list into threads ordered by latest date desc."
+  [msgs]
+  (let [grouped (group-by clean-subject msgs)
+        threads (map (fn [[k v]]
+                       (let [sorted (sort-by #(.-date ^mc/MailMessageDto %)
+                                             (fn [^DateTime d1 ^DateTime d2] (.compareTo d2 d1))
+                                             v)]
+                         {:thread-key k
+                          :latest (first sorted)
+                          :messages sorted
+                          :count (count sorted)}))
+                     grouped)]
+    (sort-by #(.-date ^mc/MailMessageDto (:latest %))
+             (fn [^DateTime d1 ^DateTime d2] (.compareTo d2 d1))
+             threads)))
+
+;; --- UI ---
 
 (defn- subject-of [^mc/MailMessageDto msg]
   (let [s (.-subject msg)]
@@ -31,10 +65,10 @@
 (defn- shift-pressed? [^s/HardwareKeyboard kb]
   (is-modifier-pressed? kb s.LogicalKeyboardKey/shiftLeft s.LogicalKeyboardKey/shiftRight))
 
-(defn- message-item [idx ^mc/MailMessageDto msg]
+(defn- message-item [idx ^mc/MailMessageDto msg & {:keys [thread-count thread-key is-child? header?]}]
   (f/widget
    :get [m/Navigator]
-   :watch [{:keys [selected-mailbox selected-message-ids last-clicked-index mail-list]}
+   :watch [{:keys [selected-mailbox selected-message-ids last-clicked-index mail-list expanded-threads]}
            store/app-state]
    (let [draft? (or (= selected-mailbox :draft)
                     (= (.-state msg) "draft")
@@ -42,11 +76,17 @@
          selected? (contains? selected-message-ids (.-id msg))
          unread? (not (.-isRead msg))
          title-color (if unread? m.Colors/black87 m.Colors/black45)
-         subtitle-color (if unread? m.Colors/black54 m.Colors/black38)]
+         subtitle-color (if unread? m.Colors/black54 m.Colors/black38)
+         expanded? (contains? expanded-threads thread-key)
+         display-subject (if (and header? (> thread-count 1))
+                           (str (subject-of msg) " (" thread-count ")")
+                           (subject-of msg))]
      (m/Container
-      .color (if selected?
-               (-> m.Colors/blue (.withOpacity 0.1))
-               m.Colors/transparent)
+      .color (cond
+               selected? (-> m.Colors/blue (.withOpacity 0.1))
+               is-child? (-> m.Colors/black (.withOpacity 0.02))
+               :else m.Colors/transparent)
+      .padding (when is-child? (m.EdgeInsets/only .top 32.0 .left 4.0 .right 4.0))
       .child
       (mgl/MongolListTile
        .leading (when unread?
@@ -60,7 +100,7 @@
                .padding (m.EdgeInsets/only .top 8.0)
                .child
                (mgl/MongolText
-                (subject-of msg)
+                display-subject
                 .style (m/TextStyle
                         .fontSize 16.0
                         .fontFamily font-family
@@ -78,13 +118,29 @@
                                         .fontFamily font-family
                                         .color subtitle-color))
                    (m/SizedBox .height 4.0)
-                   (mgl/MongolText (or (format-date (.-date msg)) "")
+                   (m/Text (or (format-date (.-date msg)) "")
                            .style (m/TextStyle .fontSize 11.0
                                                .color m.Colors/black45))])
        .trailing (m/Row
                   .mainAxisSize m.MainAxisSize/min
                   .children
                   (cond-> []
+                    ;; Expand/collapse is on the icon only so header body still opens mail
+                    (and header? (> thread-count 1))
+                    (conj (m/GestureDetector
+                           .behavior m.HitTestBehavior/opaque
+                           .onTap (fn []
+                                    (store/toggle-thread-expansion! thread-key)
+                                    nil)
+                           .child (m/Padding
+                                   .padding (m.EdgeInsets/only .bottom 8.0
+                                                               .left 4.0
+                                                               .right 4.0)
+                                   .child
+                                   (m/Icon (if expanded?
+                                             m.Icons/unfold_less
+                                             m.Icons/unfold_more)
+                                           .size 16.0 .color m.Colors/blue))))
                     (.-isStarred msg)
                     (conj (m/Icon m.Icons/star .size 14.0 .color m.Colors/amber))
                     (.-hasAttachment msg)
@@ -96,41 +152,36 @@
                       shift? (shift-pressed? kb)
                       has-selection? (seq selected-message-ids)]
                   (cond
-                    ;; Shift: range select from last-clicked to this index
+                    ;; Shift: range select
                     shift?
                     (let [last-idx (or last-clicked-index 0)
                           start (min last-idx idx)
                           end (max last-idx idx)
-                          target-msgs (->> mail-list
-                                           (drop start)
-                                           (take (inc (- end start))))
+                          target-msgs (->> mail-list (drop start) (take (inc (- end start))))
                           ids (set (map #(.-id ^mc/MailMessageDto %) target-msgs))]
-                      (store/set-selected-message-ids!
-                       (into selected-message-ids ids))
+                      (store/set-selected-message-ids! (into selected-message-ids ids))
                       (store/set-last-clicked-index! idx))
 
-                    ;; Cmd/Ctrl: toggle individual selection
+                    ;; Cmd/Ctrl: toggle
                     cmd?
                     (do
                       (store/toggle-message-selection! (.-id msg))
                       (store/set-last-clicked-index! idx))
 
-                    ;; Already in multi-select: clear and open
+                    ;; Multi-select mode: clear and open
                     has-selection?
                     (do
                       (store/clear-message-selection!)
                       (mail/open-message! (.-id msg))
                       (.pushNamed navigator "/mail_detail"))
 
-                    ;; Normal single open / edit draft
+                    ;; Open / edit (header and child alike)
                     :else
                     (do
                       (store/set-last-clicked-index! idx)
                       (if draft?
                         (-> (mail/edit-draft! (.-id msg))
-                            (.then (fn [_]
-                                     (.pushNamed navigator "/compose")
-                                     nil))
+                            (.then (fn [_] (.pushNamed navigator "/compose") nil))
                             (.catchError (fn [_]
                                            (mail/open-message! (.-id msg))
                                            (.pushNamed navigator "/mail_detail")
@@ -139,7 +190,6 @@
                           (mail/open-message! (.-id msg))
                           (.pushNamed navigator "/mail_detail"))))))
                 nil))))))
-
 (defn- outbox-item [^mc/MailOutboxDto row]
   (f/widget
    :get [m/Navigator]
@@ -158,7 +208,7 @@
                                    .fontFamily font-family
                                    .color m.Colors/black54))
     .trailing (when (or (= (.-status row) "failed")
-                         (= (.-status row) "pending"))
+                        (= (.-status row) "pending"))
                 (m/IconButton
                  .icon (m/Icon m.Icons/refresh)
                  .tooltip "Retry"
@@ -173,7 +223,7 @@
 (defn list-view
   []
   (f/widget
-   :watch [{:keys [selected-mailbox mail-list outbox-list]} store/app-state]
+   :watch [{:keys [selected-mailbox mail-list outbox-list expanded-threads]} store/app-state]
    (let [outbox? (= selected-mailbox :outbox)
          items (if outbox? outbox-list mail-list)]
      (if (empty? items)
@@ -188,4 +238,18 @@
         .children
         (if outbox?
           (mapv outbox-item items)
-          (map-indexed (fn [idx msg] (message-item idx msg)) items)))))))
+          (let [threads (thread-messages items)
+                visual-items
+                (mapcat (fn [{:keys [thread-key latest messages count]}]
+                          (if (and (> count 1) (contains? expanded-threads thread-key))
+                            (into [{:msg latest :thread-count count :thread-key thread-key :header? true}]
+                                  (map #(hash-map :msg % :is-child? true) (rest messages)))
+                            [{:msg latest :thread-count count :thread-key thread-key :header? true}]))
+                        threads)]
+            (map-indexed (fn [idx {:keys [msg thread-count thread-key is-child? header?]}]
+                           (message-item idx msg
+                                         :thread-count thread-count
+                                         :thread-key thread-key
+                                         :is-child? is-child?
+                                         :header? header?))
+                         visual-items))))))))

@@ -24,7 +24,9 @@
          :compose-draft nil
          ;; multi-select / bulk actions
          :selected-message-ids #{}
-         :last-clicked-index nil}))
+         :last-clicked-index nil
+         ;; expanded conversation thread keys
+         :expanded-threads #{}}))
 
 (defn set-accounts! [accounts]
   (swap! app-state assoc :accounts (or accounts [])))
@@ -102,3 +104,14 @@
 
 (defn set-last-clicked-index! [idx]
   (swap! app-state assoc :last-clicked-index idx))
+
+(defn toggle-thread-expansion! [thread-key]
+  (swap! app-state update :expanded-threads
+         (fn [s]
+           (let [s (or s #{})]
+             (if (contains? s thread-key)
+               (disj s thread-key)
+               (conj s thread-key))))))
+
+(defn clear-thread-expansion! []
+  (swap! app-state assoc :expanded-threads #{}))
