@@ -13,10 +13,9 @@
 ;; ~ two compose columns (80+80+80+80); keeps the float inside the header strip.
 (def ^:private panel-max-width 320.0)
 
-(defonce !header-ime
-  (atom {:external-keyboard-delegate nil}))
-
 (defn- mongol-field
+  "Uses the same !ime / editor state as mongol-block-editor so focus sets
+   :external-keyboard-delegate on the shared atom (see rich-editor editor.cljd)."
   [!ime controller focus-node hint]
   (custom-tf/text-field
    !ime
@@ -199,8 +198,11 @@
       .child (mongol-field !ime controller focus-node hint)))))
 
 (defn header-row
-  "Row of To / optional Cc / Bcc / Subject fields."
-  [{:keys [to-ctrl to-focus
+  "Row of To / optional Cc / Bcc / Subject fields.
+   `!ime` must be the compose editor doc state so IME / virtual-keyboard
+   routing matches rich-editor (single ime-global-wrapper, shared delegate)."
+  [{:keys [!ime
+           to-ctrl to-focus
            cc-ctrl cc-focus
            bcc-ctrl bcc-focus
            subject-ctrl subject-focus
@@ -208,16 +210,16 @@
   (m/Row
    .crossAxisAlignment m.CrossAxisAlignment/stretch
    .children
-   (cond-> [(field-column !header-ime to-ctrl to-focus "To"
+   (cond-> [(field-column !ime to-ctrl to-focus "To"
                            :width 80.0 :autocomplete? true)]
      show-cc?
-     (conj (field-column !header-ime cc-ctrl cc-focus "Cc"
+     (conj (field-column !ime cc-ctrl cc-focus "Cc"
                          :width 80.0 :autocomplete? true))
 
      show-bcc?
-     (conj (field-column !header-ime bcc-ctrl bcc-focus "Bcc"
+     (conj (field-column !ime bcc-ctrl bcc-focus "Bcc"
                          :width 80.0 :autocomplete? true))
 
      true
-     (conj (field-column !header-ime subject-ctrl subject-focus "Subject"
+     (conj (field-column !ime subject-ctrl subject-focus "Subject"
                          :width 96.0 :autocomplete? false)))))

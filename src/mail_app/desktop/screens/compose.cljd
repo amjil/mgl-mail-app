@@ -112,6 +112,9 @@
         (m/Scaffold
          .backgroundColor m.Colors/white
          .body
+         ;; One page-level IME overlay (like rich-editor desktop). Header fields
+         ;; share !doc-state; editor uses :wrap-ime? false to avoid nested
+         ;; candidates overlays.
          (overlay/ime-global-wrapper
           (m/SafeArea
            .child
@@ -136,7 +139,8 @@
                .children
                (cond->
                  [(fields/header-row
-                   {:to-ctrl to-ctrl :to-focus to-focus
+                   {:!ime !doc-state
+                    :to-ctrl to-ctrl :to-focus to-focus
                     :cc-ctrl cc-ctrl :cc-focus cc-focus
                     :bcc-ctrl bcc-ctrl :bcc-focus bcc-focus
                     :subject-ctrl subject-ctrl :subject-focus subject-focus
@@ -152,9 +156,10 @@
                     :toolbar (toolbar/editor-toolbar !doc-state compose-editor-config)
                     :background-color m.Colors/white
                     :show-block-handles? false
+                    :wrap-ime? false
                     :padding (m.EdgeInsets/all 24.0)))]
                  has-quote?
                  (conj (m/Expanded
                         .flex 1
                         .child (quote/panel !quote-state))))))]))
-          "compose-header-ime")))))))
+          "compose-ime")))))))
