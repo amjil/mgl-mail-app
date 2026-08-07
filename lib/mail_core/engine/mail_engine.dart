@@ -698,6 +698,10 @@ class MailEngine {
 
   /// Save a compose draft locally (and APPEND to IMAP Drafts when available).
   /// Recipients may be empty. Pass [draftMessageId] to update an existing draft.
+  ///
+  /// Local DB write completes before return; IMAP APPEND runs in the background
+  /// so callers can reuse [messageId] immediately (avoids duplicate drafts when
+  /// auto-save overlaps a slow APPEND).
   Future<int> saveDraft({
     required String accountId,
     List<String>? to,
@@ -724,6 +728,8 @@ class MailEngine {
     late final int messageId;
     late final String clientMessageId;
     late final String rfcId;
+    String? previousUid;
+    int? previousFolderId;
 
     if (draftMessageId != null) {
       final existing = await db.messageDao.findById(draftMessageId);
@@ -733,6 +739,8 @@ class MailEngine {
       messageId = draftMessageId;
       clientMessageId = existing.clientMessageId ?? _uuid.v4();
       rfcId = existing.messageId ?? '<$clientMessageId@local>';
+      previousUid = existing.uid;
+      previousFolderId = existing.folderId;
       await db.messageDao.updateMessage(
         messageId,
         MessagesCompanion(
@@ -809,6 +817,47 @@ class MailEngine {
       toAddr: toJoined,
     );
 
+    unawaited(
+      _pushDraftToImap(
+        accountId: accountId,
+        account: account,
+        messageId: messageId,
+        draftFolderId: draftFolder?.id,
+        toJoined: toJoined,
+        ccJoined: ccJoined,
+        bccJoined: bccJoined,
+        subject: subject,
+        plainText: plainText,
+        htmlText: htmlText,
+        clientMessageId: clientMessageId,
+        rfcId: rfcId,
+        inReplyTo: inReplyTo,
+        references: references,
+        previousUid: previousUid,
+        previousFolderId: previousFolderId,
+      ),
+    );
+    return messageId;
+  }
+
+  Future<void> _pushDraftToImap({
+    required String accountId,
+    required Account account,
+    required int messageId,
+    required int? draftFolderId,
+    required String toJoined,
+    required String? ccJoined,
+    required String? bccJoined,
+    required String subject,
+    required String? plainText,
+    required String? htmlText,
+    required String clientMessageId,
+    required String rfcId,
+    required String? inReplyTo,
+    required String? references,
+    required String? previousUid,
+    required int? previousFolderId,
+  }) async {
     try {
       final atts = await db.attachmentDao.listForMessage(messageId);
       final mime = await OutgoingMime.build(
@@ -831,16 +880,29 @@ class MailEngine {
           messageId,
           MessagesCompanion(
             uid: Value(uid),
-            folderId: Value(draftFolder?.id),
+            folderId: Value(draftFolderId),
             updatedAt: Value(DateTime.now()),
           ),
         );
+      }
+      // Drop the previous IMAP copy so sync does not resurrect a stale draft.
+      if (previousUid != null &&
+          previousFolderId != null &&
+          previousUid != uid) {
+        try {
+          await _accounts[accountId]?.expungeDraftUid(
+            uid: previousUid,
+            folderId: previousFolderId,
+          );
+        } catch (e) {
+          // ignore: avoid_print
+          print('expunge superseded draft uid=$previousUid failed: $e');
+        }
       }
     } catch (e) {
       // ignore: avoid_print
       print('saveDraft IMAP APPEND failed: $e');
     }
-    return messageId;
   }
 
   /// Update password-account hosts / password / display name.

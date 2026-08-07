@@ -470,9 +470,10 @@
                            (throw e))))))))
 
 (defn save-draft!
-  "Save compose content to Drafts (local + IMAP APPEND). To may be empty."
+  "Save compose content to Drafts (local + IMAP APPEND). To may be empty.
+  Pass :silent? true to skip sending? UI state (used by compose auto-save)."
   [{:keys [to cc bcc subject plain-text html-text account-id attachment-paths
-           in-reply-to references draft-message-id]}]
+           in-reply-to references draft-message-id silent?]}]
   (let [b @!bridge
         aid (or account-id (:current-account-id @store/app-state))
         to-list (if (string? to) (split-addrs to) (vec (or to [])))
@@ -492,8 +493,8 @@
 
       :else
       (do
-        (store/set-sending! true)
-        (store/set-error! nil)
+        (when-not silent? (store/set-sending! true))
+        (when-not silent? (store/set-error! nil))
         (-> (.saveDraft ^mc/MailBridge b
                         .accountId aid
                         .to (when (seq to-list) to-list)
@@ -507,11 +508,11 @@
                         .references references
                         .draftMessageId draft-message-id)
             (.then (fn [id]
-                     (store/set-sending! false)
+                     (when-not silent? (store/set-sending! false))
                      id))
             (.catchError (fn [e]
-                           (store/set-sending! false)
-                           (store/set-error! (str e))
+                           (when-not silent? (store/set-sending! false))
+                           (when-not silent? (store/set-error! (str e)))
                            (throw e))))))))
 
 (defn set-read!

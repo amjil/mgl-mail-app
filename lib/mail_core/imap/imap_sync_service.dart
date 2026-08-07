@@ -1521,6 +1521,25 @@ class ImapSyncService {
         print('IMAP deleted uid=$uid via \\Deleted+EXPUNGE in ${folder.path}');
       });
 
+  /// Flag+EXPUNGE a single UID in [folderId] (used when replacing a draft APPEND).
+  Future<void> expungeRemoteUid(int folderId, String uidStr) =>
+      _serialized(() async {
+        final folder = await db.folderDao.findById(folderId);
+        if (folder == null || folder.path.trim().isEmpty) return;
+        final uid = int.tryParse(uidStr);
+        if (uid == null) return;
+        await connect();
+        await _selectFolder(folder);
+        final sequence = MessageSequence.fromId(uid, isUid: true);
+        await client.uidStore(
+          sequence,
+          [MessageFlags.deleted],
+          action: StoreAction.add,
+          silent: true,
+        );
+        await _expungeUid(sequence);
+      });
+
   /// Store IMAP flags (`\Seen`, `\Flagged`) for a local message that has uid.
   Future<void> setRemoteFlags(
     Message message, {

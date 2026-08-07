@@ -78,7 +78,7 @@
                                         .fontFamily font-family
                                         .color subtitle-color))
                    (m/SizedBox .height 4.0)
-                   (m/Text (or (format-date (.-date msg)) "")
+                   (mgl/MongolText (or (format-date (.-date msg)) "")
                            .style (m/TextStyle .fontSize 11.0
                                                .color m.Colors/black45))])
        .trailing (m/Row

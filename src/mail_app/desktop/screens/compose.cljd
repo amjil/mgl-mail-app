@@ -3,6 +3,7 @@
    Reply/forward shows original mail in a toggle panel (toggle.cljd)."
   (:require ["package:flutter/material.dart" :as m]
             ["package:flutter/services.dart" :as s]
+            ["dart:async" :as async]
             [cljd.flutter :as f]
             [clojure.string :as str]
             [block-editor.widgets.editor :as editor]
@@ -55,6 +56,18 @@
     (:body-plain draft) (export/state-from-plain-text (:body-plain draft))
     :else (persist/create-empty-state)))
 
+(defn- dispose-auto-save!
+  "Cancel pending timer and detach listeners registered by auto-save setup."
+  [{:keys [!auto-save-timer to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+           !doc-state trigger!]}]
+  (when-let [t @!auto-save-timer] (.cancel ^async/Timer t))
+  (.removeListener ^m/TextEditingController to-ctrl trigger!)
+  (.removeListener ^m/TextEditingController cc-ctrl trigger!)
+  (.removeListener ^m/TextEditingController bcc-ctrl trigger!)
+  (.removeListener ^m/TextEditingController subject-ctrl trigger!)
+  (remove-watch !doc-state :auto-save)
+  nil)
+
 (defn screen []
   (let [draft (:compose-draft @store/app-state)
         _ (when draft (store/clear-compose-draft!))
@@ -64,10 +77,13 @@
         !show-bcc? (atom false)
         !attachment-paths (atom (vec (or (:attachment-paths draft) [])))
         !fields-draft (atom draft)
-        draft-meta (select-keys (or draft {})
-                                [:draft-message-id :in-reply-to :references
-                                 :account-id])
-        has-quote? (some? (:quote-state draft))]
+        ;; Atom so silent auto-save can record the returned draft-message-id.
+        !draft-meta (atom (select-keys (or draft {})
+                                       [:draft-message-id :in-reply-to :references
+                                        :account-id]))
+        has-quote? (some? (:quote-state draft))
+        !auto-save-timer (atom nil)
+        !auto-save-gate (atom {:inflight? false :pending? false})]
     (f/widget
      :managed [to-ctrl (m/TextEditingController.)
                to-focus (m/FocusNode.)
@@ -76,7 +92,37 @@
                bcc-ctrl (m/TextEditingController.)
                bcc-focus (m/FocusNode.)
                subject-ctrl (m/TextEditingController.)
-               subject-focus (m/FocusNode.)]
+               subject-focus (m/FocusNode.)
+               auto-save
+               (let [trigger!
+                     (fn []
+                       (when-let [t @!auto-save-timer] (.cancel ^async/Timer t))
+                       (reset! !auto-save-timer
+                               (async/Timer.
+                                (dart:core/Duration. .seconds 5)
+                                #(topbar/silent-save-draft!
+                                  !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl
+                                  subject-ctrl @!show-cc? @!show-bcc?
+                                  (:current-account-id @store/app-state)
+                                  @!attachment-paths !draft-meta !auto-save-gate))))]
+                 (.addListener ^m/TextEditingController to-ctrl trigger!)
+                 (.addListener ^m/TextEditingController cc-ctrl trigger!)
+                 (.addListener ^m/TextEditingController bcc-ctrl trigger!)
+                 (.addListener ^m/TextEditingController subject-ctrl trigger!)
+                 (add-watch !doc-state :auto-save
+                            (fn [_ _ old new]
+                              ;; Ignore selection-only updates (cursor moves).
+                              (when (not= (:blocks old) (:blocks new))
+                                (trigger!))))
+                 {:!auto-save-timer !auto-save-timer
+                  :to-ctrl to-ctrl
+                  :cc-ctrl cc-ctrl
+                  :bcc-ctrl bcc-ctrl
+                  :subject-ctrl subject-ctrl
+                  :!doc-state !doc-state
+                  :trigger! trigger!})
+               :dispose dispose-auto-save!
+               :refresh-on nil]
      :context ctx
      :get [m/Navigator]
      :watch [show-cc? !show-cc?
@@ -89,24 +135,24 @@
          (apply-fields! d to-ctrl cc-ctrl bcc-ctrl subject-ctrl
                         !show-cc? !show-bcc?))
        (shortcuts/with-shortcuts
-        {;; Send: needs this page's controllers / doc state
+        {;; Send
          (shortcuts/cmd-key s/LogicalKeyboardKey.enter)
          (fn []
            (topbar/send-pressed! ctx navigator !doc-state !quote-state
                                  to-ctrl cc-ctrl bcc-ctrl subject-ctrl
                                  show-cc? show-bcc? sending?
                                  current-account-id
-                                 attachment-paths draft-meta)
+                                 attachment-paths @!draft-meta)
            nil)
 
-         ;; Save draft: same local state
+         ;; Save draft explicitly (manual save)
          (shortcuts/cmd-key s/LogicalKeyboardKey.keyS)
          (fn []
            (topbar/save-draft-pressed! ctx navigator !doc-state !quote-state
                                        to-ctrl cc-ctrl bcc-ctrl subject-ctrl
                                        show-cc? show-bcc? sending?
                                        current-account-id
-                                       attachment-paths draft-meta)
+                                       attachment-paths @!draft-meta)
            nil)}
 
         (m/Scaffold
@@ -130,7 +176,7 @@
                              :!show-cc? !show-cc?
                              :!show-bcc? !show-bcc?
                              :!attachment-paths !attachment-paths
-                             :draft-meta draft-meta})
+                             :!draft-meta !draft-meta})
              (m/Divider .thickness 1.0 .height 1.0)
              (m/Expanded
               .child

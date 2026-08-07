@@ -246,7 +246,7 @@ class AccountEngine {
     );
   }
 
-  /// APPEND draft MIME to server Drafts; returns new UID when known.
+  /// Best-effort APPEND draft MIME to server Drafts; returns new UID when known.
   Future<String?> appendDraft(MimeMessage mime) async {
     final s = sync;
     if (s == null) return null;
@@ -256,6 +256,21 @@ class AccountEngine {
       return worker.runExclusive(() => append.appendToDrafts(mime));
     }
     return append.appendToDrafts(mime);
+  }
+
+  /// Remove a superseded Drafts UID (e.g. after re-APPEND on edit). Best-effort.
+  Future<void> expungeDraftUid({
+    required String uid,
+    required int folderId,
+  }) async {
+    final s = sync;
+    if (s == null) return;
+    final worker = imapWorker;
+    if (worker != null) {
+      await worker.runExclusive(() => s.expungeRemoteUid(folderId, uid));
+    } else {
+      await s.expungeRemoteUid(folderId, uid);
+    }
   }
 
   /// Best-effort flag sync to IMAP (`\Seen` / `\Flagged`).

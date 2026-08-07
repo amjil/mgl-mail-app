@@ -109,10 +109,60 @@
                            nil)))))
     nil))
 
+(defn silent-save-draft!
+  "Auto-save without toast or navigation. Updates !draft-meta with the
+  returned draft id so subsequent saves overwrite instead of creating anew.
+
+  !gate coalesces overlapping runs: if a save is in flight, mark pending and
+  run once more after it finishes (with the latest draft-message-id)."
+  [!doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+   show-cc? show-bcc? current-account-id attachment-paths !draft-meta !gate]
+  (if (:inflight? @!gate)
+    (do (swap! !gate assoc :pending? true) nil)
+    (do
+      (swap! !gate assoc :inflight? true :pending? false)
+      (let [release!
+            (fn []
+              (let [again? (:pending? @!gate)]
+                (swap! !gate assoc :inflight? false :pending? false)
+                (when again?
+                  (silent-save-draft!
+                   !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                   show-cc? show-bcc? current-account-id attachment-paths
+                   !draft-meta !gate))))]
+        (try
+          (let [aid (or current-account-id (:current-account-id @store/app-state))
+                to-val (.-text to-ctrl)
+                sub-val (.-text subject-ctrl)
+                doc-val @!doc-state
+                has-content?
+                (or (seq (str/trim (or to-val "")))
+                    (seq (str/trim (or sub-val "")))
+                    (seq (str/trim (or (export/to-plain-text doc-val) ""))))]
+            (if-not (and aid has-content?)
+              (do (release!) nil)
+              (-> (mail/save-draft!
+                   (assoc (compose-body !doc-state !quote-state to-ctrl cc-ctrl
+                                        bcc-ctrl subject-ctrl show-cc? show-bcc?
+                                        attachment-paths @!draft-meta)
+                          :silent? true))
+                  (.then (fn [id]
+                           (when id
+                             (swap! !draft-meta assoc :draft-message-id id))
+                           id))
+                  (.catchError (fn [e]
+                                 (dart:core/print (str "Silent auto-save failed: " e))
+                                 nil))
+                  (.whenComplete (fn [] (release!) nil)))))
+          (catch Exception e
+            (dart:core/print (str "Silent auto-save error: " e))
+            (release!)
+            nil))))))
+
 (defn topbar
   "Back, Cc/Bcc toggle, attach, Save Draft, and Send."
   [{:keys [!doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
-           !show-cc? !show-bcc? !attachment-paths draft-meta]}]
+           !show-cc? !show-bcc? !attachment-paths !draft-meta]}]
   (f/widget
    :context ctx
    :get [m/Navigator]
@@ -167,7 +217,7 @@
                                                to-ctrl cc-ctrl bcc-ctrl subject-ctrl
                                                show-cc? show-bcc? sending?
                                                current-account-id
-                                               attachment-paths draft-meta))
+                                               attachment-paths @!draft-meta))
              .icon (m/Icon m.Icons/drafts))
             (m/IconButton
              .padding (m.EdgeInsets/all 10.0)
@@ -178,7 +228,7 @@
                                          to-ctrl cc-ctrl bcc-ctrl subject-ctrl
                                          show-cc? show-bcc? sending?
                                          current-account-id
-                                         attachment-paths draft-meta))
+                                         attachment-paths @!draft-meta))
              .icon (if sending?
                      (m/SizedBox
                       .width 20.0
