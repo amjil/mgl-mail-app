@@ -1,18 +1,43 @@
 (ns mail-app.desktop.screens.mail-list
   (:require ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as s]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            [cljd.flutter :as f]
+            [mail-app.desktop.shortcuts :as shortcuts]
             [mail-app.desktop.widgets.error-banner :as err]
             [mail-app.desktop.widgets.maillist :as maillist]
-            [mail-app.desktop.widgets.topbar :as topbar]))
+            [mail-app.desktop.widgets.topbar :as topbar]
+            [mail-app.state.store :as store]))
 
 (defn screen []
-  (m/Scaffold
-   .body
-   (m/SafeArea
-    .child
-    (m/Column
-     .crossAxisAlignment m.CrossAxisAlignment/start
-     .children
-     [(topbar/mail-list)
-      (err/banner)
-      (m/Divider .thickness 1.0 .height 1.0)
-      (m/Expanded .child (maillist/list-view))]))))
+  (f/widget
+   :watch [{:keys [selected-message-ids mail-list]} store/app-state]
+   (shortcuts/with-shortcuts
+    {;; Cmd/Ctrl + A → select all in current list
+     (shortcuts/cmd-key s.LogicalKeyboardKey/keyA)
+     (fn []
+       (when (seq mail-list)
+         (let [all-ids (map #(.-id ^mc/MailMessageDto %) mail-list)]
+           (store/set-selected-message-ids! all-ids)))
+       nil)
+
+     ;; Esc → clear selection
+     (shortcuts/raw-key s.LogicalKeyboardKey/escape)
+     (fn []
+       (when (seq selected-message-ids)
+         (store/clear-message-selection!))
+       nil)}
+
+    (m/Scaffold
+     .body
+     (m/SafeArea
+      .child
+      (m/Column
+       .crossAxisAlignment m.CrossAxisAlignment/start
+       .children
+       [(if (seq selected-message-ids)
+          (topbar/bulk-action-bar)
+          (topbar/mail-list))
+        (err/banner)
+        (m/Divider .thickness 1.0 .height 1.0)
+        (m/Expanded .child (maillist/list-view))]))))))

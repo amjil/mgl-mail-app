@@ -173,3 +173,58 @@
                 .tooltip "Delete"
                 .onPressed on-delete
                 .icon (m/Icon m.Icons/delete_outline)))))]))))
+
+(defn bulk-action-bar
+  "Shown in place of mail-list topbar when messages are selected."
+  []
+  (f/widget
+   :watch [{:keys [selected-message-ids]} store/app-state]
+   (let [cnt (count selected-message-ids)]
+     (m/SafeArea
+      .bottom false
+      .child
+      (m/Container
+       .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 8.0)
+       .color (-> m.Colors/blue (.withOpacity 0.08))
+       .child
+       (m/Row
+        .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+        .children
+        [(m/Row
+          .children
+          [(m/IconButton
+            .padding (m.EdgeInsets/all 10.0)
+            .constraints (m/BoxConstraints.)
+            .tooltip "Cancel selection"
+            .onPressed (fn [] (store/clear-message-selection!) nil)
+            .icon (m/Icon m.Icons/close .color m.Colors/blue))
+           (m/SizedBox .width 8.0)
+           (m/Text (str cnt " selected")
+                   .style (m/TextStyle .fontWeight m/FontWeight.bold
+                                       .color m.Colors/blue))])
+         (m/Row
+          .children
+          [(m/IconButton
+            .padding (m.EdgeInsets/all 10.0)
+            .constraints (m/BoxConstraints.)
+            .tooltip "Mark Read"
+            .onPressed (fn [] (mail/bulk-set-read! true) nil)
+            .icon (m/Icon m.Icons/mark_email_read))
+           (m/IconButton
+            .padding (m.EdgeInsets/all 10.0)
+            .constraints (m/BoxConstraints.)
+            .tooltip "Mark Unread"
+            .onPressed (fn [] (mail/bulk-set-read! false) nil)
+            .icon (m/Icon m.Icons/mark_email_unread))
+           (m/IconButton
+            .padding (m.EdgeInsets/all 10.0)
+            .constraints (m/BoxConstraints.)
+            .tooltip "Archive"
+            .onPressed (fn [] (mail/bulk-archive!) nil)
+            .icon (m/Icon m.Icons/archive))
+           (m/IconButton
+            .padding (m.EdgeInsets/all 10.0)
+            .constraints (m/BoxConstraints.)
+            .tooltip "Delete"
+            .onPressed (fn [] (mail/bulk-delete!) nil)
+            .icon (m/Icon m.Icons/delete .color m.Colors/red))])]))))))

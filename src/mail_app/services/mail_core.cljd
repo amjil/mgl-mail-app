@@ -190,6 +190,7 @@
   (store/set-mail-list! [])
   (store/set-outbox-list! [])
   (store/clear-message-detail!)
+  (store/clear-message-selection!)
   (when-let [b @!bridge]
     (let [aid (:current-account-id @store/app-state)]
       (cond
@@ -242,6 +243,7 @@
     (store/set-mail-list! [])
     (store/set-outbox-list! [])
     (store/clear-message-detail!)
+    (store/clear-message-selection!)
     nil))
 
 (defn open-message!
@@ -575,3 +577,53 @@
         (.catchError (fn [e]
                        (store/set-error! (str e))
                        (throw e))))))
+
+;; --- Bulk actions ---
+
+(defn bulk-delete! []
+  (when-let [b @!bridge]
+    (let [ids (:selected-message-ids @store/app-state)]
+      (when (seq ids)
+        (store/clear-error!)
+        (-> (async/Future.wait (map #(.deleteMessage ^mc/MailBridge b %) ids))
+            (.then (fn [_]
+                     (store/set-mail-list!
+                      (filterv (fn [^mc/MailMessageDto m]
+                                 (not (contains? ids (.-id m))))
+                               (:mail-list @store/app-state)))
+                     (store/clear-message-selection!)
+                     true))
+            (.catchError (fn [e]
+                           (store/set-error! (str "Bulk delete failed: " e))
+                           false)))))))
+
+(defn bulk-archive! []
+  (when-let [b @!bridge]
+    (let [ids (:selected-message-ids @store/app-state)]
+      (when (seq ids)
+        (store/clear-error!)
+        (-> (async/Future.wait (map #(.moveToArchive ^mc/MailBridge b %) ids))
+            (.then (fn [_]
+                     (store/set-mail-list!
+                      (filterv (fn [^mc/MailMessageDto m]
+                                 (not (contains? ids (.-id m))))
+                               (:mail-list @store/app-state)))
+                     (store/clear-message-selection!)
+                     true))
+            (.catchError (fn [e]
+                           (store/set-error! (str "Bulk archive failed: " e))
+                           false)))))))
+
+(defn bulk-set-read! [read?]
+  (when-let [b @!bridge]
+    (let [ids (:selected-message-ids @store/app-state)]
+      (when (seq ids)
+        (store/clear-error!)
+        (-> (async/Future.wait
+             (map #(.setRead ^mc/MailBridge b % .read (boolean read?)) ids))
+            (.then (fn [_]
+                     (store/clear-message-selection!)
+                     true))
+            (.catchError (fn [e]
+                           (store/set-error! (str "Bulk set read failed: " e))
+                           false)))))))

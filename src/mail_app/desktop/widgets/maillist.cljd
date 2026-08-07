@@ -1,5 +1,6 @@
 (ns mail-app.desktop.widgets.maillist
   (:require ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as s]
             ["package:mongol/mongol.dart" :as mgl]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [cljd.flutter :as f]
@@ -19,61 +20,114 @@
   (when d
     (str (pad2 (.month d)) "/" (pad2 (.day d)))))
 
-(defn- message-item [^mc/MailMessageDto msg]
+(defn- is-modifier-pressed? [^s/HardwareKeyboard kb key1 key2]
+  (or (.isLogicalKeyPressed kb key1)
+      (.isLogicalKeyPressed kb key2)))
+
+(defn- cmd-or-ctrl-pressed? [^s/HardwareKeyboard kb]
+  (or (is-modifier-pressed? kb s.LogicalKeyboardKey/metaLeft s.LogicalKeyboardKey/metaRight)
+      (is-modifier-pressed? kb s.LogicalKeyboardKey/controlLeft s.LogicalKeyboardKey/controlRight)))
+
+(defn- shift-pressed? [^s/HardwareKeyboard kb]
+  (is-modifier-pressed? kb s.LogicalKeyboardKey/shiftLeft s.LogicalKeyboardKey/shiftRight))
+
+(defn- message-item [idx ^mc/MailMessageDto msg]
   (f/widget
    :get [m/Navigator]
-   :watch [{:keys [selected-mailbox]} store/app-state]
+   :watch [{:keys [selected-mailbox selected-message-ids last-clicked-index mail-list]}
+           store/app-state]
    (let [draft? (or (= selected-mailbox :draft)
                     (= (.-state msg) "draft")
-                    (= (.-folderRole msg) "draft"))]
-     (mgl/MongolListTile
-      .title (m/Padding
-              .padding (m.EdgeInsets/only .top 8.0)
-              .child
-              (mgl/MongolText
-               (subject-of msg)
-               .style (m/TextStyle
-                       .fontSize 16.0
-                       .fontFamily font-family
-                       .fontWeight (if (.-isRead msg)
-                                     m/FontWeight.normal
-                                     m/FontWeight.bold))))
-      .subtitle (m/Column
-                 .crossAxisAlignment m.CrossAxisAlignment/start
-                 .mainAxisSize m.MainAxisSize/min
-                 .children
-                 [(mgl/MongolText
-                   (or (.-fromName msg) (.-from msg) "")
-                   .style (m/TextStyle .fontSize 13.0
-                                       .fontFamily font-family
-                                       .color m.Colors/black54))
-                  (m/SizedBox .height 4.0)
-                  (m/Text (or (format-date (.-date msg)) "")
-                          .style (m/TextStyle .fontSize 11.0
-                                              .color m.Colors/black45))])
-      .trailing (m/Row
-                 .mainAxisSize m.MainAxisSize/min
-                 .children
-                 (cond-> []
-                   (.-isStarred msg)
-                   (conj (m/Icon m.Icons/star .size 14.0 .color m.Colors/amber))
-                   (.-hasAttachment msg)
-                   (conj (m/Icon m.Icons/attach_file .size 16.0
-                                 .color m.Colors/black45))))
-      .onTap (fn []
-               (if draft?
-                 (-> (mail/edit-draft! (.-id msg))
-                     (.then (fn [_]
-                              (.pushNamed navigator "/compose")
-                              nil))
-                     (.catchError (fn [_]
-                                    (mail/open-message! (.-id msg))
-                                    (.pushNamed navigator "/mail_detail")
-                                    nil)))
-                 (do
-                   (mail/open-message! (.-id msg))
-                   (.pushNamed navigator "/mail_detail")))
-               nil)))))
+                    (= (.-folderRole msg) "draft"))
+         selected? (contains? selected-message-ids (.-id msg))]
+     (m/Container
+      .color (if selected?
+               (-> m.Colors/blue (.withOpacity 0.1))
+               m.Colors/transparent)
+      .child
+      (mgl/MongolListTile
+       .title (m/Padding
+               .padding (m.EdgeInsets/only .top 8.0)
+               .child
+               (mgl/MongolText
+                (subject-of msg)
+                .style (m/TextStyle
+                        .fontSize 16.0
+                        .fontFamily font-family
+                        .fontWeight (if (.-isRead msg)
+                                      m/FontWeight.normal
+                                      m/FontWeight.bold))))
+       .subtitle (m/Column
+                  .crossAxisAlignment m.CrossAxisAlignment/start
+                  .mainAxisSize m.MainAxisSize/min
+                  .children
+                  [(mgl/MongolText
+                    (or (.-fromName msg) (.-from msg) "")
+                    .style (m/TextStyle .fontSize 13.0
+                                        .fontFamily font-family
+                                        .color m.Colors/black54))
+                   (m/SizedBox .height 4.0)
+                   (m/Text (or (format-date (.-date msg)) "")
+                           .style (m/TextStyle .fontSize 11.0
+                                               .color m.Colors/black45))])
+       .trailing (m/Row
+                  .mainAxisSize m.MainAxisSize/min
+                  .children
+                  (cond-> []
+                    (.-isStarred msg)
+                    (conj (m/Icon m.Icons/star .size 14.0 .color m.Colors/amber))
+                    (.-hasAttachment msg)
+                    (conj (m/Icon m.Icons/attach_file .size 16.0
+                                  .color m.Colors/black45))))
+       .onTap (fn []
+                (let [kb (.-instance s/HardwareKeyboard)
+                      cmd? (cmd-or-ctrl-pressed? kb)
+                      shift? (shift-pressed? kb)
+                      has-selection? (seq selected-message-ids)]
+                  (cond
+                    ;; Shift: range select from last-clicked to this index
+                    shift?
+                    (let [last-idx (or last-clicked-index 0)
+                          start (min last-idx idx)
+                          end (max last-idx idx)
+                          target-msgs (->> mail-list
+                                           (drop start)
+                                           (take (inc (- end start))))
+                          ids (set (map #(.-id ^mc/MailMessageDto %) target-msgs))]
+                      (store/set-selected-message-ids!
+                       (into selected-message-ids ids))
+                      (store/set-last-clicked-index! idx))
+
+                    ;; Cmd/Ctrl: toggle individual selection
+                    cmd?
+                    (do
+                      (store/toggle-message-selection! (.-id msg))
+                      (store/set-last-clicked-index! idx))
+
+                    ;; Already in multi-select: clear and open
+                    has-selection?
+                    (do
+                      (store/clear-message-selection!)
+                      (mail/open-message! (.-id msg))
+                      (.pushNamed navigator "/mail_detail"))
+
+                    ;; Normal single open / edit draft
+                    :else
+                    (do
+                      (store/set-last-clicked-index! idx)
+                      (if draft?
+                        (-> (mail/edit-draft! (.-id msg))
+                            (.then (fn [_]
+                                     (.pushNamed navigator "/compose")
+                                     nil))
+                            (.catchError (fn [_]
+                                           (mail/open-message! (.-id msg))
+                                           (.pushNamed navigator "/mail_detail")
+                                           nil)))
+                        (do
+                          (mail/open-message! (.-id msg))
+                          (.pushNamed navigator "/mail_detail"))))))
+                nil))))))
 
 (defn- outbox-item [^mc/MailOutboxDto row]
   (f/widget
@@ -123,4 +177,4 @@
         .children
         (if outbox?
           (mapv outbox-item items)
-          (mapv message-item items)))))))
+          (map-indexed (fn [idx msg] (message-item idx msg)) items)))))))

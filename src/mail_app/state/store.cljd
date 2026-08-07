@@ -21,7 +21,10 @@
          ;; attachment download in progress (id set)
          :downloading-attachment-ids #{}
          ;; compose prefill: {:to :cc :subject :body-plain :body-state :quote-state} or nil
-         :compose-draft nil}))
+         :compose-draft nil
+         ;; multi-select / bulk actions
+         :selected-message-ids #{}
+         :last-clicked-index nil}))
 
 (defn set-accounts! [accounts]
   (swap! app-state assoc :accounts (or accounts [])))
@@ -82,3 +85,20 @@
 
 (defn clear-error! []
   (swap! app-state assoc :last-error nil))
+
+(defn set-selected-message-ids! [ids]
+  (swap! app-state assoc :selected-message-ids (set ids)))
+
+(defn clear-message-selection! []
+  (swap! app-state assoc :selected-message-ids #{}
+                         :last-clicked-index nil))
+
+(defn toggle-message-selection! [id]
+  (swap! app-state update :selected-message-ids
+         (fn [ids]
+           (if (contains? ids id)
+             (disj ids id)
+             (conj ids id)))))
+
+(defn set-last-clicked-index! [idx]
+  (swap! app-state assoc :last-clicked-index idx))
