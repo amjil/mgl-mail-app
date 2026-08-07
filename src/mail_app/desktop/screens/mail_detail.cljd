@@ -6,6 +6,7 @@
             [cljd.flutter :as f]
             [clojure.string :as str]
             [block-editor.utils.html :as be-html]
+            [block-editor.plugins.core :as be-plugins]
             [block-editor.widgets.reader :as reader]
             [mail-app.desktop.toast :as toast]
             [mail-app.desktop.widgets.topbar :as topbar]
@@ -15,6 +16,10 @@
             [mail-app.state.store :as store]))
 
 (def ^:private font-family "MongolianBaiZheng")
+
+(def ^:private reader-plugins
+  "Built-in plugins so list/blockquote/etc. :render-read markers show in mail body."
+  (be-plugins/default-plugins))
 
 (def ^:private reader-cfg
   {:block-style
@@ -28,13 +33,15 @@
                                .color m.Colors/black87 .fontFamily font-family)
        (m/TextStyle .fontSize 16.0 .color m.Colors/black87
                     .fontFamily font-family)))
-   :block-plugins []})
+   :block-plugins reader-plugins})
 
 (defn- state-reader
   "Render editor state as horizontal Mongol block readers."
   [state]
   (let [root (vec (or (:root state) []))
-        blocks (or (:blocks state) {})]
+        blocks (or (:blocks state) {})
+        ;; Atom needed so ordered-list :render-read can compute sibling numbers.
+        !state (atom state)]
     (if (empty? root)
       (state-reader (export/state-from-plain-text "(empty body)"))
       (m/ListView.builder
@@ -48,7 +55,7 @@
            (m/Padding
             .padding (m.EdgeInsets/only .right 24.0)
             .child
-            (reader/block-reader-view block [] reader-cfg))))))))
+            (reader/block-reader-view block reader-plugins reader-cfg nil !state))))))))
 
 (defn- body-reader [text]
   (state-reader (export/state-from-plain-text
