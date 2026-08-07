@@ -1,31 +1,202 @@
 (ns mail-app.desktop.widgets.compose-fields
-  "To / Cc / Bcc / Subject columns using rich-editor text-field."
+  "To / Cc / Bcc / Subject columns using rich-editor text-field + contact suggestions."
   (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            ["dart:async" :as async]
+            [cljd.flutter :as f]
+            [clojure.string :as str]
+            [mail-app.services.mail-core :as mail]
             [rich-editor.components.text-field :as custom-tf]))
 
 (def ^:private font-family "MongolianBaiZheng")
 
+;; ~ two compose columns (80+80+80+80); keeps the float inside the header strip.
+(def ^:private panel-max-width 320.0)
+
 (defonce !header-ime
   (atom {:external-keyboard-delegate nil}))
 
-(defn- field-column
-  "Vertical Mongol text field column with fixed width."
-  [!ime controller focus-node hint & {:keys [width]
-                                      :or {width 72.0}}]
-  (m/Container
-   .width width
-   .padding (m.EdgeInsets/symmetric .horizontal 4.0 .vertical 8.0)
+(defn- mongol-field
+  [!ime controller focus-node hint]
+  (custom-tf/text-field
+   !ime
+   {:controller controller
+    :focus-node focus-node
+    :hint hint
+    :max-lines nil
+    :style (m/TextStyle .fontSize 18.0
+                        .fontFamily font-family
+                        .color m.Colors/black87)
+    :decoration (m/InputDecoration .border m/InputBorder.none)}))
+
+(defn- unlisten-ac!
+  [{:keys [controller focus-node on-text on-focus]}]
+  (.removeListener ^m/TextEditingController controller on-text)
+  (.removeListener ^m/FocusNode focus-node on-focus)
+  nil)
+
+(def ^:private chip-font-size 13.0)
+(def ^:private chip-pad-v 8.0)
+(def ^:private chip-pad-h 10.0)
+
+(defn- contact-chip
+  [controller !suggestions !token portal-ctrl opt]
+  (m/InkWell
+   .onTap (fn []
+            (swap! !token inc)
+            (set! (.-text ^m/TextEditingController controller) opt)
+            (reset! !suggestions [])
+            (.hide ^m/OverlayPortalController portal-ctrl)
+            nil)
    .child
-   (custom-tf/text-field
-    !ime
-    {:controller controller
-     :focus-node focus-node
-     :hint hint
-     :max-lines nil
-     :style (m/TextStyle .fontSize 18.0
-                         .fontFamily font-family
-                         .color m.Colors/black87)
-     :decoration (m/InputDecoration .border m/InputBorder.none)})))
+   (m/Padding
+    .padding (m.EdgeInsets/symmetric .horizontal chip-pad-h .vertical chip-pad-v)
+    .child
+    (mgl/MongolText opt
+                    .softWrap false
+                    .style (m/TextStyle
+                            .fontSize chip-font-size
+                            .color m.Colors/black87)))))
+
+(defn- panel-height
+  "Approx. vertical extent of the tallest Mongol address (+ padding)."
+  [opts max-cap]
+  (let [chars (apply max 1 (map #(count (str %)) opts))
+        ;; vertical Mongol: one em per character, plus vertical padding.
+        h (+ (* 2.0 chip-pad-v) (* chip-font-size (double chars)))]
+    (min max-cap h)))
+
+(defn- contacts-panel
+  "Content-sized panel over Overlay. Horizontal ListView needs a bounded
+  cross-axis height — we derive it from the longest address. Width shrink-wraps
+  via ListView.shrinkWrap, capped by LimitedBox at panel-max-width."
+  [controller !suggestions !token portal-ctrl opts max-cap]
+  (let [h (panel-height opts max-cap)]
+    (m/Align
+     .alignment m.Alignment/topLeft
+     .widthFactor 1.0
+     .heightFactor 1.0
+     .child
+     (m/UnconstrainedBox
+      .alignment m.Alignment/topLeft
+      .child
+      (m/Material
+       .elevation 4.0
+       .color m.Colors/white
+       .clipBehavior m.Clip/antiAlias
+       .child
+       (m/LimitedBox
+        .maxWidth panel-max-width
+        .child
+        (m/SizedBox
+         .height h
+         .child
+         (m/ListView
+          .shrinkWrap true
+          .padding m.EdgeInsets/zero
+          .scrollDirection m.Axis/horizontal
+          .children
+          (mapv #(contact-chip controller !suggestions !token portal-ctrl %)
+                opts)))))))))
+
+(defn- autocomplete-column
+  "Fixed-width To/Cc/Bcc column. Suggestions are shown via OverlayPortal so
+  they paint above the rich-text editor (Stack overflow is clipped by parents)."
+  [!ime controller focus-node hint width]
+  (f/widget
+   :managed [!suggestions (atom []) :dispose nil
+             !token (atom 0) :dispose nil
+             link (m/LayerLink.) :dispose nil
+             portal-ctrl (m/OverlayPortalController.) :dispose nil
+             ac (let [set-suggestions!
+                      (fn [opts]
+                        (reset! !suggestions (vec opts))
+                        (if (seq opts)
+                          (.show ^m/OverlayPortalController portal-ctrl)
+                          (.hide ^m/OverlayPortalController portal-ctrl))
+                        nil)
+                      on-text
+                      (fn []
+                        (let [q (str/trim (or (.-text ^m/TextEditingController controller) ""))
+                              t (swap! !token inc)]
+                          (if (empty? q)
+                            (set-suggestions! [])
+                            (-> (mail/search-contacts! q)
+                                (.then (fn [emails]
+                                         (when (= t @!token)
+                                           ;; Drop exact matches so selecting an
+                                           ;; address does not immediately reopen.
+                                           (set-suggestions!
+                                            (remove #(= % q) (or emails []))))))
+                                (.catchError (fn [_]
+                                               (when (= t @!token)
+                                                 (set-suggestions! [])
+                                                 nil)))))))
+                      on-focus
+                      (fn []
+                        (when-not (.-hasFocus ^m/FocusNode focus-node)
+                          (-> (async/Future.delayed
+                               (dart:core/Duration. .milliseconds 120)
+                               (fn [] nil))
+                              (.then (fn [_]
+                                       (when-not (.-hasFocus ^m/FocusNode focus-node)
+                                         (set-suggestions! []))
+                                       nil)))))]
+                  (.addListener ^m/TextEditingController controller on-text)
+                  (.addListener ^m/FocusNode focus-node on-focus)
+                  {:controller controller
+                   :focus-node focus-node
+                   :on-text on-text
+                   :on-focus on-focus})
+             :dispose unlisten-ac!]
+   :watch [suggestions !suggestions]
+   (m/GestureDetector
+    .behavior m.HitTestBehavior/opaque
+    .onTap (fn [] (.requestFocus ^m/FocusNode focus-node) nil)
+    .child
+    (m/OverlayPortal
+     .controller portal-ctrl
+     .overlayChildBuilder
+     (fn [overlay-ctx]
+       (let [max-cap (* 0.6 (.-height (.-size (m/MediaQuery.of overlay-ctx))))]
+         (m/CompositedTransformFollower
+          .link link
+          .showWhenUnlinked false
+          .targetAnchor m.Alignment/topRight
+          .followerAnchor m.Alignment/topLeft
+          .offset (m/Offset. 0.0 8.0)
+          .child
+          (m/TextFieldTapRegion
+           .child
+           (contacts-panel controller !suggestions !token portal-ctrl
+                           suggestions max-cap)))))
+     .child
+     (m/CompositedTransformTarget
+      .link link
+      .child
+      (m/SizedBox
+       .width width
+       .child
+       (m/Container
+        .padding (m.EdgeInsets/symmetric .horizontal 4.0 .vertical 8.0)
+        .alignment m.Alignment/topCenter
+        .child (mongol-field !ime controller focus-node hint))))))))
+
+(defn- field-column
+  "Vertical Mongol text field column; optional contact autocomplete for To/Cc/Bcc."
+  [!ime controller focus-node hint & {:keys [width autocomplete?]
+                                      :or {width 72.0 autocomplete? false}}]
+  (if autocomplete?
+    (autocomplete-column !ime controller focus-node hint width)
+    (m/GestureDetector
+     .behavior m.HitTestBehavior/opaque
+     .onTap (fn [] (.requestFocus ^m/FocusNode focus-node) nil)
+     .child
+     (m/Container
+      .width width
+      .padding (m.EdgeInsets/symmetric .horizontal 4.0 .vertical 8.0)
+      .alignment m.Alignment/topCenter
+      .child (mongol-field !ime controller focus-node hint)))))
 
 (defn header-row
   "Row of To / optional Cc / Bcc / Subject fields."
@@ -37,12 +208,16 @@
   (m/Row
    .crossAxisAlignment m.CrossAxisAlignment/stretch
    .children
-   (cond-> [(field-column !header-ime to-ctrl to-focus "To" :width 80.0)]
+   (cond-> [(field-column !header-ime to-ctrl to-focus "To"
+                           :width 80.0 :autocomplete? true)]
      show-cc?
-     (conj (field-column !header-ime cc-ctrl cc-focus "Cc" :width 80.0))
+     (conj (field-column !header-ime cc-ctrl cc-focus "Cc"
+                         :width 80.0 :autocomplete? true))
 
      show-bcc?
-     (conj (field-column !header-ime bcc-ctrl bcc-focus "Bcc" :width 80.0))
+     (conj (field-column !header-ime bcc-ctrl bcc-focus "Bcc"
+                         :width 80.0 :autocomplete? true))
 
      true
-     (conj (field-column !header-ime subject-ctrl subject-focus "Subject" :width 96.0)))))
+     (conj (field-column !header-ime subject-ctrl subject-focus "Subject"
+                         :width 96.0 :autocomplete? false)))))

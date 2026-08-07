@@ -166,4 +166,34 @@ class MessageDao extends DatabaseAccessor<AppDatabase> with _$MessageDaoMixin {
               m.date.isBetweenValues(from, to)))
         .get();
   }
+
+  /// Fuzzy-match historical from/to/cc addresses for compose autocomplete.
+  Future<List<String>> searchContacts(String query,
+      {String? accountId, int limit = 10}) async {
+    final trimmed = query.trim().toLowerCase();
+    if (trimmed.isEmpty) return [];
+
+    final rows = await customSelect(
+      '''
+      SELECT DISTINCT email FROM (
+        SELECT from_addr AS email FROM messages WHERE deleted = 0 ${accountId != null ? 'AND account_id = ?' : ''}
+        UNION
+        SELECT to_addr AS email FROM messages WHERE deleted = 0 ${accountId != null ? 'AND account_id = ?' : ''}
+        UNION
+        SELECT cc_addr AS email FROM messages WHERE deleted = 0 ${accountId != null ? 'AND account_id = ?' : ''}
+      ) WHERE email IS NOT NULL AND email != '' AND email LIKE ?
+      LIMIT ?
+      ''',
+      variables: [
+        if (accountId != null) Variable.withString(accountId),
+        if (accountId != null) Variable.withString(accountId),
+        if (accountId != null) Variable.withString(accountId),
+        Variable.withString('%$trimmed%'),
+        Variable.withInt(limit),
+      ],
+      readsFrom: {messages},
+    ).get();
+
+    return rows.map((r) => r.read<String>('email')).toList();
+  }
 }

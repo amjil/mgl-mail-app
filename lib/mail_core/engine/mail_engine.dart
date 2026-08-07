@@ -569,6 +569,13 @@ class MailEngine {
     );
   }
 
+  Future<List<String>> searchContacts(String query, {String? accountId}) {
+    return db.messageDao.searchContacts(
+      query,
+      accountId: accountId ?? context.currentAccountId,
+    );
+  }
+
   Future<int> sendMail({
     required String accountId,
     required List<String> to,

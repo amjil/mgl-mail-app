@@ -369,6 +369,21 @@
                              (store/set-search-results! [])
                              []))))))))
 
+(defn search-contacts!
+  "Fuzzy-match historical from/to/cc addresses for compose autocomplete.
+  Returns Future<List<String>> (do not chain .then — that widens to Future<dynamic>
+  and breaks RawAutocomplete's FutureOr<Iterable<String>>)."
+  [query]
+  (let [q (str/trim (or query ""))
+        ^#/(async/Future #/(List String)) empty
+        (async/Future.value #dart ^String [])]
+    (if (empty? q)
+      empty
+      (if-let [b @!bridge]
+        (.searchContacts ^mc/MailBridge b q
+                         .accountId (:current-account-id @store/app-state))
+        empty))))
+
 (defn retry-outbox!
   [outbox-id]
   (when-let [b @!bridge]

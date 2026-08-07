@@ -143,6 +143,9 @@ class MailBridge {
   }) =>
       _engine.search(query, accountId: accountId);
 
+  Future<List<String>> searchContacts(String query, {String? accountId}) =>
+      _engine.searchContacts(query, accountId: accountId);
+
   Future<int> sendMail({
     required String accountId,
     required List<String> to,
