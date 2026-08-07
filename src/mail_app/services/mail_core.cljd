@@ -645,3 +645,82 @@
             (.catchError (fn [e]
                            (store/set-error! (str "Bulk set read failed: " e))
                            false)))))))
+
+;; --- Folder Management ---
+
+(defn- resolve-account-id
+  "Current account, or the sole account when on All accounts."
+  []
+  (or (:current-account-id @store/app-state)
+      (let [accounts (:accounts @store/app-state)]
+        (when (= 1 (count accounts))
+          (.-id ^mc/MailAccountDto (first accounts))))))
+
+;; Always return a Future so UI .then/.catchError work (no sync throws / nil).
+(defn- rejected-future [msg]
+  (store/set-error! msg)
+  (.then (async/Future.value nil)
+         (fn [_] (throw (Exception. msg)))))
+
+(defn- clean-error-msg [e]
+  (let [s (str/trim (str e))]
+    (cond
+      (str/starts-with? s "Bad state: ") (subs s 10)
+      (str/starts-with? s "Exception: ") (subs s 11)
+      (str/starts-with? s "ImapException: ") (subs s 15)
+      :else s)))
+
+(defn create-folder! [path]
+  (let [b @!bridge
+        aid (resolve-account-id)
+        p (str/trim (str path))]
+    (cond
+      (nil? b)
+      (rejected-future "MailBridge not initialized")
+
+      (nil? aid)
+      (rejected-future "Select an account before creating a folder")
+
+      (empty? p)
+      (rejected-future "Folder name is empty")
+
+      :else
+      (-> (.createFolder ^mc/MailBridge b aid p)
+          (.catchError (fn [e]
+                         (let [msg (clean-error-msg e)]
+                           (store/set-error! msg)
+                           (throw (Exception. msg))))))))
+
+(defn rename-folder! [old-path new-path]
+  (let [b @!bridge
+        aid (resolve-account-id)]
+    (cond
+      (nil? b)
+      (rejected-future "MailBridge not initialized")
+
+      (nil? aid)
+      (rejected-future "Select an account before renaming a folder")
+
+      :else
+      (-> (.renameFolder ^mc/MailBridge b aid old-path new-path)
+          (.catchError (fn [e]
+                         (let [msg (clean-error-msg e)]
+                           (store/set-error! msg)
+                           (throw (Exception. msg))))))))
+
+(defn delete-folder! [path]
+  (let [b @!bridge
+        aid (resolve-account-id)]
+    (cond
+      (nil? b)
+      (rejected-future "MailBridge not initialized")
+
+      (nil? aid)
+      (rejected-future "Select an account before deleting a folder")
+
+      :else
+      (-> (.deleteFolder ^mc/MailBridge b aid path)
+          (.catchError (fn [e]
+                         (let [msg (clean-error-msg e)]
+                           (store/set-error! msg)
+                           (throw (Exception. msg))))))))

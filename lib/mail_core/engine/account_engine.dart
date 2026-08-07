@@ -297,4 +297,43 @@ class AccountEngine {
   Future<void> setBackground(bool background) async {
     await imapWorker?.setPollMode(background);
   }
+
+  Future<void> createFolder(String path) async {
+    final s = sync;
+    if (s == null) {
+      throw StateError('IMAP not ready; cannot create folder');
+    }
+    final worker = imapWorker;
+    if (worker != null) {
+      await worker.runExclusive(() => s.createFolder(path));
+    } else {
+      await s.createFolder(path);
+    }
+  }
+
+  Future<void> renameFolder(String oldPath, String newPath) async {
+    final s = sync;
+    if (s == null) {
+      throw StateError('IMAP not ready; cannot rename folder');
+    }
+    final worker = imapWorker;
+    if (worker != null) {
+      await worker.runExclusive(() => s.renameFolder(oldPath, newPath));
+    } else {
+      await s.renameFolder(oldPath, newPath);
+    }
+  }
+
+  Future<void> deleteFolder(String path) async {
+    final s = sync;
+    if (s == null) {
+      throw StateError('IMAP not ready; cannot delete folder');
+    }
+    final worker = imapWorker;
+    if (worker != null) {
+      await worker.runExclusive(() => s.deleteFolder(path));
+    } else {
+      await s.deleteFolder(path);
+    }
+  }
 }

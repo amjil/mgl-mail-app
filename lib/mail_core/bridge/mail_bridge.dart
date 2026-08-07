@@ -215,4 +215,21 @@ class MailBridge {
 
   Future<void> onAppBackground(bool background) =>
       _engine.onAppBackground(background);
+
+  Future<void> createFolder(String accountId, String path) =>
+      _engine.createFolder(accountId: accountId, path: path);
+
+  Future<void> renameFolder(
+    String accountId,
+    String oldPath,
+    String newPath,
+  ) =>
+      _engine.renameFolder(
+        accountId: accountId,
+        oldPath: oldPath,
+        newPath: newPath,
+      );
+
+  Future<void> deleteFolder(String accountId, String path) =>
+      _engine.deleteFolder(accountId: accountId, path: path);
 }

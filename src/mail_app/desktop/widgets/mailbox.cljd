@@ -5,6 +5,7 @@
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [cljd.flutter :as f]
             [clojure.string :as str]
+            [mail-app.desktop.toast :as toast]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]))
 
@@ -48,6 +49,69 @@
       (= role "trash") :trash
       :else nil)))
 
+;; ==========================================
+;; Dialogs for Folder Management
+;; ==========================================
+
+(defn- rename-folder-dialog! [ctx folder-path current-name]
+  (let [ctrl (m/TextEditingController. .text current-name)]
+    (m/showDialog
+     .context ctx
+     .builder
+     (fn [d-ctx]
+       (m/AlertDialog
+        .title (m/Text "Rename Folder")
+        .content (m/TextField .controller ctrl .autofocus true)
+        .actions
+        [(m/TextButton .onPressed #(.pop (m/Navigator.of d-ctx)) .child (m/Text "Cancel"))
+         (m/TextButton
+          .onPressed (fn []
+                       (let [new-name (str/trim (.-text ctrl))]
+                         (when (and (seq new-name) (not= new-name current-name))
+                           (-> (mail/rename-folder! folder-path new-name)
+                               (.then (fn [_]
+                                        (toast/success! ctx "Folder renamed")
+                                        (.pop (m/Navigator.of d-ctx))))
+                               (.catchError (fn [e]
+                                              (toast/error! ctx (str e))
+                                              nil)))))
+                       nil)
+          .child (m/Text "Rename"))])))))
+
+(defn- confirm-delete-folder! [ctx folder-path folder-key]
+  (m/showDialog
+   .context ctx
+   .builder
+   (fn [d-ctx]
+     (m/AlertDialog
+      .title (m/Text "Delete Folder?")
+      .content (m/Text (str "Are you sure you want to delete folder '"
+                            folder-path
+                            "'? This may also delete the emails inside it on the server."))
+      .actions
+      [(m/TextButton .onPressed #(.pop (m/Navigator.of d-ctx)) .child (m/Text "Cancel"))
+       (m/TextButton
+        .onPressed (fn []
+                     (-> (mail/delete-folder! folder-path)
+                         (.then (fn [_]
+                                  ;; Custom folders select by id; also match path just in case.
+                                  (let [sel (:selected-mailbox @store/app-state)]
+                                    (when (or (= sel folder-key)
+                                              (= sel folder-path))
+                                      (mail/select-mailbox! :inbox)))
+                                  (toast/success! ctx "Folder deleted")
+                                  (.pop (m/Navigator.of d-ctx))))
+                         (.catchError (fn [e]
+                                        (toast/error! ctx (str e))
+                                        nil)))
+                     nil)
+        .child (m/Text "Delete" .style (m/TextStyle .color m.Colors/red)))]))))
+
+
+;; ==========================================
+;; UI Components
+;; ==========================================
+
 (defn- unread-badge [badge-count]
   (m/Positioned
    .right 4.0
@@ -64,9 +128,10 @@
                                 .fontSize 10.0
                                 .fontWeight m/FontWeight.bold)))))
 
-(defn- mailbox-item [key label selected? badge-count]
+(defn- mailbox-item [key label selected? badge-count & {:keys [folder-path]}]
   (f/widget
    :get [m/Navigator]
+   :context ctx
    (let [tile (mgl/MongolListTile
                .selected selected?
                .title (m/Padding
@@ -81,14 +146,41 @@
                         nil))
          children (cond-> [tile]
                     (and badge-count (> badge-count 0))
-                    (conj (unread-badge badge-count)))]
+                    (conj (unread-badge badge-count))
+
+                    ;; Custom folders: overflow menu for rename / delete
+                    (some? folder-path)
+                    (conj
+                     (m/Positioned
+                      .bottom 4.0
+                      .right 0.0
+                      .child
+                      (m/PopupMenuButton
+                       .icon (m/Icon m.Icons/more_vert .size 16.0 .color m.Colors/black45)
+                       .tooltip "Folder Options"
+                       .onSelected (fn [val]
+                                     (cond
+                                       (= val :rename)
+                                       (rename-folder-dialog! ctx folder-path label)
+                                       (= val :delete)
+                                       (confirm-delete-folder! ctx folder-path key))
+                                     nil)
+                       .itemBuilder
+                       (fn [_]
+                         (.cast
+                          [(m/PopupMenuItem .value :rename .child (m/Text "Rename"))
+                           (m/PopupMenuItem .value :delete
+                                            .child (m/Text "Delete"
+                                                           .style (m/TextStyle .color m.Colors/red)))]))))))]
      (m/Stack
       .alignment m.Alignment/topRight
       .children children))))
+
 (defn- folder-item [^mc/MailFolderDto f selected]
   (let [id (.-id f)
         role (.-role f)
         name (.-name f)
+        path (.-path f)
         rk (role-key role name)
         key (or rk id)
         count (.-unreadCount f)
@@ -98,8 +190,11 @@
                       (and (= selected :sent) (or (= role "sent") (= rk :sent)))
                       (and (= selected :draft) (or (= role "draft") (= rk :draft)))
                       (and (= selected :archive) (or (= role "archive") (= rk :archive)))
-                      (and (= selected :trash) (or (= role "trash") (= rk :trash))))]
-    (mailbox-item key (or name role "Folder") selected? count)))
+                      (and (= selected :trash) (or (= role "trash") (= rk :trash))))
+        is-custom? (= role "custom")]
+    (if is-custom?
+      (mailbox-item key name selected? count :folder-path path)
+      (mailbox-item key (or name role "Folder") selected? count))))
 
 (defn- build-items [folder-list selected]
   (let [folders (->> folder-list (sort-by folder-sort-key) vec)

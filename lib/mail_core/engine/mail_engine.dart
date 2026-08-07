@@ -1013,6 +1013,40 @@ class MailEngine {
     }
   }
 
+  Future<void> createFolder({
+    required String accountId,
+    required String path,
+  }) async {
+    final engine = _accounts[accountId];
+    if (engine == null) {
+      throw StateError('Account $accountId is not running');
+    }
+    await engine.createFolder(path);
+  }
+
+  Future<void> renameFolder({
+    required String accountId,
+    required String oldPath,
+    required String newPath,
+  }) async {
+    final engine = _accounts[accountId];
+    if (engine == null) {
+      throw StateError('Account $accountId is not running');
+    }
+    await engine.renameFolder(oldPath, newPath);
+  }
+
+  Future<void> deleteFolder({
+    required String accountId,
+    required String path,
+  }) async {
+    final engine = _accounts[accountId];
+    if (engine == null) {
+      throw StateError('Account $accountId is not running');
+    }
+    await engine.deleteFolder(path);
+  }
+
   Future<void> _register(Account account, {required bool start}) async {
     if (_accounts.containsKey(account.id)) return;
     final engine = AccountEngine(

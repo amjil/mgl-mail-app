@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:drift/drift.dart';
 import 'package:enough_mail/enough_mail.dart';
+import 'package:enough_mail/src/private/imap/command.dart';
+import 'package:enough_mail/src/private/imap/noop_parser.dart';
 
 import '../db/app_database.dart';
 import '../search/fts_indexer.dart';
@@ -1595,4 +1597,290 @@ class ImapSyncService {
       await client.expunge();
     }
   }
+
+  // --- Folder management (CREATE / RENAME / DELETE) ---
+
+  Future<Mailbox?> _mailboxForPath(String path) async {
+    final boxes = await client.listMailboxes(recursive: true);
+    for (final box in boxes) {
+      final imapPath = _storagePathFor(box);
+      if (imapPath == path ||
+          box.encodedPath == path ||
+          box.path == path ||
+          box.name == path) {
+        return box;
+      }
+    }
+    return null;
+  }
+
+  /// Build Unicode target path from old Unicode path + user-entered name.
+  String _renameTargetUnicode(String oldUnicodePath, String newNameOrPath) {
+    final sep = client.serverInfo.pathSeparator ?? '/';
+    final trimmed = newNameOrPath.trim();
+    if (trimmed.isEmpty) return oldUnicodePath;
+    if (trimmed.contains(sep)) return trimmed;
+    final idx = oldUnicodePath.lastIndexOf(sep);
+    if (idx < 0) return trimmed;
+    return '${oldUnicodePath.substring(0, idx + 1)}$trimmed';
+  }
+
+  String _displayNameFromPath(String path) {
+    final sep = client.serverInfo.pathSeparator ?? '/';
+    final idx = path.lastIndexOf(sep);
+    if (idx < 0 || idx >= path.length - 1) return path;
+    return path.substring(idx + 1);
+  }
+
+  String _imapQuote(String path) {
+    final escaped = path.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
+    return '"$escaped"';
+  }
+
+  Future<void> _unselectIfNeeded() async {
+    // Prefer CLOSE: it clears enough_mail's internal _selectedMailbox.
+    // Avoid client.unselectMailbox() — it crashes with:
+    //   Response<void> is not a subtype of Response<Mailbox?>
+    try {
+      await client.closeMailbox();
+    } catch (_) {}
+  }
+
+  /// ENABLE UTF8=ACCEPT when advertised (must be before SELECT).
+  Future<bool> _tryEnableUtf8() async {
+    if (!client.serverInfo.supportsUtf8) return false;
+    await _unselectIfNeeded();
+    try {
+      await client.enable([ImapServerInfo.capabilityUtf8Accept]);
+      return true;
+    } catch (e) {
+      // ignore: avoid_print
+      print('ENABLE UTF8=ACCEPT failed: $e');
+      return false;
+    }
+  }
+
+  Future<void> _sendRename(String commandText, Mailbox box) async {
+    await client.sendCommand<Mailbox?>(
+      Command(
+        commandText,
+        writeTimeout: client.defaultWriteTimeout,
+        responseTimeout: client.defaultResponseTimeout,
+      ),
+      NoopParser(client, box),
+    );
+  }
+
+  /// Try RENAME with a few path encodings. On failure, surface the server error
+  /// — do not emulate rename via CREATE+DELETE (many CN ISPs then fail DELETE
+  /// and leave duplicate folders).
+  Future<void> _renameMailboxTrying(Mailbox box, String unicodeTarget) async {
+    final sep = client.serverInfo.pathSeparator ?? '/';
+    final oldEnc = _storagePathFor(box);
+    final newEnc = _toImapPath(unicodeTarget, pathSeparator: sep);
+    final oldUni =
+        box.path.trim().isNotEmpty ? box.path.trim() : oldEnc;
+
+    // RENAME of the selected mailbox is often rejected.
+    await _unselectIfNeeded();
+
+    final attempts = <String>[];
+
+    // Prefer UTF-8 both sides after ENABLE (RFC 6855).
+    if (await _tryEnableUtf8()) {
+      attempts.add(
+        'RENAME ${_imapQuote(oldUni)} ${_imapQuote(unicodeTarget)}',
+      );
+    }
+
+    // Consistent mUTF-7 / storage paths (both quoted).
+    attempts.addAll([
+      'RENAME ${_imapQuote(oldEnc)} ${_imapQuote(newEnc)}',
+      'RENAME ${_imapQuote(oldEnc)} $newEnc',
+    ]);
+
+    final seen = <String>{};
+    Object? last;
+    for (final text in attempts) {
+      if (!seen.add(text)) continue;
+      try {
+        await _unselectIfNeeded();
+        await _sendRename(text, box);
+        // ignore: avoid_print
+        print('RENAME ok: $text');
+        return;
+      } catch (e) {
+        last = e;
+        // ignore: avoid_print
+        print('RENAME try failed ($text): $e');
+      }
+    }
+
+    throw StateError(_imapErrorMessage(last, fallback: 'Rename folder failed'));
+  }
+
+  /// Strip enough_mail / IMAP noise so UI can show the server phrase.
+  String _imapErrorMessage(Object? error, {required String fallback}) {
+    if (error == null) return fallback;
+    var s = error.toString().trim();
+    // ImapException / Exception prefixes
+    for (final prefix in [
+      'ImapException: ',
+      'Exception: ',
+      'StateError: ',
+      'Bad state: ',
+    ]) {
+      if (s.startsWith(prefix)) s = s.substring(prefix.length).trim();
+    }
+    // "IMAP ... : actual message" or similar
+    final colon = s.lastIndexOf(': ');
+    if (colon > 0 && colon < s.length - 2) {
+      final tail = s.substring(colon + 2).trim();
+      if (tail.isNotEmpty && tail.length < s.length) s = tail;
+    }
+    return s.isEmpty ? fallback : s;
+  }
+
+  /// CREATE that tolerates "exists" and enough_mail's post-CREATE LIST miss.
+  Future<void> _createMailboxBestEffort(String unicodePath) async {
+    try {
+      await client.createMailbox(unicodePath);
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('unable to find just created mailbox')) {
+        // CREATE succeeded; LIST by Unicode path missed mUTF-7 listing.
+        // ignore: avoid_print
+        print('CREATE ok but LIST miss; continuing: $e');
+        return;
+      }
+      if (msg.contains('already') ||
+          msg.contains('exists') ||
+          msg.contains('alreadyexists')) {
+        // ignore: avoid_print
+        print('CREATE target already exists: $e');
+        return;
+      }
+      throw StateError(_imapErrorMessage(e, fallback: 'Create folder failed'));
+    }
+  }
+
+  Future<void> _deleteMailboxBestEffort(Mailbox box) async {
+    await _unselectIfNeeded();
+    try {
+      await client.unsubscribeMailbox(box);
+    } catch (_) {}
+
+    // Empty the mailbox first — many servers refuse DELETE when not empty.
+    try {
+      final selected = await _selectMailboxTryingPaths(box);
+      if (selected != null && selected.$1.messagesExists > 0) {
+        final all = MessageSequence.parse('1:*', isUidSequence: true);
+        await client.uidStore(
+          all,
+          [MessageFlags.deleted],
+          action: StoreAction.add,
+        );
+        await _expungeUid(all);
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('empty-before-DELETE failed: $e');
+    }
+
+    await _unselectIfNeeded();
+    Object? last;
+    try {
+      await client.deleteMailbox(box);
+      return;
+    } catch (e) {
+      last = e;
+      // ignore: avoid_print
+      print('deleteMailbox failed, retrying with fresh LIST: $e');
+    }
+
+    final live = await _mailboxForPath(_storagePathFor(box));
+    if (live == null) return; // already gone
+    try {
+      await client.unsubscribeMailbox(live);
+    } catch (_) {}
+    try {
+      await client.deleteMailbox(live);
+    } catch (e) {
+      last = e;
+      throw StateError(_imapErrorMessage(last, fallback: 'Delete folder failed'));
+    }
+  }
+
+  /// CREATE mailbox on IMAP, then refresh local folder list.
+  Future<void> createFolder(String path) => _serialized(() async {
+        final p = path.trim();
+        if (p.isEmpty) {
+          throw ArgumentError('Folder path is empty');
+        }
+        await connect();
+        await _unselectIfNeeded();
+        await _createMailboxBestEffort(p);
+        await syncFolders();
+      });
+
+  /// RENAME mailbox on IMAP; keeps local folder id so messages stay linked.
+  Future<void> renameFolder(String oldPath, String newPath) =>
+      _serialized(() async {
+        final from = oldPath.trim();
+        final toRaw = newPath.trim();
+        if (from.isEmpty || toRaw.isEmpty) {
+          throw ArgumentError('Folder path is empty');
+        }
+        await connect();
+        final local = await db.folderDao.findByPath(account.id, from);
+        if (local != null && local.role != 'custom') {
+          throw StateError('Cannot rename system folder: ${local.role}');
+        }
+        final box = await _mailboxForPath(from);
+        if (box == null) {
+          throw StateError('IMAP folder not found: $from');
+        }
+        final sep = client.serverInfo.pathSeparator ?? '/';
+        // Always compose the target in Unicode space (box.path), never append
+        // to mUTF-7 storage paths like `&UXZbg5CuTvY-`.
+        final oldUnicode =
+            box.path.trim().isNotEmpty ? box.path.trim() : from;
+        final targetUnicode = _renameTargetUnicode(oldUnicode, toRaw);
+        final targetEnc = _toImapPath(targetUnicode, pathSeparator: sep);
+        if (targetEnc == from || targetEnc == _storagePathFor(box)) {
+          return;
+        }
+        await _renameMailboxTrying(box, targetUnicode);
+        if (local != null) {
+          await (db.update(db.folders)..where((row) => row.id.equals(local.id)))
+              .write(
+            FoldersCompanion(
+              path: Value(targetEnc),
+              name: Value(_displayNameFromPath(targetUnicode)),
+            ),
+          );
+        }
+        await syncFolders();
+      });
+
+  /// DELETE mailbox on IMAP and remove the local folder row.
+  Future<void> deleteFolder(String path) => _serialized(() async {
+        final p = path.trim();
+        if (p.isEmpty) {
+          throw ArgumentError('Folder path is empty');
+        }
+        await connect();
+        final local = await db.folderDao.findByPath(account.id, p);
+        if (local != null && local.role != 'custom') {
+          throw StateError('Cannot delete system folder: ${local.role}');
+        }
+        final box = await _mailboxForPath(p);
+        if (box == null) {
+          throw StateError('IMAP folder not found: $p');
+        }
+        await _deleteMailboxBestEffort(box);
+        if (local != null) {
+          await db.folderDao.deleteById(local.id);
+        }
+      });
 }
