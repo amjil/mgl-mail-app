@@ -689,7 +689,7 @@
           (.catchError (fn [e]
                          (let [msg (clean-error-msg e)]
                            (store/set-error! msg)
-                           (throw (Exception. msg))))))))
+                           (throw (Exception. msg)))))))))
 
 (defn rename-folder! [old-path new-path]
   (let [b @!bridge
@@ -706,7 +706,7 @@
           (.catchError (fn [e]
                          (let [msg (clean-error-msg e)]
                            (store/set-error! msg)
-                           (throw (Exception. msg))))))))
+                           (throw (Exception. msg)))))))))
 
 (defn delete-folder! [path]
   (let [b @!bridge
@@ -723,4 +723,4 @@
           (.catchError (fn [e]
                          (let [msg (clean-error-msg e)]
                            (store/set-error! msg)
-                           (throw (Exception. msg))))))))
+                           (throw (Exception. msg)))))))))
