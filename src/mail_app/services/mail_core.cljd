@@ -400,7 +400,11 @@
   "Best-effort HTML → plain for compose / detail when no text/plain part."
   [html]
   ;; Dart RegExp has no (?i); use character classes for case-insensitivity.
+  ;; Strip <style>/<script> bodies first so CSS/JS is not left as plain text
+  ;; after tag removal.
   (-> (or html "")
+      (str/replace #"<[Ss][Tt][Yy][Ll][Ee][^>]*>[\s\S]*?</[Ss][Tt][Yy][Ll][Ee]>" "")
+      (str/replace #"<[Ss][Cc][Rr][Ii][Pp][Tt][^>]*>[\s\S]*?</[Ss][Cc][Rr][Ii][Pp][Tt]>" "")
       (str/replace #"<[Bb][Rr]\s*/?>" "\n")
       (str/replace #"</[Pp]>" "\n")
       (str/replace #"</[Dd][Ii][Vv]>" "\n")
