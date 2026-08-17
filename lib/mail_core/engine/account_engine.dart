@@ -131,6 +131,7 @@ class AccountEngine {
       final role = s.effectiveRole(folder);
       if (role == 'draft' ||
           role == 'trash' ||
+          role == 'junk' ||
           role == 'sent' ||
           role == 'archive') {
         await s.syncFolderByRole(role);

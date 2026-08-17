@@ -88,6 +88,7 @@ class ImapSyncService {
         await _syncRoleSafe('draft', limit: inboxLimit, required: false);
         await _syncRoleSafe('archive', limit: inboxLimit, required: false);
         await _syncRoleSafe('trash', limit: inboxLimit, required: false);
+        await _syncRoleSafe('junk', limit: inboxLimit, required: false);
       });
 
   Future<void> _syncRoleSafe(
@@ -213,6 +214,13 @@ class ImapSyncService {
               n.contains('deleted'))) {
         s += 200;
       }
+      if (f.role == 'junk' &&
+          (n.contains('垃圾') ||
+              n.contains('spam') ||
+              n.contains('junk') ||
+              n.contains('迷惑'))) {
+        s += 200;
+      }
       // Mild preference for shorter paths when scores tie.
       s += (200 - f.path.length).clamp(0, 200);
       return s;
@@ -243,9 +251,17 @@ class ImapSyncService {
 
     final all = await db.folderDao.listForAccount(account.id);
 
-    // Role groups: consider selectable + previously hidden twins.
-    for (final role in const ['inbox', 'sent', 'draft', 'archive', 'trash']) {
-      await collapse(all.where((f) => f.role == role).toList());
+    // Role groups: include name-mapped customs (stale role) so Drafts+草稿
+    // collapse to one selectable row.
+    for (final role
+        in const ['inbox', 'sent', 'draft', 'archive', 'trash', 'junk']) {
+      await collapse(
+        all
+            .where(
+              (f) => f.role == role || mapRoleFromName(f.name) == role,
+            )
+            .toList(),
+      );
     }
 
     // Same display name with different paths.
@@ -265,6 +281,7 @@ class ImapSyncService {
     if (box.isInbox) return 'inbox';
     if (box.isSent) return 'sent';
     if (box.isTrash) return 'trash';
+    if (box.isJunk) return 'junk';
     if (box.isDrafts) return 'draft';
     if (box.isArchive) return 'archive';
     return mapRoleFromName(box.name);
@@ -308,6 +325,18 @@ class ImapSyncService {
         n.contains('垃圾桶') ||
         n.contains('ゴミ箱')) {
       return 'trash';
+    }
+    if (n == 'junk' ||
+        n == 'spam' ||
+        n == 'junk e-mail' ||
+        n == 'junk email' ||
+        n == 'junk mail' ||
+        n.contains('spam') ||
+        n.contains('junk') ||
+        n.contains('垃圾邮件') ||
+        n.contains('垃圾郵件') ||
+        n.contains('迷惑メール')) {
+      return 'junk';
     }
     return 'custom';
   }
@@ -389,6 +418,7 @@ class ImapSyncService {
       final mapped = _mapRole(box);
       final special = (role == 'draft' && box.isDrafts) ||
           (role == 'trash' && box.isTrash) ||
+          (role == 'junk' && box.isJunk) ||
           (role == 'sent' && box.isSent) ||
           (role == 'inbox' && box.isInbox) ||
           (role == 'archive' && box.isArchive);
@@ -427,6 +457,14 @@ class ImapSyncService {
               n.contains('刪除') ||
               n.contains('trash') ||
               n.contains('deleted')) {
+            return 2;
+          }
+          break;
+        case 'junk':
+          if (n.contains('垃圾') ||
+              n.contains('spam') ||
+              n.contains('junk') ||
+              n.contains('迷惑')) {
             return 2;
           }
           break;
@@ -834,7 +872,9 @@ class ImapSyncService {
                 ? 'archive'
                 : folder.role == 'trash'
                     ? 'trash'
-                    : 'inbox';
+                    : folder.role == 'junk'
+                        ? 'junk'
+                        : 'inbox';
 
     if (uidStr != null) {
       final existing =
@@ -1282,6 +1322,20 @@ class ImapSyncService {
         n == 'ゴミ箱';
   }
 
+  bool _isJunkName(String name) {
+    final n = name.toLowerCase().trim();
+    return n == 'junk' ||
+        n == 'spam' ||
+        n == 'junk e-mail' ||
+        n == 'junk email' ||
+        n == 'junk mail' ||
+        n.contains('spam') ||
+        n.contains('junk') ||
+        n.contains('垃圾邮件') ||
+        n.contains('垃圾郵件') ||
+        n.contains('迷惑メール');
+  }
+
   Future<Mailbox?> _findTrashMailbox() async {
     final boxes = await client.listMailboxes(recursive: true);
     for (final box in boxes) {
@@ -1315,6 +1369,9 @@ class ImapSyncService {
         return box;
       }
       if (role == 'trash' && (box.isTrash || _isTrashName(box.name))) {
+        return box;
+      }
+      if (role == 'junk' && (box.isJunk || _isJunkName(box.name))) {
         return box;
       }
       if (role == 'draft' && box.isDrafts) return box;

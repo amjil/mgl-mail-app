@@ -17,7 +17,8 @@
    "draft" 2
    "archive" 3
    "trash" 4
-   "custom" 5})
+   "junk" 5
+   "custom" 6})
 
 (defn- folder-sort-key [^mc/MailFolderDto f]
   [(get role-order (or (.-role f) "") 50)
@@ -25,7 +26,12 @@
    (or (.-id f) 0)])
 
 (defn- has-role? [folders role]
-  (boolean (some (fn [^mc/MailFolderDto f] (= (.-role f) role)) folders)))
+  (let [want (keyword role)]
+    (boolean
+     (some (fn [^mc/MailFolderDto f]
+             (or (= (.-role f) role)
+                 (= (role-key (.-role f) (.-name f)) want)))
+           folders))))
 
 (defn- role-key
   "Map DB role / display name → UI mailbox key. Name wins for stale custom rows."
@@ -47,6 +53,13 @@
           (str/includes? n "archive"))
       :archive
       (= role "trash") :trash
+      (or (= role "junk")
+          (str/includes? n "垃圾邮件")
+          (str/includes? n "垃圾郵件")
+          (str/includes? n "spam")
+          (str/includes? n "junk")
+          (str/includes? n "迷惑メール"))
+      :junk
       :else nil)))
 
 ;; ==========================================
@@ -176,6 +189,21 @@
       .alignment m.Alignment/topRight
       .children children))))
 
+(defn- dedupe-by-role-key
+  "Keep one folder per UI mailbox key (e.g. Drafts + 草稿箱 → one :draft)."
+  [folders]
+  (let [ordered (->> folders (sort-by folder-sort-key) vec)]
+    (loop [xs ordered
+           seen #{}
+           out []]
+      (if (empty? xs)
+        out
+        (let [^mc/MailFolderDto f (first xs)
+              rk (or (role-key (.-role f) (.-name f)) (.-id f))]
+          (if (contains? seen rk)
+            (recur (rest xs) seen out)
+            (recur (rest xs) (conj seen rk) (conj out f))))))))
+
 (defn- folder-item [^mc/MailFolderDto f selected]
   (let [id (.-id f)
         role (.-role f)
@@ -190,14 +218,16 @@
                       (and (= selected :sent) (or (= role "sent") (= rk :sent)))
                       (and (= selected :draft) (or (= role "draft") (= rk :draft)))
                       (and (= selected :archive) (or (= role "archive") (= rk :archive)))
-                      (and (= selected :trash) (or (= role "trash") (= rk :trash))))
-        is-custom? (= role "custom")]
+                      (and (= selected :trash) (or (= role "trash") (= rk :trash)))
+                      (and (= selected :junk) (or (= role "junk") (= rk :junk))))
+        ;; Treat name-mapped special folders as system (no rename/delete menu).
+        is-custom? (and (= role "custom") (nil? rk))]
     (if is-custom?
       (mailbox-item key name selected? count :folder-path path)
       (mailbox-item key (or name role "Folder") selected? count))))
 
 (defn- build-items [folder-list selected]
-  (let [folders (->> folder-list (sort-by folder-sort-key) vec)
+  (let [folders (dedupe-by-role-key folder-list)
         head (cond-> []
                (not (has-role? folders "inbox"))
                (conj (mailbox-item :inbox "Inbox" (= selected :inbox) nil))

@@ -119,6 +119,9 @@ class MailBridge {
   Stream<List<MailMessageDto>> watchTrash({String? accountId}) =>
       _engine.watchTrash(accountId: accountId);
 
+  Stream<List<MailMessageDto>> watchJunk({String? accountId}) =>
+      _engine.watchJunk(accountId: accountId);
+
   Stream<List<MailOutboxDto>> watchOutbox({String? accountId}) =>
       _engine.watchOutbox(accountId: accountId);
 

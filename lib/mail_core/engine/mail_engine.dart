@@ -228,12 +228,20 @@ class MailEngine {
   }
 
   /// Collapse duplicate special-use / same-name folders per account.
+  /// Uses effective role (DB role, or name→role for stale custom rows) so
+  /// twins like Drafts + 草稿箱 do not both appear in the sidebar.
   List<MailFolderDto> _dedupeFolderDtos(List<MailFolderDto> rows) {
+    String effectiveRole(MailFolderDto f) {
+      if (f.role != 'custom') return f.role;
+      return ImapSyncService.mapRoleFromName(f.name);
+    }
+
     int score(MailFolderDto f) {
       var s = 1000 - f.path.length;
       if (f.path.toUpperCase() == 'INBOX') s += 500;
       // Prefer known roles over custom when names collide after remapping.
       if (f.role != 'custom') s += 100;
+      if (effectiveRole(f) != 'custom') s += 50;
       return s;
     }
 
@@ -247,8 +255,9 @@ class MailEngine {
     final seenNames = <String>{};
     final out = <MailFolderDto>[];
     for (final f in sorted) {
-      final roleKey = '${f.accountId}|${f.role}';
-      if (f.role != 'custom' && !seenRoles.add(roleKey)) continue;
+      final eff = effectiveRole(f);
+      final roleKey = '${f.accountId}|$eff';
+      if (eff != 'custom' && !seenRoles.add(roleKey)) continue;
       final nameKey = '${f.accountId}|${f.name.trim().toLowerCase()}';
       if (nameKey.endsWith('|')) {
         out.add(f);
@@ -264,9 +273,12 @@ class MailEngine {
         'draft': 2,
         'archive': 3,
         'trash': 4,
-        'custom': 5,
+        'junk': 5,
+        'custom': 6,
       };
-      final c = (order[a.role] ?? 50).compareTo(order[b.role] ?? 50);
+      final ae = effectiveRole(a);
+      final be = effectiveRole(b);
+      final c = (order[ae] ?? 50).compareTo(order[be] ?? 50);
       if (c != 0) return c;
       return a.path.compareTo(b.path);
     });
@@ -381,6 +393,9 @@ class MailEngine {
 
   Stream<List<MailMessageDto>> watchTrash({String? accountId}) =>
       _watchByFolderRole('trash', accountId: accountId);
+
+  Stream<List<MailMessageDto>> watchJunk({String? accountId}) =>
+      _watchByFolderRole('junk', accountId: accountId);
 
   Stream<List<MailMessageDto>> _watchByFolderRole(
     String role, {

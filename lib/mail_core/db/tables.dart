@@ -33,7 +33,7 @@ class Folders extends Table {
   TextColumn get name => text()();
   TextColumn get path => text()();
 
-  /// inbox / sent / trash / draft / custom
+  /// inbox / sent / trash / junk / draft / archive / custom
   TextColumn get role => text()();
   IntColumn get unreadCount => integer().withDefault(const Constant(0))();
   BoolColumn get selectable => boolean().withDefault(const Constant(true))();

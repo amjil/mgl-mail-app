@@ -64,7 +64,7 @@ class MailFolderDto {
   final String name;
   final String path;
 
-  /// inbox / sent / trash / draft / custom
+  /// inbox / sent / trash / junk / draft / archive / custom
   final String role;
   final bool selectable;
   final int unreadCount;

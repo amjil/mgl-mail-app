@@ -224,6 +224,11 @@
           (listen-messages! b (.watchTrash ^mc/MailBridge b .accountId aid))
           (sync-role-bg! b "trash" aid))
 
+        (= sel :junk)
+        (do
+          (listen-messages! b (.watchJunk ^mc/MailBridge b .accountId aid))
+          (sync-role-bg! b "junk" aid))
+
         :else
         (when-let [fid (resolve-folder-id sel)]
           (store/set-selected-mailbox! fid)
