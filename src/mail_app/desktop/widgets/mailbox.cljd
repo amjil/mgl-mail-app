@@ -25,14 +25,6 @@
    (or (.-path f) "")
    (or (.-id f) 0)])
 
-(defn- has-role? [folders role]
-  (let [want (keyword role)]
-    (boolean
-     (some (fn [^mc/MailFolderDto f]
-             (or (= (.-role f) role)
-                 (= (role-key (.-role f) (.-name f)) want)))
-           folders))))
-
 (defn- role-key
   "Map DB role / display name → UI mailbox key. Name wins for stale custom rows."
   [role name]
@@ -61,6 +53,14 @@
           (str/includes? n "迷惑メール"))
       :junk
       :else nil)))
+
+(defn- has-role? [folders role]
+  (let [want (keyword role)]
+    (boolean
+     (some (fn [^mc/MailFolderDto f]
+             (or (= (.-role f) role)
+                 (= (role-key (.-role f) (.-name f)) want)))
+           folders))))
 
 ;; ==========================================
 ;; Dialogs for Folder Management
