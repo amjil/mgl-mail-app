@@ -1,34 +1,67 @@
 (ns mail-app.desktop.screens.search
+  "Desktop search screen: Vertical search panel on the left, horizontal results on the right."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             ["dart:async" :as async]
             [cljd.flutter :as f]
+            [clojure.string :as str]
+            [shared-ime.overlay-view :as overlay]
+            [rich-editor.components.text-field :as custom-tf]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
             [mail-app.theme :refer [font-family]]))
 
-(defn- result-item [^mc/MailSearchResultDto hit]
-  (f/widget
-   :get [m/Navigator]
-   (mgl/MongolListTile
-    .title (m/Padding
-            .padding (m.EdgeInsets/only .top 8.0)
-            .child
-            (mgl/MongolText
-             (or (.-subject hit) "No Subject")
-             .style (m/TextStyle .fontSize 16.0 .fontFamily font-family)))
-    .subtitle (mgl/MongolText
-               (or (.-snippet hit) "")
-               .style (m/TextStyle .fontSize 12.0
-                                   .fontFamily font-family
-                                   .color m.Colors/black54))
-    .onTap (fn []
-             (mail/open-message! (.-messageId hit))
-             (.pushNamed navigator "/mail_detail")
-             nil))))
+;; Predefined dispose function for the text listener
+(defn- unlisten-search! [{:keys [ctrl listener]}]
+  (.removeListener ^m/TextEditingController ctrl listener)
+  nil)
 
-(defn- results-body [search-results searching?]
+;; ==========================================
+;; Core Component: Mongol input field based on rich-editor
+;; ==========================================
+(defn- mongol-field
+  "Uses the same !ime / editor state as compose fields.
+   Do not wrap here — the page-level ime-global-wrapper paints candidates."
+  [!ime controller focus-node hint]
+  (custom-tf/text-field
+   !ime
+   {:controller controller
+    :focus-node focus-node
+    :hint hint
+    :max-lines nil
+    :style (m/TextStyle .fontSize 18.0
+                        .fontFamily font-family
+                        .color m.Colors/black87)
+    :decoration (m/InputDecoration .border m/InputBorder.none)}))
+
+
+;; ==========================================
+;; Search Results UI
+;; ==========================================
+(defn- result-item [^mc/MailSearchResultDto hit navigator]
+  (mgl/MongolListTile
+   .title (m/Padding
+           .padding (m.EdgeInsets/only .top 8.0)
+           .child
+           (mgl/MongolText
+            (or (.-subject hit) "No Subject")
+            .style (m/TextStyle .fontSize 18.0 .fontFamily font-family .fontWeight m.FontWeight/bold)))
+   .subtitle (m/Padding
+              .padding (m.EdgeInsets/only .top 8.0)
+              .child
+              (mgl/MongolText
+               (or (.-snippet hit) "")
+               .style (m/TextStyle .fontSize 14.0
+                                   .fontFamily font-family
+                                   .color m.Colors/black54
+                                   .height 1.4))) ;; Increase line height for comfortable Mongol text reading
+   .onTap (fn []
+            (mail/open-message! (.-messageId hit))
+            (.pushNamed navigator "/mail_detail")
+            nil)))
+
+(defn- results-body [search-results searching? navigator search-query]
   (cond
     searching?
     (m/Center .child (m/CircularProgressIndicator.))
@@ -36,55 +69,127 @@
     (empty? search-results)
     (m/Center
      .child
-     (mgl/MongolText
-      "No results"
-      .style (m/TextStyle .fontFamily font-family .color m.Colors/black54)))
+     (m/Row
+      .mainAxisSize m.MainAxisSize/min
+      .children
+      [(m/Icon m.Icons/search .size 64.0 .color m.Colors/black12)
+       (m/SizedBox .width 16.0)
+       (mgl/MongolText
+        (if (seq search-query)
+          "Илэрц олдсонгүй" ;; No results
+          "Хайх утгаа оруулна уу") ;; Please enter search text
+        .style (m/TextStyle .fontFamily font-family .color m.Colors/black38 .fontSize 18.0))]))
 
     :else
-    (m/ListView
+    (m/ListView.separated
      .scrollDirection m.Axis/horizontal
-     .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
-     .children (mapv result-item search-results))))
+     .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 12.0)
+     .itemCount (count search-results)
+     .separatorBuilder (fn [_ _] (m/VerticalDivider .width 1.0 .thickness 1.0 .color m.Colors/black12))
+     .itemBuilder (fn [_ idx]
+                    (m/Container
+                     .width 280.0
+                     .child (result-item (nth search-results idx) navigator))))))
 
+;; ==========================================
+;; Search Screen Main
+;; ==========================================
 (defn screen []
-  (let [!timer (atom nil)]
+  (let [!timer (atom nil)
+        !ime (atom {})] ;; Create a local empty state for text-field
     (f/widget
+     :context ctx
      :get [m/Navigator]
-     :managed [query-ctrl (m/TextEditingController.)]
-     :watch [{:keys [search-results searching?]} store/app-state]
+     
+     :managed [query-ctrl (m/TextEditingController.)
+               query-focus (m/FocusNode.)
+               
+               ;; Bind text listener to trigger debounced search
+               search-listener
+               (let [on-text (fn []
+                               (let [v (.-text query-ctrl)]
+                                 (when-let [t @!timer] (.cancel ^async/Timer t))
+                                 (reset! !timer
+                                         (async/Timer.
+                                          (dart:core/Duration. .milliseconds 350)
+                                          (fn []
+                                            (let [q (str/trim v)]
+                                              (if (seq q)
+                                                (mail/search! q)
+                                                (do
+                                                  (store/set-search-query! "")
+                                                  (store/set-search-results! [])))))))
+                                 nil))]
+                 (.addListener query-ctrl on-text)
+                 {:ctrl query-ctrl :listener on-text})
+               :dispose unlisten-search!]
+               
+     :watch [{:keys [search-results searching? search-query]} store/app-state]
+     
      (m/Scaffold
-      .appBar
-      (m/AppBar
-       .leading
-       (m/IconButton
-        .icon (m/Icon m.Icons/arrow_back)
-        .onPressed (fn []
-                     (store/set-search-results! [])
-                     (store/set-search-query! "")
-                     (.pop navigator)
-                     nil))
-       .title
-       (m/TextField
-        .controller query-ctrl
-        .autofocus true
-        .decoration (m/InputDecoration
-                     .hintText "Search…"
-                     .border m/InputBorder.none)
-        .onChanged
-        (fn [v]
-          (when-let [t @!timer] (.cancel ^async/Timer t))
-          (reset! !timer
-                  (async/Timer.
-                   (dart:core/Duration. .milliseconds 350)
-                   #(mail/search! v)))
-          nil))
-       .actions
-       [(if searching?
-          (m/Padding
-           .padding (m.EdgeInsets/all 12.0)
-           .child
-           (m/SizedBox
-            .width 20.0 .height 20.0
-            .child (m/CircularProgressIndicator. .strokeWidth 2.0)))
-          (m/SizedBox.shrink))])
-      .body (results-body search-results searching?)))))
+      .backgroundColor m.Colors/white
+      .body
+      ;; Page-level IME overlay (same as compose). Wrapping only the 100px
+      ;; search field clips the candidates popup.
+      (overlay/ime-global-wrapper
+       (m/Row
+        .crossAxisAlignment m.CrossAxisAlignment/stretch
+        .children
+        [;; --- Left panel: Vertical search panel ---
+         (m/Container
+          .width 100.0
+          .color (-> m.Colors/blue (.withOpacity 0.05))
+          .child
+          (m/Column
+           .children
+           [;; Back button
+            (m/Padding
+             .padding (m.EdgeInsets/only .top 16.0 .bottom 8.0)
+             .child
+             (m/IconButton
+              .icon (m/Icon m.Icons/arrow_back)
+              .tooltip "Back"
+              .onPressed (fn []
+                           (when-let [t @!timer] (.cancel ^async/Timer t))
+                           (.clear query-ctrl)
+                           (store/set-search-results! [])
+                           (store/set-search-query! "")
+                           (.pop navigator)
+                           nil)))
+            
+            ;; Mongol search field based on !ime and custom-tf/text-field
+            (m/Expanded
+             .child
+             (m/GestureDetector
+              .behavior m.HitTestBehavior/opaque
+              .onTap (fn [] (.requestFocus query-focus) nil)
+              .child
+              (m/Container
+               .padding (m.EdgeInsets/symmetric .horizontal 4.0 .vertical 8.0)
+               .alignment m.Alignment/topCenter
+               .child
+               (mongol-field !ime query-ctrl query-focus "Search..."))))
+            
+            ;; Bottom actions: Loading indicator or clear text button
+            (m/Padding
+             .padding (m.EdgeInsets/all 16.0)
+             .child
+             (if searching?
+               (m/SizedBox .width 24.0 .height 24.0
+                           .child (m/CircularProgressIndicator .strokeWidth 2.0))
+               (m/IconButton
+                .icon (m/Icon m.Icons/close)
+                .tooltip "Clear"
+                .onPressed (fn []
+                             (.clear query-ctrl)
+                             (store/set-search-query! "")
+                             (store/set-search-results! [])
+                             nil))))]))
+         
+         (m/VerticalDivider .width 1.0 .thickness 1.0)
+         
+         ;; --- Right panel: Horizontal scrollable search results ---
+         (m/Expanded
+          .child
+          (results-body search-results searching? navigator search-query))])
+       "search-ime")))))

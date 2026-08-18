@@ -42,7 +42,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -53,16 +53,7 @@ class AppDatabase extends _$AppDatabase {
             'ON messages(account_id, folder_id, uid) '
             'WHERE uid IS NOT NULL',
           );
-          await customStatement('''
-CREATE VIRTUAL TABLE IF NOT EXISTS fts_messages USING fts5(
-  subject,
-  body,
-  from_addr,
-  to_addr,
-  account_id,
-  tokenize = 'unicode61'
-);
-''');
+          await customStatement(kFtsMessagesCreateSql);
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
@@ -74,6 +65,12 @@ CREATE VIRTUAL TABLE IF NOT EXISTS fts_messages USING fts5(
             await m.addColumn(messages, messages.inReplyTo);
             await m.addColumn(messages, messages.referencesHeader);
           }
+          if (from < 4) {
+            await customStatement(kFtsMessagesCreateSql);
+          }
+        },
+        beforeOpen: (details) async {
+          await mailSearchDao.ensureReady();
         },
       );
 

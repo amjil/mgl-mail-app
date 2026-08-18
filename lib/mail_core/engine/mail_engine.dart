@@ -45,6 +45,7 @@ class MailEngine {
   final _uuid = const Uuid();
 
   Future<void> initialize() async {
+    await indexer.ensureReady();
     final rows = await db.accountDao.listAccounts();
     for (final row in rows) {
       await _register(row, start: true);

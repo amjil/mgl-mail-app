@@ -928,6 +928,13 @@ class ImapSyncService {
             updatedAt: Value(DateTime.now()),
           ),
         );
+        await indexer.indexMessage(
+          messageId: byClient.id,
+          accountId: account.id,
+          subject: byClient.subject,
+          fromAddr: byClient.fromAddr,
+          toAddr: byClient.toAddr,
+        );
         return byClient.id;
       }
     }
@@ -943,6 +950,13 @@ class ImapSyncService {
             state: Value(state),
             updatedAt: Value(DateTime.now()),
           ),
+        );
+        await indexer.indexMessage(
+          messageId: byMid.id,
+          accountId: account.id,
+          subject: byMid.subject,
+          fromAddr: byMid.fromAddr,
+          toAddr: byMid.toAddr,
         );
         return byMid.id;
       }
