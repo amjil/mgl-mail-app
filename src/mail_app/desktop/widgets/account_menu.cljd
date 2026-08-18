@@ -1,9 +1,11 @@
 (ns mail-app.desktop.widgets.account-menu
   "Account switcher + remove / add / edit account actions."
   (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [cljd.flutter :as f]
             [clojure.string :as str]
+            [components.dialog :as dialog]
             [mail-app.desktop.toast :as toast]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]))
@@ -26,16 +28,16 @@
          .context ctx
          .builder
          (fn [dialog-ctx]
-           (m/AlertDialog
-            .title (m/Text "Edit account")
-            .content
-            (m/SizedBox
-             .width 360.0
-             .child
+           (dialog/vertical-custom-dialog
+            {:title "Edit account"
+             :width-factor 0.85
+             :height-factor 0.75
+             :body
              (m/SingleChildScrollView
               .child
               (m/Column
                .mainAxisSize m.MainAxisSize/min
+               .crossAxisAlignment m.CrossAxisAlignment/start
                .children
                [(m/Text (.-email account)
                         .style (m/TextStyle .color m.Colors/black54))
@@ -56,14 +58,14 @@
                              .decoration (m/InputDecoration .labelText "SMTP host"))
                 (m/TextField .controller smtp-port-ctrl
                              .keyboardType m.TextInputType/number
-                             .decoration (m/InputDecoration .labelText "SMTP port"))])))
-            .actions
-            [(m/TextButton
-              .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) false) nil)
-              .child (m/Text "Cancel"))
-             (m/TextButton
-              .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) true) nil)
-              .child (m/Text "Save"))])))
+                             .decoration (m/InputDecoration .labelText "SMTP port"))]))
+             :actions
+             [(m/TextButton
+               .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) false) nil)
+               .child (mgl/MongolText "Cancel"))
+              (m/TextButton
+               .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) true) nil)
+               .child (mgl/MongolText "Save"))]})))
         (.then (fn [ok?]
                  (when ok?
                    (let [imap-port (try (int (str/trim (.-text imap-port-ctrl)))

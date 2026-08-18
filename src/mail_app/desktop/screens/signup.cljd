@@ -5,9 +5,8 @@
             [clojure.string :as str]
             [mail-app.desktop.toast :as toast]
             [mail-app.services.mail-core :as mail]
-            [mail-app.state.store :as store]))
-
-(def ^:private font-family "MongolianBaiZheng")
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
 
 (defn- field [controller hint & {:keys [obscure?] :or {obscure? false}}]
   (f/widget

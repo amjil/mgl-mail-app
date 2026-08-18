@@ -5,9 +5,8 @@
             ["dart:async" :as async]
             [cljd.flutter :as f]
             [mail-app.services.mail-core :as mail]
-            [mail-app.state.store :as store]))
-
-(def ^:private font-family "MongolianBaiZheng")
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
 
 (defn- result-item [^mc/MailSearchResultDto hit]
   (f/widget

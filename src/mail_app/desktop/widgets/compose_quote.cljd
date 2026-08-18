@@ -5,9 +5,8 @@
             [cljd.flutter :as f]
             [clojure.string :as str]
             [block-editor.widgets.reader :as reader]
-            [mail-app.services.compose-export :as export]))
-
-(def ^:private font-family "MongolianBaiZheng")
+            [mail-app.services.compose-export :as export]
+            [mail-app.theme :refer [font-family]]))
 
 (def ^:private reader-cfg
   {:block-style
@@ -51,12 +50,14 @@
           root)))
 
 (defn panel
-  "Collapse control shows only 'collapse' / 'uncollapse'.
-   Quoted From/Date/body render as ordinary blocks when expanded."
-  [!quote-state]
+  "Quoted From/Date/body as ordinary blocks.
+   Pass `:toggle? false` to always show the body (no collapse/uncollapse)."
+  [!quote-state & {:keys [toggle?] :or {toggle? true}}]
   (f/widget
    :watch [state !quote-state]
-   (let [collapsed? (boolean (:collapsed? state true))
+   (let [collapsed? (if toggle?
+                      (boolean (:collapsed? state true))
+                      false)
          label (if collapsed? "uncollapse" "collapse")
          plain (quote-plain state)]
      (m/Container
@@ -73,16 +74,17 @@
         .children
         (vec
          (concat
-          [(m/Material
-            .color m.Colors/transparent
-            .child
-            (m/InkWell
-             .onTap #(flip-collapsed! !quote-state)
-             .borderRadius (m/BorderRadius.circular 4.0)
-             .child
-             (m/Padding
-              .padding (m.EdgeInsets/all 8.0)
+          (when toggle?
+            [(m/Material
+              .color m.Colors/transparent
               .child
-              (mgl/MongolText label .style (label-style)))))]
+              (m/InkWell
+               .onTap #(flip-collapsed! !quote-state)
+               .borderRadius (m/BorderRadius.circular 4.0)
+               .child
+               (m/Padding
+                .padding (m.EdgeInsets/all 8.0)
+                .child
+                (mgl/MongolText label .style (label-style)))))])
           (when-not collapsed?
             (content-blocks plain))))))))))

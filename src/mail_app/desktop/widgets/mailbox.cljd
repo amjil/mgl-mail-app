@@ -5,11 +5,11 @@
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [cljd.flutter :as f]
             [clojure.string :as str]
+            [components.dialog :as dialog]
             [mail-app.desktop.toast :as toast]
             [mail-app.services.mail-core :as mail]
-            [mail-app.state.store :as store]))
-
-(def ^:private font-family "MongolianBaiZheng")
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
 
 (def ^:private role-order
   {"inbox" 0
@@ -72,53 +72,63 @@
      .context ctx
      .builder
      (fn [d-ctx]
-       (m/AlertDialog
-        .title (m/Text "Rename Folder")
-        .content (m/TextField .controller ctrl .autofocus true)
-        .actions
-        [(m/TextButton .onPressed #(.pop (m/Navigator.of d-ctx)) .child (m/Text "Cancel"))
-         (m/TextButton
-          .onPressed (fn []
-                       (let [new-name (str/trim (.-text ctrl))]
-                         (when (and (seq new-name) (not= new-name current-name))
-                           (-> (mail/rename-folder! folder-path new-name)
-                               (.then (fn [_]
-                                        (toast/success! ctx "Folder renamed")
-                                        (.pop (m/Navigator.of d-ctx))))
-                               (.catchError (fn [e]
-                                              (toast/error! ctx (str e))
-                                              nil)))))
-                       nil)
-          .child (m/Text "Rename"))])))))
+       (dialog/vertical-custom-dialog
+        {:title "Rename Folder"
+         :width-factor 0.7
+         :height-factor 0.5
+         :body (m/TextField .controller ctrl .autofocus true)
+         :actions
+         [(m/TextButton
+           .onPressed #(.pop (m/Navigator.of d-ctx))
+           .child (mgl/MongolText "Cancel"))
+          (m/TextButton
+           .onPressed (fn []
+                        (let [new-name (str/trim (.-text ctrl))]
+                          (when (and (seq new-name) (not= new-name current-name))
+                            (-> (mail/rename-folder! folder-path new-name)
+                                (.then (fn [_]
+                                         (toast/success! ctx "Folder renamed")
+                                         (.pop (m/Navigator.of d-ctx))))
+                                (.catchError (fn [e]
+                                               (toast/error! ctx (str e))
+                                               nil)))))
+                        nil)
+           .child (mgl/MongolText "Rename"))]})))))
 
 (defn- confirm-delete-folder! [ctx folder-path folder-key]
   (m/showDialog
    .context ctx
    .builder
    (fn [d-ctx]
-     (m/AlertDialog
-      .title (m/Text "Delete Folder?")
-      .content (m/Text (str "Are you sure you want to delete folder '"
-                            folder-path
-                            "'? This may also delete the emails inside it on the server."))
-      .actions
-      [(m/TextButton .onPressed #(.pop (m/Navigator.of d-ctx)) .child (m/Text "Cancel"))
-       (m/TextButton
-        .onPressed (fn []
-                     (-> (mail/delete-folder! folder-path)
-                         (.then (fn [_]
-                                  ;; Custom folders select by id; also match path just in case.
-                                  (let [sel (:selected-mailbox @store/app-state)]
-                                    (when (or (= sel folder-key)
-                                              (= sel folder-path))
-                                      (mail/select-mailbox! :inbox)))
-                                  (toast/success! ctx "Folder deleted")
-                                  (.pop (m/Navigator.of d-ctx))))
-                         (.catchError (fn [e]
-                                        (toast/error! ctx (str e))
-                                        nil)))
-                     nil)
-        .child (m/Text "Delete" .style (m/TextStyle .color m.Colors/red)))]))))
+     (dialog/vertical-custom-dialog
+      {:title "Delete Folder?"
+       :width-factor 0.7
+       :height-factor 0.5
+       :body (mgl/MongolText
+              (str "Are you sure you want to delete folder '"
+                   folder-path
+                   "'? This may also delete the emails inside it on the server."))
+       :actions
+       [(m/TextButton
+         .onPressed #(.pop (m/Navigator.of d-ctx))
+         .child (mgl/MongolText "Cancel"))
+        (m/TextButton
+         .onPressed (fn []
+                      (-> (mail/delete-folder! folder-path)
+                          (.then (fn [_]
+                                   ;; Custom folders select by id; also match path just in case.
+                                   (let [sel (:selected-mailbox @store/app-state)]
+                                     (when (or (= sel folder-key)
+                                               (= sel folder-path))
+                                       (mail/select-mailbox! :inbox)))
+                                   (toast/success! ctx "Folder deleted")
+                                   (.pop (m/Navigator.of d-ctx))))
+                          (.catchError (fn [e]
+                                         (toast/error! ctx (str e))
+                                         nil)))
+                      nil)
+         .child (mgl/MongolText "Delete"
+                               .style (m/TextStyle .color m.Colors/red)))]}))))
 
 
 ;; ==========================================

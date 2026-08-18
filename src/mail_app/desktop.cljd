@@ -13,7 +13,8 @@
             [mail-app.desktop.screens.search :as search]
             [mail-app.desktop.screens.signup :as signup]
             [mail-app.services.mail-core :as mail]
-            [mail-app.state.store :as store]))
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
 
 (defn app []
   (life/wrap
@@ -47,7 +48,7 @@
       .debugShowCheckedModeBanner false
       .theme (m/ThemeData
               .primarySwatch m.Colors/blue
-              .fontFamily "MongolianBaiZheng"
+              .fontFamily font-family
               .scaffoldBackgroundColor m.Colors/white)
       .builder
       (fn [_ctx child]

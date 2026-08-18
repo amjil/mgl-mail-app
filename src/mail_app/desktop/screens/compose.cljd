@@ -14,9 +14,8 @@
             [mail-app.desktop.widgets.compose-quote :as quote]
             [mail-app.desktop.widgets.compose-topbar :as topbar]
             [mail-app.services.compose-export :as export]
-            [mail-app.state.store :as store]))
-
-(def ^:private font-family "MongolianBaiZheng")
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
 
 (def compose-editor-config
   {:text-block-types #{:paragraph :heading-1 :heading-2 :heading-3

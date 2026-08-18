@@ -1,7 +1,9 @@
 (ns mail-app.desktop.widgets.topbar
   (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
             [cljd.flutter :as f]
             [clojure.string :as str]
+            [components.dialog :as dialog]
             [mail-app.desktop.toast :as toast]
             [mail-app.desktop.widgets.account-menu :as accounts]
             [mail-app.services.mail-core :as mail]
@@ -13,27 +15,31 @@
      .context ctx
      .builder
      (fn [d-ctx]
-       (m/AlertDialog
-        .title (m/Text "New Folder")
-        .content (m/TextField .controller ctrl .autofocus true
-                              .decoration (m/InputDecoration .hintText "Folder name"))
-        .actions
-        [(m/TextButton .onPressed #(.pop (m/Navigator.of d-ctx)) .child (m/Text "Cancel"))
-         (m/TextButton
-          .onPressed (fn []
-                       (let [name (str/trim (.-text ctrl))]
-                         (if (empty? name)
-                           (toast/error! ctx "Folder name is empty")
-                           (-> (mail/create-folder! name)
-                               (.then (fn [_]
-                                        (toast/success! ctx "Folder created")
-                                        (.pop (m/Navigator.of d-ctx))
-                                        nil))
-                               (.catchError (fn [e]
-                                              (toast/error! ctx (str e))
-                                              nil)))))
-                       nil)
-          .child (m/Text "Create"))])))))
+       (dialog/vertical-custom-dialog
+        {:title "New Folder"
+         :width-factor 0.7
+         :height-factor 0.5
+         :body (m/TextField .controller ctrl .autofocus true
+                            .decoration (m/InputDecoration .hintText "Folder name"))
+         :actions
+         [(m/TextButton
+           .onPressed #(.pop (m/Navigator.of d-ctx))
+           .child (mgl/MongolText "Cancel"))
+          (m/TextButton
+           .onPressed (fn []
+                        (let [name (str/trim (.-text ctrl))]
+                          (if (empty? name)
+                            (toast/error! ctx "Folder name is empty")
+                            (-> (mail/create-folder! name)
+                                (.then (fn [_]
+                                         (toast/success! ctx "Folder created")
+                                         (.pop (m/Navigator.of d-ctx))
+                                         nil))
+                                (.catchError (fn [e]
+                                               (toast/error! ctx (str e))
+                                               nil)))))
+                        nil)
+           .child (mgl/MongolText "Create"))]})))))
 
 (defn mail-box
   []

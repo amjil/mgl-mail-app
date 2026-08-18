@@ -9,15 +9,15 @@
             [block-editor.utils.html :as be-html]
             [block-editor.plugins.core :as be-plugins]
             [block-editor.widgets.reader :as reader]
+            [components.dialog :as dialog]
             [mail-app.desktop.shortcuts :as shortcuts]
             [mail-app.desktop.toast :as toast]
             [mail-app.desktop.widgets.topbar :as topbar]
             [mail-app.desktop.widgets.compose-quote :as quote]
             [mail-app.services.compose-export :as export]
             [mail-app.services.mail-core :as mail]
-            [mail-app.state.store :as store]))
-
-(def ^:private font-family "MongolianBaiZheng")
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
 
 (def ^:private reader-plugins
   "Built-in plugins so list/blockquote/etc. :render-read markers show in mail body."
@@ -192,17 +192,19 @@
          .context ctx
          .builder
          (fn [dialog-ctx]
-           (m/AlertDialog
-            .title (m/Text "Delete message?")
-            .content (m/Text "Move this message to Trash.")
-            .actions
-            [(m/TextButton
-              .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) false) nil)
-              .child (m/Text "Cancel"))
-             (m/TextButton
-              .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) true) nil)
-              .child (m/Text "Delete"
-                             .style (m/TextStyle .color m.Colors/red)))])))
+           (dialog/vertical-custom-dialog
+            {:title "Delete message?"
+             :width-factor 0.7
+             :height-factor 0.5
+             :body (mgl/MongolText "Move this message to Trash.")
+             :actions
+             [(m/TextButton
+               .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) false) nil)
+               .child (mgl/MongolText "Cancel"))
+              (m/TextButton
+               .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) true) nil)
+               .child (mgl/MongolText "Delete"
+                                     .style (m/TextStyle .color m.Colors/red)))]})))
         (.then (fn [ok?]
                  (when ok?
                    (-> (mail/delete-message! mid)
