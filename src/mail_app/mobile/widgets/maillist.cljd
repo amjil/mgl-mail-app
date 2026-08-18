@@ -1,0 +1,120 @@
+(ns mail-app.mobile.widgets.maillist
+  "Mobile specific horizontally scrolling mail list with vertical swipe actions."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            [cljd.flutter :as f]
+            [components.slide :as slide]
+            [mail-app.desktop.toast :as toast]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
+
+(defn- pad2 [n] (.padLeft (.toString n) 2 "0"))
+
+(defn- format-date [^DateTime d]
+  (when d (str (pad2 (.month d)) "/" (pad2 (.day d)))))
+
+(defn- subject-of [^mc/MailMessageDto msg]
+  (let [s (.-subject msg)]
+    (if (or (nil? s) (empty? s)) "No Subject" s)))
+
+(defn empty-state [icon label]
+  (m/Center
+   .child (m/Row
+           .mainAxisSize m.MainAxisSize/min
+           .children
+           [(m/Icon icon .size 64.0 .color m.Colors/black12)
+            (m/SizedBox .width 16.0)
+            (mgl/MongolText label
+                            .style (m/TextStyle .fontFamily font-family
+                                                .color m.Colors/black38
+                                                .fontSize 18.0))])))
+
+(defn mail-tile [navigator ^mc/MailMessageDto msg]
+  (let [unread? (not (.-isRead msg))]
+    (mgl/MongolListTile
+     .leading (when unread?
+                (m/Container .width 8.0 .height 8.0
+                             .decoration (m/BoxDecoration .color m.Colors/blue .shape m.BoxShape/circle)))
+     .title (m/Padding
+             .padding (m.EdgeInsets/only .top 8.0)
+             .child (mgl/MongolText
+                     (subject-of msg)
+                     .style (m/TextStyle .fontFamily font-family
+                                         .fontSize 18.0
+                                         .fontWeight (if unread? m/FontWeight.bold m/FontWeight.normal)
+                                         .color (if unread? m.Colors/black87 m.Colors/black54))))
+     .subtitle (m/Column
+                .crossAxisAlignment m.CrossAxisAlignment/start
+                .mainAxisSize m.MainAxisSize/min
+                .children
+                [(mgl/MongolText (or (.-fromName msg) (.-from msg) "")
+                                 .style (m/TextStyle .fontFamily font-family
+                                                     .fontSize 14.0
+                                                     .color (if unread? m.Colors/black54 m.Colors/black38)))
+                 (m/SizedBox .height 8.0)
+                 (mgl/MongolText (or (format-date (.-date msg)) "")
+                                 .style (m/TextStyle .fontSize 12.0 .color m.Colors/black45))])
+     .onTap (fn []
+              (mail/open-message! (.-id msg))
+              (.pushNamed navigator "/mail_detail")
+              nil))))
+
+(defn result-item [^mc/MailMessageDto msg]
+  (f/widget
+   :get [m/Navigator]
+   (mail-tile navigator msg)))
+
+;; ==========================================
+;; Single mail item (vertical swipe to delete/archive)
+;; ==========================================
+(defn- mail-item [ctx navigator ^mc/MailMessageDto msg]
+  (let [mid (.-id msg)]
+    (slide/item
+     {:id mid
+      :top-actions
+      [{:icon m.Icons/archive_outlined
+        :color m.Colors/green
+        :label "Архив"
+        :on-pressed (fn []
+                      (mail/archive-message! mid)
+                      (toast/success! (toast/safe-ctx ctx) "Archived"))}]
+      :on-dismiss-top
+      (fn []
+        (mail/archive-message! mid)
+        (toast/success! (toast/safe-ctx ctx) "Archived"))
+      :bottom-actions
+      [{:icon m.Icons/delete_outline
+        :color m.Colors/red
+        :label "Устгах"
+        :on-pressed (fn []
+                      (mail/delete-message! mid)
+                      (toast/success! (toast/safe-ctx ctx) "Deleted"))}]
+      :on-dismiss-bottom
+      (fn []
+        (mail/delete-message! mid)
+        (toast/success! (toast/safe-ctx ctx) "Deleted"))
+      :child
+      (m/Container
+       .width 100.0
+       .color m.Colors/white
+       .child (mail-tile navigator msg))})))
+
+;; ==========================================
+;; Horizontally scrolling mail list
+;; ==========================================
+(defn list-view []
+  (f/widget
+   :context ctx
+   :get [m/Navigator]
+   :watch [{:keys [mail-list]} store/app-state]
+   (if (empty? mail-list)
+     (empty-state m.Icons/inbox "Хоосон байна")
+     (m/ListView.separated
+      .scrollDirection m.Axis/horizontal
+      .padding (m.EdgeInsets/symmetric .horizontal 12.0 .vertical 8.0)
+      .itemCount (count mail-list)
+      .separatorBuilder (fn [_ _] (m/VerticalDivider .width 1.0 .thickness 1.0 .color m.Colors/black12))
+      .itemBuilder (fn [_ idx]
+                     (mail-item ctx navigator (nth mail-list idx)))))))

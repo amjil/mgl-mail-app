@@ -1,0 +1,102 @@
+(ns mail-app.mobile.screens.settings
+  "Mobile settings screen built on components.setting design system."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            [cljd.flutter :as f]
+            [components.setting :as cs]
+            [mail-app.desktop.toast :as toast]
+            [mail-app.mobile.widgets.signature :as signature]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
+
+(defn screen []
+  (f/widget
+   :context ctx
+   :get [m/Navigator]
+   :watch [{:keys [current-account-id accounts]} store/app-state]
+   (let [current-sig (or (store/get-signature current-account-id) "")
+         !auto-sync? (atom true)
+         !notify? (atom true)
+         acc-items (mapv
+                    (fn [^mc/MailAccountDto acc]
+                      (let [aid (.-id acc)
+                            email (.-email acc)
+                            active? (= aid current-account-id)]
+                        {:leading (if active? m.Icons/check_circle m.Icons/account_circle_outlined)
+                         :title email
+                         :subtitle (if active? "Идэвхтэй (Active)" "Сонгох (Switch)")
+                         :show-arrow? false
+                         :on-tap (fn []
+                                   (if active?
+                                     (toast/info! ctx "Already active")
+                                     (do
+                                       (swap! store/app-state assoc :current-account-id aid)
+                                       (mail/select-mailbox! :inbox)
+                                       (toast/success! ctx (str "Switched to " email))))
+                                   nil)}))
+                    (or accounts []))
+         add-item {:leading m.Icons/add_circle_outline
+                   :title "Данс нэмэх"
+                   :subtitle "Шинэ хаяг холбох"
+                   :show-arrow? true
+                   :on-tap (fn []
+                             (.pushNamed navigator "/signup")
+                             nil)}]
+     (m/Scaffold
+      .backgroundColor (m/Color 0xFFF8F9FA)
+      .appBar (m/AppBar
+               .elevation 0.0
+               .backgroundColor (m/Color 0xFFF8F9FA)
+               .foregroundColor m/Colors.black87
+               .title (m/Text "Settings" .style (m/TextStyle .fontFamily font-family .fontWeight m/FontWeight.bold)))
+      .body
+      (m/SafeArea
+       .child
+       (m/SingleChildScrollView
+        .scrollDirection m.Axis/horizontal
+        .padding (m.EdgeInsets/symmetric .vertical 12.0 .horizontal 8.0)
+        .child
+        (m/Row
+         .crossAxisAlignment m.CrossAxisAlignment/start
+         .children
+         [(cs/settings-section
+           "Данс (Accounts)"
+           (conj acc-items add-item))
+          (cs/settings-section
+           "Гарын үсэг (Signature)"
+           [{:leading m.Icons/edit_note_rounded
+             :title "Гарын үсэг"
+             :subtitle (if (seq current-sig) "Configured" "Empty")
+             :show-arrow? true
+             :on-tap (fn []
+                       (signature/open-dialog! ctx current-account-id current-sig)
+                       nil)}])
+          (f/widget
+           :watch [auto-sync? !auto-sync?
+                   notify? !notify?]
+           (cs/settings-section
+            "Network & Notifications"
+            [{:leading m.Icons/sync_rounded
+              :title "Auto Sync"
+              :subtitle "Every 5 minutes"
+              :value auto-sync?
+              :on-changed (fn [v] (reset! !auto-sync? v))}
+             {:leading m.Icons/notifications_none_rounded
+              :title "Notifications"
+              :subtitle "When new mail arrives"
+              :value notify?
+              :on-changed (fn [v] (reset! !notify? v))}]))
+          (cs/settings-section
+           "Other"
+           [{:leading m.Icons/cleaning_services_rounded
+             :title "Clear Cache"
+             :subtitle "Temporary data"
+             :show-arrow? true
+             :on-tap (fn []
+                       (toast/success! ctx "Cache cleared")
+                       nil)}
+            {:leading m.Icons/info_outline_rounded
+             :title "Version"
+             :subtitle "v1.0.0 (Alpha)"
+             :show-arrow? false}])])))))))

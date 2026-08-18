@@ -1,0 +1,80 @@
+(ns mail-app.mobile.widgets.attachments
+  "Attachment list tile and bottom sheet for mail detail."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            ["package:url_launcher/url_launcher.dart" :as ul]
+            [mail-app.desktop.toast :as toast]
+            [mail-app.services.mail-core :as mail]))
+
+(defn- open-local-path! [ctx path]
+  (when (seq path)
+    (-> (ul/launchUrl (dart:core/Uri.file path))
+        (.catchError (fn [e]
+                       (toast/error! ctx (str "Cannot open: " e))
+                       nil)))))
+
+(defn- attachment-tile
+  [ctx ^mc/MailAttachmentDto att downloading?]
+  (let [name (or (.-filename att) "file")
+        ready? (and (.-isDownloaded att) (seq (.-localPath att)))]
+    (m/ListTile
+     .leading (m/Icon m.Icons/attach_file)
+     .title (m/Text name .style (m/TextStyle .fontSize 14.0))
+     .subtitle (when (.-size att)
+                 (m/Text (str (.-size att) " bytes")
+                         .style (m/TextStyle .fontSize 12.0
+                                             .color (.-onSurfaceVariant
+                                                     (.-colorScheme (m/Theme.of ctx))))))
+     .trailing
+     (cond
+       downloading?
+       (m/SizedBox
+        .width 20.0 .height 20.0
+        .child (m/CircularProgressIndicator. .strokeWidth 2.0))
+
+       ready?
+       (m/IconButton
+        .icon (m/Icon m.Icons/open_in_new)
+        .onPressed (fn [] (open-local-path! ctx (.-localPath att)) nil))
+
+       :else
+       (m/IconButton
+        .icon (m/Icon m.Icons/download)
+        .onPressed
+        (fn []
+          (-> (mail/download-attachment! (.-id att))
+              (.then (fn [dto]
+                       (toast/success! ctx "Downloaded")
+                       (when (and dto (.-localPath dto))
+                         (open-local-path! ctx (.-localPath dto)))
+                       nil))
+              (.catchError (fn [e]
+                             (toast/error! ctx (str e))
+                             nil)))
+          nil))))))
+
+(defn show-sheet! [ctx detail downloading-ids]
+  (let [atts (vec (or (.-attachments ^mc/MailMessageWithBody detail) []))]
+    (when (seq atts)
+      (m/showModalBottomSheet
+       .context ctx
+       .showDragHandle true
+       .builder
+       (fn [sheet-ctx]
+         (m/SafeArea
+          .child
+          (m/Column
+           .mainAxisSize m.MainAxisSize/min
+           .crossAxisAlignment m.CrossAxisAlignment/stretch
+           .children
+           (into [(m/Padding
+                   .padding (m.EdgeInsets/fromLTRB 16.0 8.0 16.0 8.0)
+                   .child
+                   (m/Text "Attachments"
+                           .style (m/TextStyle .fontWeight m/FontWeight.bold
+                                               .fontSize 16.0)))]
+                 (mapv (fn [^mc/MailAttachmentDto a]
+                         (attachment-tile sheet-ctx a
+                                          (contains? downloading-ids (.-id a))))
+                       atts))))))
+      nil)))

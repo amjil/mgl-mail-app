@@ -1,0 +1,130 @@
+(ns mail-app.mobile.widgets.mail-body
+  "Horizontal Mongol mail body: headers, block reader, quoted original."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            [cljd.flutter :as f]
+            [block-editor.utils.html :as be-html]
+            [block-editor.plugins.core :as be-plugins]
+            [block-editor.widgets.reader :as reader]
+            [mail-app.desktop.widgets.compose-quote :as quote]
+            [mail-app.services.compose-export :as export]
+            [mail-app.theme :refer [font-family]]))
+
+(def ^:private reader-plugins (be-plugins/default-plugins))
+
+(defn- reader-cfg [on-surface]
+  {:block-style
+   (fn [b-type]
+     (case b-type
+       :heading-1 (m/TextStyle .fontSize 24.0 .fontWeight m/FontWeight.bold
+                               .color on-surface .fontFamily font-family)
+       :heading-2 (m/TextStyle .fontSize 20.0 .fontWeight m/FontWeight.bold
+                               .color on-surface .fontFamily font-family)
+       :heading-3 (m/TextStyle .fontSize 18.0 .fontWeight m/FontWeight.w600
+                               .color on-surface .fontFamily font-family)
+       (m/TextStyle .fontSize 16.0 .color on-surface
+                    .fontFamily font-family)))
+   :block-plugins reader-plugins})
+
+(defn- state-reader
+  [state leading trailing]
+  (f/widget
+   :get {{{on-surface .-onSurface} .-colorScheme} m/Theme}
+   (let [cfg (reader-cfg on-surface)
+         root (vec (or (:root state) []))
+         blocks (or (:blocks state) {})
+         !state (atom state)
+         leads (vec (or leading []))
+         n-lead (count leads)
+         trails (vec (or trailing []))
+         n-trail (count trails)
+         n-root (count root)
+         total (+ n-lead n-root n-trail)]
+     (if (zero? total)
+       (state-reader (export/state-from-plain-text "(empty body)") leading trailing)
+       (m/ListView.builder
+        .scrollDirection m.Axis/horizontal
+        .padding (m.EdgeInsets/all 16.0)
+        .itemCount total
+        .itemBuilder
+        (fn [_ idx]
+          (cond
+            (< idx n-lead)
+            (nth leads idx)
+            (< idx (+ n-lead n-root))
+            (let [id (nth root (- idx n-lead))
+                  block (get blocks id)]
+              (m/Padding
+               .padding (m.EdgeInsets/only .right 16.0)
+               .child
+               (reader/block-reader-view block reader-plugins cfg nil !state)))
+            :else
+            (nth trails (- idx n-lead n-root)))))))))
+
+(defn- body-reader [text leading trailing]
+  (state-reader (export/state-from-plain-text (if (empty? text) "(empty body)" text))
+                leading trailing))
+
+(defn- body-with-quote [text leading]
+  (let [parsed (export/parse-quoted-plain text)
+        reply (or (:reply parsed) text)
+        quote-body (:quote-body parsed)
+        has-quote? (seq quote-body)
+        !quote-state (when has-quote?
+                       (atom (export/quote-toggle-state
+                              (or (:quote-from parsed) "") (:quote-date parsed) quote-body)))]
+    (if-not has-quote?
+      (body-reader text leading nil)
+      (body-reader (if (seq reply) reply "(empty body)")
+                   leading
+                   [(m/Container
+                     .width 280.0
+                     .padding (m.EdgeInsets/only .left 16.0)
+                     .child (quote/panel !quote-state))]))))
+
+(defn- body-from-html [html plain leading]
+  (let [state (be-html/import-from-html html)]
+    (if (seq (:root state))
+      (state-reader state leading nil)
+      (if (seq plain) (body-with-quote plain leading) (body-reader "" leading nil)))))
+
+(defn meta-leading [subject from to date {:keys [on-surface on-surface-variant]}]
+  (cond->
+    [(m/Padding
+      .padding (m.EdgeInsets/only .right 16.0)
+      .child
+      (mgl/MongolText subject
+                      .style (m/TextStyle .fontSize 20.0 .fontFamily font-family
+                                          .fontWeight m/FontWeight.bold
+                                          .color on-surface)))
+     (m/Padding
+      .padding (m.EdgeInsets/only .right 16.0)
+      .child
+      (mgl/MongolText from
+                      .style (m/TextStyle .fontSize 14.0 .fontFamily font-family
+                                          .color on-surface)))]
+    (seq to)
+    (conj
+     (m/Padding
+      .padding (m.EdgeInsets/only .right 16.0)
+      .child
+      (mgl/MongolText (str "To: " to)
+                      .style (m/TextStyle .fontSize 12.0 .fontFamily font-family
+                                          .color on-surface-variant))))
+    (seq date)
+    (conj
+     (m/Padding
+      .padding (m.EdgeInsets/only .right 16.0)
+      .child
+      (mgl/MongolText date
+                      .style (m/TextStyle .fontSize 11.0 .color on-surface-variant))))))
+
+(defn body-view [^mc/MailMessageWithBody detail leading]
+  (let [body (.-body detail)
+        html (when body (.-html body))
+        plain (when body (.-plainText body))]
+    (cond
+      (seq html) (body-from-html html plain leading)
+      (seq plain) (body-with-quote plain leading)
+      :else (body-reader "" leading nil))))

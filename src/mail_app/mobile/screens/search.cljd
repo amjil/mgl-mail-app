@@ -1,0 +1,111 @@
+(ns mail-app.mobile.screens.search
+  "Mobile search screen: Vertical MongolTextField on the left, results on the right, keyboard at the bottom."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            ["dart:async" :as async]
+            [cljd.flutter :as f]
+            [clojure.string :as str]
+            [mail-app.mobile.widgets.keyboard :as kb]
+            [mail-app.mobile.widgets.maillist :as mobile-list]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
+
+(defn- dispose-search-trigger! [state]
+  (let [{:keys [^m/TextEditingController ctrl trig !timer]} state]
+    (when-let [t @!timer] (.cancel ^async/Timer t))
+    (.removeListener ctrl trig))
+  nil)
+
+(defn screen []
+  (let [!timer (atom nil)]
+    (f/widget
+     :managed [ime-control (kb/install)
+               :dispose kb/restore-ime!
+               search-ctrl (m/TextEditingController.)
+               search-focus (m/FocusNode.)
+               search-trigger-state
+               (let [trig (fn []
+                            (when-let [t @!timer] (.cancel ^async/Timer t))
+                            (reset! !timer
+                                    (async/Timer.
+                                     (dart:core/Duration. .milliseconds 800)
+                                     (fn []
+                                       (let [q (str/trim (.-text search-ctrl))]
+                                         (if (seq q)
+                                           (mail/search! q)
+                                           (store/set-search-results! [])))))))]
+                 (.addListener search-ctrl trig)
+                 {:ctrl search-ctrl :trig trig :!timer !timer})
+               :dispose dispose-search-trigger!]
+     :let [vk-info kb/info]
+     :bind {:info vk-info}
+     :get [m/Navigator]
+     :watch [{:keys [search-results searching?]} store/app-state]
+     (m/Scaffold
+      .backgroundColor m.Colors/white
+      .resizeToAvoidBottomInset false
+      .body
+      (m/SafeArea
+       .child
+       (m/Column
+        .crossAxisAlignment m.CrossAxisAlignment/stretch
+        .children
+        [(m/Expanded
+          .child
+          (m/Stack
+           .children
+           [(m/Row
+             .crossAxisAlignment m.CrossAxisAlignment/stretch
+             .children
+             [(m/Container
+               .width 90.0
+               .color (-> m.Colors/blue (.withOpacity 0.05))
+               .child
+               (m/Column
+                .children
+                [(m/Padding
+                  .padding (m.EdgeInsets/only .top 8.0 .bottom 8.0)
+                  .child
+                  (m/IconButton
+                   .icon (m/Icon m.Icons/arrow_back)
+                   .onPressed #(.pop navigator)))
+                 (m/Expanded
+                  .child
+                  (m/Padding
+                   .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 8.0)
+                   .child
+                   (mgl/MongolTextField
+                    .controller search-ctrl
+                    .focusNode search-focus
+                    .autofocus true
+                    .decoration (m/InputDecoration
+                                 .hintText "Search..."
+                                 .border m.InputBorder/none
+                                 .hintStyle (m/TextStyle .fontFamily font-family .color m.Colors/black38))
+                    .style (m/TextStyle .fontFamily font-family .fontSize 18.0 .color m.Colors/black87))))
+                 (m/Padding
+                  .padding (m.EdgeInsets/all 16.0)
+                  .child
+                  (if searching?
+                    (m/SizedBox .width 20.0 .height 20.0
+                                .child (m/CircularProgressIndicator .strokeWidth 2.0 .color m.Colors/black54))
+                    (m/IconButton
+                     .icon (m/Icon m.Icons/close)
+                     .onPressed (fn []
+                                  (.clear search-ctrl)
+                                  (store/set-search-results! [])
+                                  nil))))]))
+              (m/VerticalDivider .width 1.0 .thickness 1.0)
+              (m/Expanded
+               .child
+               (if (empty? search-results)
+                 (mobile-list/empty-state m.Icons/search "Find your emails")
+                 (m/ListView.builder
+                  .scrollDirection m.Axis/horizontal
+                  .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+                  .itemCount (count search-results)
+                  .itemBuilder (fn [_ idx]
+                                 (mobile-list/result-item (nth search-results idx))))))])
+            (kb/candidates)]))
+         (kb/bar)]))))))

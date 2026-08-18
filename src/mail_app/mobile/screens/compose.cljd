@@ -1,0 +1,277 @@
+(ns mail-app.mobile.screens.compose
+  "Mobile compose: App bar actions, horizontal scrolling header fields,
+   and Mongol block editor with the in-app virtual keyboard."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:file_selector/file_selector.dart" :as fs]
+            ["dart:async" :as async]
+            [cljd.flutter :as f]
+            [clojure.string :as str]
+            [block-editor.widgets.editor :as editor]
+            [block-editor.widgets.toolbar :as toolbar]
+            [mail-app.desktop.toast :as toast]
+            [mail-app.desktop.widgets.compose-fields :as fields]
+            [mail-app.desktop.widgets.compose-quote :as quote]
+            [mail-app.desktop.widgets.compose-topbar :as topbar-logic]
+            [mail-app.mobile.widgets.keyboard :as kb]
+            [mail-app.services.compose-export :as export]
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
+
+(def compose-editor-config
+  {:text-block-types #{:paragraph :heading-1 :heading-2 :heading-3
+                       :blockquote :list-item :ordered-list-item :toggle}
+   :block-style
+   (fn [b-type]
+     (case b-type
+       :heading-1 (m/TextStyle .fontSize 24.0 .fontWeight m/FontWeight.bold
+                               .color m.Colors/black87 .fontFamily font-family)
+       :heading-2 (m/TextStyle .fontSize 20.0 .fontWeight m/FontWeight.bold
+                               .color m.Colors/black87 .fontFamily font-family)
+       :heading-3 (m/TextStyle .fontSize 18.0 .fontWeight m/FontWeight.w600
+                               .color m.Colors/black87 .fontFamily font-family)
+       (m/TextStyle .fontSize 16.0 .color m.Colors/black87
+                    .fontFamily font-family)))})
+
+(defn- apply-fields!
+  [draft to-ctrl cc-ctrl bcc-ctrl subject-ctrl !show-cc? !show-bcc?]
+  (when draft
+    (when-let [to (:to draft)] (set! (.-text to-ctrl) (str to)))
+    (when-let [cc (:cc draft)]
+      (when (seq (str/trim (str cc)))
+        (reset! !show-cc? true)
+        (set! (.-text cc-ctrl) (str cc))))
+    (when-let [bcc (:bcc draft)]
+      (when (seq (str/trim (str bcc)))
+        (reset! !show-bcc? true)
+        (set! (.-text bcc-ctrl) (str bcc))))
+    (when-let [subject (:subject draft)]
+      (set! (.-text subject-ctrl) (str subject)))))
+
+(defn- initial-doc-state [draft signature]
+  (cond
+    (:body-state draft) (:body-state draft)
+    (:body-plain draft) (export/state-from-plain-text (:body-plain draft))
+    :else (let [text (if (seq signature) (str "\n\n-- \n" signature) "")]
+            (export/state-from-plain-text text))))
+
+(defn- pick-attachments-mobile! [!paths]
+  (-> (fs/openFiles)
+      (.then (fn [files]
+               (let [new-paths (->> (or files [])
+                                    (map #(.-path ^fs/XFile %))
+                                    (remove empty?)
+                                    vec)]
+                 (when (seq new-paths)
+                   (swap! !paths #(vec (distinct (concat % new-paths))))))
+               nil))
+      (.catchError (fn [_] nil))))
+
+(defn- basename [path]
+  (or (last (str/split (or path "") #"[\\/]")) path))
+
+(defn- cancel-timer! [^async/Timer t]
+  (when t (.cancel t))
+  nil)
+
+(defn screen []
+  (let [draft (:compose-draft @store/app-state)
+        _ (when draft (store/clear-compose-draft!))
+        aid (or (:account-id draft) (:current-account-id @store/app-state))
+        signature (store/get-signature aid)
+        !doc-state (atom (initial-doc-state draft signature))
+        !quote-state (atom (:quote-state draft))
+        !show-cc? (atom false)
+        !show-bcc? (atom false)
+        !attachment-paths (atom (vec (or (:attachment-paths draft) [])))
+        !fields-draft (atom draft)
+        !draft-meta (atom (select-keys (or draft {})
+                                       [:draft-message-id :in-reply-to :references :account-id]))
+        has-quote? (some? (:quote-state draft))
+        !auto-save-gate (atom {:inflight? false :pending? false})
+        !last-snapshot (atom nil)]
+    (f/widget
+     :managed [scaffold-key (m/GlobalKey)
+               :dispose nil
+               ime-control (kb/install)
+               :dispose kb/restore-ime!
+               to-ctrl (m/TextEditingController.)
+               to-focus (m/FocusNode.)
+               cc-ctrl (m/TextEditingController.)
+               cc-focus (m/FocusNode.)
+               bcc-ctrl (m/TextEditingController.)
+               bcc-focus (m/FocusNode.)
+               subject-ctrl (m/TextEditingController.)
+               subject-focus (m/FocusNode.)
+               auto-save-timer
+               (async/Timer.periodic
+                (dart:core/Duration. .seconds 5)
+                (fn [_]
+                  (let [curr {:to (.-text to-ctrl)
+                              :cc (.-text cc-ctrl)
+                              :bcc (.-text bcc-ctrl)
+                              :sub (.-text subject-ctrl)
+                              :blocks (:blocks @!doc-state)
+                              :attachments @!attachment-paths}]
+                    (when (and (not= curr @!last-snapshot)
+                               (or (seq (:to curr))
+                                   (seq (:sub curr))
+                                   (seq (:attachments curr))
+                                   (> (count (:blocks curr)) 1)))
+                      (reset! !last-snapshot curr)
+                      (topbar-logic/silent-save-draft!
+                       !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                       @!show-cc? @!show-bcc? (:current-account-id @store/app-state)
+                       @!attachment-paths !draft-meta !auto-save-gate)))))
+               :dispose cancel-timer!]
+     :let [vk-info kb/info]
+     :bind {:info vk-info}
+     :context ctx
+     :get [m/Navigator]
+     :watch [show-cc? !show-cc?
+             show-bcc? !show-bcc?
+             {:keys [sending? current-account-id]} store/app-state
+             attachment-paths !attachment-paths]
+
+     ;; Get exact screen width for container sizing
+     (let [screen-w (.-width (.-size (m/MediaQuery.of ctx)))]
+       (do
+         (when-let [d @!fields-draft]
+           (reset! !fields-draft nil)
+           (apply-fields! d to-ctrl cc-ctrl bcc-ctrl subject-ctrl !show-cc? !show-bcc?))
+
+         (m/Scaffold
+          .key scaffold-key
+          .backgroundColor m.Colors/white
+          .resizeToAvoidBottomInset false
+          .endDrawer
+          (when has-quote?
+            (m/Drawer
+             .child
+             (m/SafeArea
+              .child
+              (quote/panel !quote-state :toggle? false))))
+          .appBar (m/AppBar
+                   .title (m/Text "Compose" .style (m/TextStyle .fontFamily font-family))
+                   .actions
+                   (cond-> []
+                     has-quote?
+                     (conj (m/IconButton
+                            .icon (m/Icon m.Icons/format_quote)
+                            .tooltip "Original Email"
+                            .onPressed (fn [] (-> scaffold-key .-currentState .openEndDrawer) nil)))
+                     
+                     ;; Manual "Save draft" button
+                     true
+                     (conj (m/IconButton
+                            .icon (m/Icon m.Icons/save_outlined)
+                            .tooltip "Save Draft"
+                            .onPressed (fn []
+                                         (let [curr {:to (.-text to-ctrl)
+                                                     :cc (.-text cc-ctrl)
+                                                     :bcc (.-text bcc-ctrl)
+                                                     :sub (.-text subject-ctrl)
+                                                     :blocks (:blocks @!doc-state)
+                                                     :attachments @!attachment-paths}]
+                                           ;; Update the snapshot and trigger a manual save
+                                           (reset! !last-snapshot curr)
+                                           (topbar-logic/silent-save-draft!
+                                            !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                                            @!show-cc? @!show-bcc? (:current-account-id @store/app-state)
+                                            @!attachment-paths !draft-meta !auto-save-gate)
+                                           (toast/success! (toast/safe-ctx ctx) "Draft saved")
+                                           (.pop navigator) ;; Pop back after saving
+                                           nil))))
+
+                     true
+                     (conj (m/IconButton
+                            .icon (m/Icon m.Icons/attach_file)
+                            .tooltip "Attach"
+                            .onPressed #(pick-attachments-mobile! !attachment-paths)))
+
+                     true
+                     (conj (m/IconButton
+                            .icon (m/Icon m.Icons/more_vert)
+                            .tooltip "Options"
+                            .onPressed (fn []
+                                         (swap! !show-cc? not)
+                                         nil)))
+
+                     sending?
+                     (conj (m/Padding
+                            .padding (m.EdgeInsets/all 16.0)
+                            .child
+                            (m/SizedBox .width 20.0 .height 20.0
+                                        .child (m/CircularProgressIndicator .strokeWidth 2.0 .color m.Colors/white))))
+
+                     (not sending?)
+                     (conj (m/IconButton
+                            .icon (m/Icon m.Icons/send)
+                            .tooltip "Send"
+                            .onPressed (fn []
+                                         (topbar-logic/send-pressed! ctx navigator !doc-state !quote-state
+                                                                     to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                                                                     show-cc? show-bcc? sending?
+                                                                     current-account-id attachment-paths
+                                                                     @!draft-meta)
+                                         nil)))))
+          .body
+          (m/SafeArea
+           .child
+           (m/Column
+            .crossAxisAlignment m.CrossAxisAlignment/stretch
+            .children
+            (cond-> []
+              (seq attachment-paths)
+              (conj
+               (m/Padding
+                .padding (m.EdgeInsets/all 8.0)
+                .child
+                (m/Wrap
+                 .spacing 6.0 .runSpacing 4.0
+                 .children
+                 (mapv (fn [path]
+                         (m/InputChip
+                          .label (m/Text (basename path) .style (m/TextStyle .fontSize 12.0))
+                          .onDeleted (fn [] (swap! !attachment-paths #(vec (remove #{path} %))) nil)))
+                       attachment-paths))))
+
+              true
+              (conj
+               (m/Expanded
+                .child
+                (m/Stack
+                 .children
+                 [;; Wrap in SingleChildScrollView for global scrolling
+                  (m/SingleChildScrollView
+                   .scrollDirection m.Axis/horizontal
+                   .child
+                   (m/Row
+                    .crossAxisAlignment m.CrossAxisAlignment/stretch
+                    .children
+                    [(fields/header-row
+                      {:!ime !doc-state
+                       :to-ctrl to-ctrl :to-focus to-focus
+                       :cc-ctrl cc-ctrl :cc-focus cc-focus
+                       :bcc-ctrl bcc-ctrl :bcc-focus bcc-focus
+                       :subject-ctrl subject-ctrl :subject-focus subject-focus
+                       :show-cc? show-cc?
+                       :show-bcc? show-bcc?})
+                     (m/VerticalDivider .width 1.0 .thickness 1.0)
+
+                     ;; Use Container with full screen width instead of Expanded
+                     ;; so it fills the viewport after header fields scroll out
+                     (m/Container
+                      .width screen-w
+                      .child
+                      (editor/mongol-block-editor
+                       !doc-state
+                       :editor-config compose-editor-config
+                       :toolbar (toolbar/editor-toolbar !doc-state compose-editor-config)
+                       :background-color m.Colors/white
+                       :show-block-handles? false
+                       :wrap-ime? false
+                       :padding (m.EdgeInsets/all 16.0)))]))
+
+                  (kb/candidates)])))
+              true
+              (conj (kb/bar)))))))))))

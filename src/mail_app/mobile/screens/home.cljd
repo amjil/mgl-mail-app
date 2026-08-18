@@ -1,0 +1,69 @@
+(ns mail-app.mobile.screens.home
+  (:require ["package:flutter/material.dart" :as m]
+            ["dart:async" :as async]
+            [cljd.flutter :as f]
+            [mail-app.mobile.screens.signup :as signup]
+            [mail-app.mobile.widgets.drawer :as drawer]
+            [mail-app.mobile.widgets.error-banner :as err]
+            [mail-app.mobile.widgets.maillist :as mobile-list]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
+
+(defn screen []
+  (f/widget
+   :context ctx
+   :get [m/Navigator]
+   :watch [{:keys [accounts selected-mailbox syncing? current-account-id]} store/app-state]
+   (if (empty? accounts)
+     (signup/screen)
+     (do
+       (when (and (or current-account-id (seq accounts))
+                  (nil? selected-mailbox))
+         (async/Future.microtask
+          #(mail/select-mailbox! :inbox)))
+       (let [title (case selected-mailbox
+                     :inbox "Inbox"
+                     :sent "Sent"
+                     :draft "Drafts"
+                     :outbox "Outbox"
+                     :archive "Archive"
+                     :trash "Trash"
+                     "MGL Mail")
+             sync-action
+             (if syncing?
+               (m/Padding
+                .padding (m.EdgeInsets/all 16.0)
+                .child
+                (m/SizedBox
+                 .width 24.0
+                 .height 24.0
+                 .child (m/CircularProgressIndicator
+                         .strokeWidth 2.0
+                         .color m.Colors/white)))
+               (m/IconButton
+                .icon (m/Icon m.Icons/sync)
+                .onPressed #(mail/sync!)))]
+         (m/Scaffold
+          .drawer (drawer/drawer ctx)
+          .appBar (m/AppBar
+                   .title (m/Text title .style (m/TextStyle .fontFamily font-family))
+                   .actions
+                   [(m/IconButton
+                     .icon (m/Icon m.Icons/search)
+                     .onPressed (fn []
+                                  (.pushNamed (m/Navigator.of ctx) "/search")
+                                  nil))
+                    sync-action])
+          .body (m/Column
+                 .crossAxisAlignment m.CrossAxisAlignment/stretch
+                 .children
+                 [(err/banner)
+                  (m/Expanded .child (mobile-list/list-view))])
+          .floatingActionButton
+          (m/FloatingActionButton
+           .child (m/Icon m.Icons/edit)
+           .onPressed (fn []
+                        (store/clear-compose-draft!)
+                        (.pushNamed navigator "/compose")
+                        nil))))))))

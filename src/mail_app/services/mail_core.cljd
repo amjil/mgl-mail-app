@@ -336,6 +336,17 @@
                        (store/set-error! (str e))
                        false)))))
 
+(defn move-to-folder!
+  "Move via existing Inbox / Archive / Trash services. `role` is a folder role string."
+  [message-id role]
+  (case (str role)
+    "inbox" (move-to-inbox! message-id)
+    "archive" (archive-message! message-id)
+    "trash" (delete-message! message-id)
+    (do
+      (store/set-error! (str "Cannot move to " role))
+      (async/Future.value false))))
+
 (defn download-attachment!
   [attachment-id]
   (when-let [b @!bridge]

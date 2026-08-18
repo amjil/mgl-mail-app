@@ -1,0 +1,38 @@
+(ns mail-app.mobile.widgets.error-banner
+  "Mobile specific error banner for global state errors."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            [cljd.flutter :as f]
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
+
+(defn banner []
+  (f/widget
+   :watch [{:keys [last-error]} store/app-state]
+   (if (empty? last-error)
+     ;; No error: return a zero-size placeholder
+     (m/SizedBox.shrink)
+     ;; Compact mobile warning bar
+     (m/Container
+      .color m/Colors.red.shade50
+      .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 8.0)
+      .child
+      (m/Row
+       .crossAxisAlignment m.CrossAxisAlignment/center
+       .children
+       [(m/Icon m.Icons/error_outline .color m.Colors/red .size 20.0)
+        (m/SizedBox .width 12.0)
+        (m/Expanded
+         .child
+         ;; Error text (backend Exception message or a network-offline hint)
+         (mgl/MongolText last-error
+                         .style (m/TextStyle .fontFamily font-family
+                                             .fontSize 14.0
+                                             .color m/Colors.red.shade900)))
+        (m/IconButton
+         .icon (m/Icon m.Icons/close .color m.Colors/red .size 20.0)
+         .padding m.EdgeInsets/zero
+         .constraints (m/BoxConstraints)
+         .onPressed (fn [] 
+                      (swap! store/app-state dissoc :last-error) 
+                      nil))])))))

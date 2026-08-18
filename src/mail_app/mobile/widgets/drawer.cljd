@@ -1,0 +1,80 @@
+(ns mail-app.mobile.widgets.drawer
+  "Home drawer: account header, mailbox folders, settings."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            [cljd.flutter :as f]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
+
+(defn- folder-item [label icon key current-sel ctx]
+  (let [selected? (= key current-sel)]
+    (mgl/MongolListTile
+     .leading (m/Icon icon .color (if selected? m.Colors/blue m.Colors/black54))
+     .title (mgl/MongolText label
+                            .style (m/TextStyle .fontFamily font-family
+                                                .fontSize 16.0
+                                                .color (if selected? m.Colors/blue m.Colors/black87)))
+     .selected selected?
+     .selectedTileColor (-> m.Colors/blue (.withOpacity 0.1))
+     .onTap (fn []
+              (mail/select-mailbox! key)
+              (.pop (m/Navigator.of ctx))
+              nil))))
+
+(defn- avatar-letter [display-name]
+  (let [s (or display-name "")]
+    (if (pos? (.-length s))
+      (.substring s 0 1)
+      "M")))
+
+(defn drawer [ctx]
+  (f/widget
+   :watch [{:keys [accounts current-account-id selected-mailbox]} store/app-state]
+   (let [current-acc
+         (or (some #(when (= (.-id ^mc/MailAccountDto %) current-account-id) %) accounts)
+             (first accounts))
+         display-name (when current-acc (.-displayName ^mc/MailAccountDto current-acc))
+         email (when current-acc (.-email ^mc/MailAccountDto current-acc))
+         folder-tiles
+         [(folder-item "Inbox" m.Icons/inbox :inbox selected-mailbox ctx)
+          (folder-item "Sent" m.Icons/send :sent selected-mailbox ctx)
+          (folder-item "Drafts" m.Icons/drafts :draft selected-mailbox ctx)
+          (folder-item "Outbox" m.Icons/outbox :outbox selected-mailbox ctx)
+          (folder-item "Archive" m.Icons/archive :archive selected-mailbox ctx)
+          (folder-item "Trash" m.Icons/delete :trash selected-mailbox ctx)
+          (m/VerticalDivider .width 1.0 .thickness 1.0)
+          (m/Padding
+           .padding (m.EdgeInsets/symmetric .vertical 16.0 .horizontal 8.0)
+           .child (mgl/MongolText "Custom Folders"
+                                  .style (m/TextStyle .fontFamily font-family .color m.Colors/black54 .fontSize 12.0)))
+          (m/VerticalDivider .width 1.0 .thickness 1.0)
+          (mgl/MongolListTile
+           .leading (m/Icon m.Icons/settings .color m.Colors/black54)
+           .title (mgl/MongolText "Settings"
+                                  .style (m/TextStyle .fontFamily font-family
+                                                      .fontSize 16.0
+                                                      .color m.Colors/black87))
+           .onTap (fn []
+                    (.pop (m/Navigator.of ctx))
+                    (.pushNamed (m/Navigator.of ctx) "/settings")
+                    nil))]]
+     (m/Drawer
+      .child
+      (m/Column
+       .crossAxisAlignment m.CrossAxisAlignment/stretch
+       .children
+       [(m/UserAccountsDrawerHeader
+         .accountName (m/Text (or display-name "Mail Account")
+                              .style (m/TextStyle .fontFamily font-family))
+         .accountEmail (m/Text (or email "")
+                               .style (m/TextStyle .fontFamily font-family))
+         .currentAccountPicture
+         (m/CircleAvatar .child (m/Text (avatar-letter display-name))))
+        (m/Expanded
+         .child
+         (m/ListView
+          .scrollDirection m.Axis/horizontal
+          .padding m.EdgeInsets/zero
+          .children folder-tiles))])))))

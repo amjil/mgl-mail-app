@@ -1,21 +1,41 @@
 (ns mail-app.mobile
   (:require ["package:flutter/material.dart" :as m]
-            ["package:mongol/mongol.dart" :as mgl]
-            [cljd.flutter :as f]))
+            ["package:flutter_styled_toast/flutter_styled_toast.dart" :as st]
+            [cljd.flutter :as f]
+            [mail-app.desktop.toast :as toast]
+            [mail-app.mobile.screens.home :as home]
+            [mail-app.mobile.screens.compose :as compose]
+            [mail-app.mobile.screens.mail-detail :as mail-detail]
+            [mail-app.mobile.screens.search :as search]
+            [mail-app.mobile.screens.settings :as settings]
+            [mail-app.mobile.screens.signup :as signup]
+            [mail-app.theme :refer [font-family]]))
 
 (defn app []
   (f/widget
+   :managed [nav-key (#/(m/GlobalKey m/NavigatorState))]
    (m/MaterialApp
-    .title "MGL Mail"
+    .navigatorKey nav-key
+    .title "MGL Mail Mobile"
     .debugShowCheckedModeBanner false
-    .home
-    (m/Scaffold
-     .body
-     (m/SafeArea
-      .child
-      (m/Center
+    .theme (m/ThemeData
+            .primarySwatch m.Colors/blue
+            .fontFamily font-family
+            .scaffoldBackgroundColor m.Colors/white
+            .useMaterial3 true)
+    .builder
+    (fn [_ctx child]
+      (st/StyledToast
        .child
-       (mgl/MongolText
-        "Mobile UI coming next — use desktop for Compose"
-        .style (m/TextStyle .fontSize 18.0
-                            .fontFamily "MongolianBaiZheng"))))))))
+       (f/widget
+        :context host-ctx
+        (do
+          (toast/remember-root-ctx! host-ctx)
+          (or child (m/SizedBox.shrink))))))
+    .initialRoute "/"
+    .routes {"/" (fn ^m/Widget [_] (home/screen))
+             "/compose" (fn ^m/Widget [_] (compose/screen))
+             "/mail_detail" (fn ^m/Widget [_] (mail-detail/screen))
+             "/search" (fn ^m/Widget [_] (search/screen))
+             "/settings" (fn ^m/Widget [_] (settings/screen))
+             "/signup" (fn ^m/Widget [_] (signup/screen))})))

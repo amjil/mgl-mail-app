@@ -1,0 +1,74 @@
+(ns mail-app.mobile.widgets.signature
+  "Signature editor bottom sheet with in-app Mongolian keyboard."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            [cljd.flutter :as f]
+            [mail-app.desktop.toast :as toast]
+            [mail-app.mobile.widgets.keyboard :as kb]
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
+
+(defn open-dialog! [ctx aid initial-sig]
+  (m/showModalBottomSheet
+   .context ctx
+   .isScrollControlled true
+   .backgroundColor m.Colors/white
+   .shape (m/RoundedRectangleBorder
+           .borderRadius (m.BorderRadius/vertical .top (m.Radius/circular 16.0)))
+   .builder
+   (fn [sheet-ctx]
+     (f/widget
+      :managed [ime-control (kb/install)
+                :dispose kb/restore-ime!
+                sig-ctrl (m/TextEditingController .text initial-sig)
+                sig-focus (m/FocusNode.)]
+      :let [vk-info kb/info]
+      :bind {:info vk-info}
+      (m/SafeArea
+       .child
+       (m/Container
+        .height (* (.-height (.-size (m/MediaQuery.of sheet-ctx))) 0.85)
+        .child
+        (m/Column
+         .crossAxisAlignment m.CrossAxisAlignment/stretch
+         .children
+         [(m/Padding
+           .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 8.0)
+           .child
+           (m/Row
+            .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+            .children
+            [(m/TextButton
+              .onPressed (fn [] (.pop (m/Navigator.of sheet-ctx)) nil)
+              .child (m/Text "Cancel"))
+             (m/Text "Signature"
+                     .style (m/TextStyle .fontFamily font-family .fontSize 16.0 .fontWeight m/FontWeight.bold))
+             (m/TextButton
+              .onPressed (fn []
+                           (let [text (.-text sig-ctrl)]
+                             (store/set-signature! aid text)
+                             (toast/success! ctx "Signature updated")
+                             (.pop (m/Navigator.of sheet-ctx)))
+                           nil)
+              .child (m/Text "Save" .style (m/TextStyle .fontWeight m/FontWeight.bold)))]))
+          (m/Divider .height 1.0)
+          (m/Expanded
+           .child
+           (m/Stack
+            .children
+            [(m/Padding
+              .padding (m.EdgeInsets/all 16.0)
+              .child
+              (mgl/MongolTextField
+               .controller sig-ctrl
+               .focusNode sig-focus
+               .autofocus true
+               .maxLines nil
+               .expands true
+               .decoration (m/InputDecoration
+                            .border m.InputBorder/none
+                            .hintText "Enter your signature here..."
+                            .hintStyle (m/TextStyle .fontFamily font-family .color m.Colors/black38))
+               .style (m/TextStyle .fontFamily font-family .fontSize 18.0)))
+             (kb/candidates)]))
+          (kb/bar)])))))))

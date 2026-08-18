@@ -1,0 +1,4 @@
+(ns mail-app.theme
+  "Shared UI constants.")
+
+(def font-family "MongolianBaiZheng")

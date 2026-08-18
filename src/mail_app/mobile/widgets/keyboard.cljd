@@ -1,0 +1,29 @@
+(ns mail-app.mobile.widgets.keyboard
+  "Shared in-app Mongolian virtual keyboard: IME install, candidates, bottom bar."
+  (:require ["package:flutter/material.dart" :as m]
+            [virtual-keyboard.input-control :as input-control]
+            [virtual-keyboard.keyboard :as vk]
+            [virtual-keyboard.options :as vk-options]))
+
+(def info
+  (merge vk-options/keyboard-option
+         {:keyboard/mongol-font-family "OyunQaganTig"
+          :keyboard/key-container-color m/Colors.grey.shade500
+          :keyboard/font-size 16}))
+
+(defn install []
+  (input-control/set-control)
+  true)
+
+(defn restore-ime! [_]
+  (input-control/restore-control)
+  nil)
+
+(defn candidates []
+  (vk/candidates nil))
+
+(defn bar []
+  (m/Container
+   .decoration (m/BoxDecoration
+                .border (m/Border .top (m/BorderSide .color m.Colors/black12 .width 0.5)))
+   .child (vk/keyboard {})))

@@ -1,0 +1,180 @@
+(ns mail-app.mobile.screens.signup
+  "Mobile specific onboarding and login screen with purely vertical Mongol layout."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            [cljd.flutter :as f]
+            [clojure.string :as str]
+            [mail-app.desktop.toast :as toast]
+            [mail-app.mobile.widgets.keyboard :as kb]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]
+            [mail-app.theme :refer [font-family]]))
+
+(defn screen []
+  (let [!show-advanced? (atom false)
+        !loading? (atom false)]
+    (f/widget
+     :context ctx
+     :get [m/Navigator]
+     
+     :managed [ime-control (kb/install)
+               :dispose kb/restore-ime!
+               email-ctrl (m/TextEditingController.)
+               email-focus (m/FocusNode.)
+               pwd-ctrl (m/TextEditingController.)
+               pwd-focus (m/FocusNode.)
+               imap-ctrl (m/TextEditingController.)
+               imap-focus (m/FocusNode.)
+               smtp-ctrl (m/TextEditingController.)
+               smtp-focus (m/FocusNode.)]
+     :let [vk-info kb/info]
+     :bind {:info vk-info}
+     
+     :watch [show-adv? !show-advanced?
+             loading? !loading?]
+
+     (m/Scaffold
+      .backgroundColor (m/Color 0xFFF8F9FA)
+      .resizeToAvoidBottomInset false
+      .body
+      (m/SafeArea
+       .child
+       (m/Column
+        .crossAxisAlignment m.CrossAxisAlignment/stretch
+        .children
+        [(m/Expanded
+          .child
+          (m/Stack
+           .children
+           [(m/SingleChildScrollView
+             .scrollDirection m.Axis/horizontal
+             .padding (m.EdgeInsets/symmetric .horizontal 24.0 .vertical 16.0)
+             .child
+             (m/Row
+              .crossAxisAlignment m.CrossAxisAlignment/stretch
+              .children
+              [(m/Column
+                .mainAxisAlignment m.MainAxisAlignment/center
+                .children
+                [(m/Icon m.Icons/mail_outline .size 64.0 .color m.Colors/blue)
+                 (m/SizedBox .height 24.0)
+                 (mgl/MongolText "Тавтай морилно уу"
+                                 .style (m/TextStyle .fontFamily font-family
+                                                     .fontSize 24.0
+                                                     .fontWeight m.FontWeight/bold
+                                                     .color m.Colors/black87))
+                 (m/SizedBox .height 8.0)
+                 (mgl/MongolText "И-мэйл хаягаа\nхолбоно уу"
+                                 .style (m/TextStyle .fontFamily font-family
+                                                     .fontSize 16.0
+                                                     .color m.Colors/black54))])
+
+               (m/VerticalDivider .width 40.0 .thickness 1.0 .color m.Colors/black12)
+
+               (m/Container
+                .width 70.0
+                .child
+                (mgl/MongolTextField
+                 .controller email-ctrl
+                 .focusNode email-focus
+                 .decoration (m/InputDecoration
+                              .labelText "И-мэйл (Email)"
+                              .prefixIcon (m/Icon m.Icons/email_outlined)
+                              .border (m/OutlineInputBorder .borderRadius (m.BorderRadius/circular 12.0)))))
+
+               (m/SizedBox .width 16.0)
+
+               (m/Container
+                .width 70.0
+                .child
+                (mgl/MongolTextField
+                 .controller pwd-ctrl
+                 .focusNode pwd-focus
+                 .obscureText true
+                 .decoration (m/InputDecoration
+                              .labelText "Нууц үг (Password)"
+                              .prefixIcon (m/Icon m.Icons/lock_outline)
+                              .border (m/OutlineInputBorder .borderRadius (m.BorderRadius/circular 12.0)))))
+
+               (m/SizedBox .width 16.0)
+
+               (m/Container
+                .width 50.0
+                .child
+                (m/TextButton
+                 .onPressed #(swap! !show-advanced? not)
+                 .child (mgl/MongolText (if show-adv? "Тохиргоог нуух" "Дэлгэрэнгүй (IMAP)")
+                                        .style (m/TextStyle .fontFamily font-family))))
+
+               ;; Core fix: use if + SizedBox.shrink so we never return nil (which would crash)
+               (if show-adv?
+                 (m/Row
+                  .crossAxisAlignment m.CrossAxisAlignment/stretch
+                  .children
+                  [(m/SizedBox .width 16.0)
+                   (m/Container
+                    .width 70.0
+                    .child
+                    (mgl/MongolTextField
+                     .controller imap-ctrl
+                     .focusNode imap-focus
+                     .decoration (m/InputDecoration
+                                  .labelText "IMAP Server"
+                                  .prefixIcon (m/Icon m.Icons/download_rounded)
+                                  .border (m/OutlineInputBorder .borderRadius (m.BorderRadius/circular 12.0)))))
+                   (m/SizedBox .width 16.0)
+                   (m/Container
+                    .width 70.0
+                    .child
+                    (mgl/MongolTextField
+                     .controller smtp-ctrl
+                     .focusNode smtp-focus
+                     .decoration (m/InputDecoration
+                                  .labelText "SMTP Server"
+                                  .prefixIcon (m/Icon m.Icons/upload_rounded)
+                                  .border (m/OutlineInputBorder .borderRadius (m.BorderRadius/circular 12.0)))))])
+                 (m/SizedBox.shrink)) ;; If advanced settings are hidden, render an invisible empty widget — never return nil
+
+               (m/SizedBox .width 40.0)
+
+               (m/Container
+                .width 70.0
+                .padding (m.EdgeInsets/symmetric .vertical 16.0)
+                .child
+                (m/ElevatedButton
+                 .style (m/ElevatedButton.styleFrom
+                         .backgroundColor m.Colors/blue
+                         .foregroundColor m.Colors/white
+                         .shape (m/RoundedRectangleBorder .borderRadius (m.BorderRadius/circular 12.0)))
+                 .onPressed
+                 (if loading?
+                   nil
+                   (fn []
+                     (let [e (str/trim (.-text email-ctrl))
+                           p (.-text pwd-ctrl)
+                           i (str/trim (.-text imap-ctrl))
+                           s (str/trim (.-text smtp-ctrl))]
+                       (if (or (empty? e) (empty? p))
+                         (toast/error! ctx "Мэдээллээ гүйцэд оруулна уу!")
+                         (do
+                           (reset! !loading? true)
+                           (-> (mail/add-account! {:email e :password p :imap-host i :smtp-host s})
+                               (.then (fn [ok]
+                                        (reset! !loading? false)
+                                        (if ok
+                                          (do
+                                            (toast/success! ctx "Амжилттай холбогдлоо!")
+                                            (when (.canPop navigator) (.pop navigator))
+                                            nil)
+                                          (toast/error! ctx (or (:last-error @store/app-state) "Нэвтрэхэд алдаа гарлаа")))))
+                               (.catchError (fn [err]
+                                              (reset! !loading? false)
+                                              (toast/error! ctx (str err))
+                                              nil))))))))
+                 .child
+                 (if loading?
+                   (m/SizedBox .width 24.0 .height 24.0 .child (m/CircularProgressIndicator .color m.Colors/white .strokeWidth 2.0))
+                   (mgl/MongolText "Нэвтрэх" .style (m/TextStyle .fontFamily font-family .fontSize 18.0 .fontWeight m.FontWeight/bold)))))]))
+
+            (kb/candidates)]))
+         (kb/bar)]))))))

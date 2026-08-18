@@ -1,5 +1,15 @@
 (ns mail-app.bootstrap.mobile
-  "Mobile-only startup stub. Virtual keyboard wiring comes later.")
+  "Mobile startup: FST / next-word dictionaries for the in-app virtual keyboard.
+   `TextInput.setInputControl` is installed per-screen (compose) so signup
+   and other Material fields keep the platform IME."
+  (:require ["package:flutter/foundation.dart" :as foundation :refer [kIsWeb]]
+            [ime-core.fst-engine :as fst]
+            [ime-core.next-word :as next-word]))
 
-(defn init! []
-  (dart:core/print "bootstrap.mobile: stub ready"))
+(defn init!
+  "Load IME dictionaries used by mgl-block-editor's mobile virtual keyboard."
+  []
+  (when-not kIsWeb
+    (await (fst/ensure-loaded))
+    (await (next-word/ensure-loaded)))
+  (dart:core/print "bootstrap.mobile: ready"))
