@@ -233,9 +233,9 @@
          (m/Padding
           .padding (m.EdgeInsets/only .left 8.0)
           .child
-          (m/Text date
-                  .style (m/TextStyle .fontSize 11.0
-                                      .color theme/ink-muted)))))))))
+          (mgl/MongolText date
+                          .style (m/TextStyle .fontSize 11.0
+                                              .color theme/ink-muted)))))))))
 
 (defn pane
   "Reading body: subject columns + mail body + attachments. No chrome."
