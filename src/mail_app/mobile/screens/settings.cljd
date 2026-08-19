@@ -42,7 +42,35 @@
                    :show-arrow? true
                    :on-tap (fn []
                              (.pushNamed navigator "/signup")
-                             nil)}]
+                             nil)}
+         remove-item {:leading m.Icons/delete_outline_rounded
+                      :title "Данс устгах"
+                      :subtitle "Идэвхтэй дансыг устгах"
+                      :show-arrow? false
+                      :on-tap (fn []
+                                (when current-account-id
+                                  (m/showDialog
+                                   .context ctx
+                                   .builder (fn [^m/BuildContext dialog-ctx]
+                                              (m/AlertDialog
+                                               .title (m/Text "Данс устгах")
+                                               .content (m/Text "Энэ дансыг устгахдаа итгэлтэй байна уу?")
+                                               .actions
+                                               [(m/TextButton
+                                                 .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx)) nil)
+                                                 .child (m/Text "Цуцлах"))
+                                                (m/TextButton
+                                                 .onPressed (fn []
+                                                              (.pop (m/Navigator.of dialog-ctx))
+                                                              (-> (mail/remove-account! current-account-id)
+                                                                  (.then (fn [_] (toast/success! ctx "Данс устгагдлаа") nil))
+                                                                  (.catchError (fn [e]
+                                                                                 (toast/error! ctx (str e))
+                                                                                 nil)))
+                                                              nil)
+                                                 .child (m/Text "Устгах"
+                                                               .style (m/TextStyle .color m/Colors.red)))]))))
+                                nil)}]
      (m/Scaffold
       .backgroundColor (m/Color 0xFFF8F9FA)
       .appBar (m/AppBar
@@ -60,9 +88,9 @@
         (m/Row
          .crossAxisAlignment m.CrossAxisAlignment/start
          .children
-         [(cs/settings-section
+         [          (cs/settings-section
            "Данс (Accounts)"
-           (conj acc-items add-item))
+           (conj acc-items add-item remove-item))
           (cs/settings-section
            "Гарын үсэг (Signature)"
            [{:leading m.Icons/edit_note_rounded
