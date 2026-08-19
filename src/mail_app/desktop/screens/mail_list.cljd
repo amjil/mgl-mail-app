@@ -7,7 +7,8 @@
             [mail-app.desktop.widgets.error-banner :as err]
             [mail-app.desktop.widgets.maillist :as maillist]
             [mail-app.desktop.widgets.topbar :as topbar]
-            [mail-app.state.store :as store]))
+            [mail-app.state.store :as store]
+            [mail-app.theme :as theme]))
 
 (defn screen []
   (f/widget
@@ -39,5 +40,5 @@
           (topbar/bulk-action-bar)
           (topbar/mail-list))
         (err/banner)
-        (m/Divider .thickness 1.0 .height 1.0)
+        (m/Divider .thickness 1.0 .height 1.0 .color theme/divider)
         (m/Expanded .child (maillist/list-view))]))))))

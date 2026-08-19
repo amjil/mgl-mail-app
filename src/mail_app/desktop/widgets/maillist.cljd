@@ -7,7 +7,7 @@
             [clojure.string :as str]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]))
 
 ;; --- Conversation threading ---
 
@@ -67,91 +67,48 @@
 (defn- message-item [idx ^mc/MailMessageDto msg & {:keys [thread-count thread-key is-child? header?]}]
   (f/widget
    :get [m/Navigator]
-   :watch [{:keys [selected-mailbox selected-message-ids last-clicked-index mail-list expanded-threads]}
+   :watch [{:keys [selected-mailbox selected-message-ids selected-message-id
+                   last-clicked-index mail-list expanded-threads]}
            store/app-state]
    (let [draft? (or (= selected-mailbox :draft)
                     (= (.-state msg) "draft")
                     (= (.-folderRole msg) "draft"))
-         selected? (contains? selected-message-ids (.-id msg))
+         multi-selected? (contains? selected-message-ids (.-id msg))
+         open-selected? (= selected-message-id (.-id msg))
          unread? (not (.-isRead msg))
-         title-color (if unread? m.Colors/black87 m.Colors/black45)
-         subtitle-color (if unread? m.Colors/black54 m.Colors/black38)
+         title-color (if unread? theme/ink theme/ink-muted)
+         subtitle-color (if unread? theme/ink-muted (.withOpacity theme/ink-muted 0.8))
          expanded? (contains? expanded-threads thread-key)
          display-subject (if (and header? (> thread-count 1))
                            (str (subject-of msg) " (" thread-count ")")
-                           (subject-of msg))]
-     (m/Container
-      .color (cond
-               selected? (-> m.Colors/blue (.withOpacity 0.1))
-               is-child? (-> m.Colors/black (.withOpacity 0.02))
-               :else m.Colors/transparent)
-      .padding (when is-child? (m.EdgeInsets/only .top 32.0 .left 4.0 .right 4.0))
+                           (subject-of msg))
+         bg (cond
+              multi-selected? theme/sky-light
+              open-selected? (.withOpacity theme/sky 0.12)
+              is-child? (.withOpacity theme/ink 0.03)
+              :else m.Colors/transparent)
+         open-or-edit!
+         (fn []
+           (store/set-last-clicked-index! idx)
+           (if draft?
+             (-> (mail/edit-draft! (.-id msg))
+                 (.then (fn [_] (.pushNamed navigator "/compose") nil))
+                 (.catchError (fn [_]
+                                (mail/open-message! (.-id msg))
+                                nil)))
+             (mail/open-message! (.-id msg)))
+           nil)]
+     (m/Material
+      .color bg
       .child
-      (mgl/MongolListTile
-       .leading (when unread?
-                  (m/Container
-                   .width 8.0
-                   .height 8.0
-                   .decoration (m/BoxDecoration
-                                .color m.Colors/blue
-                                .shape m.BoxShape/circle)))
-       .title (m/Padding
-               .padding (m.EdgeInsets/only .top 8.0)
-               .child
-               (mgl/MongolText
-                display-subject
-                .style (m/TextStyle
-                        .fontSize 16.0
-                        .fontFamily font-family
-                        .color title-color
-                        .fontWeight (if unread?
-                                      m/FontWeight.bold
-                                      m/FontWeight.normal))))
-       .subtitle (m/Column
-                  .crossAxisAlignment m.CrossAxisAlignment/start
-                  .mainAxisSize m.MainAxisSize/min
-                  .children
-                  [(mgl/MongolText
-                    (or (.-fromName msg) (.-from msg) "")
-                    .style (m/TextStyle .fontSize 13.0
-                                        .fontFamily font-family
-                                        .color subtitle-color))
-                   (m/SizedBox .height 4.0)
-                   (m/Text (or (format-date (.-date msg)) "")
-                           .style (m/TextStyle .fontSize 11.0
-                                               .color m.Colors/black45))])
-       .trailing (m/Row
-                  .mainAxisSize m.MainAxisSize/min
-                  .children
-                  (cond-> []
-                    ;; Expand/collapse is on the icon only so header body still opens mail
-                    (and header? (> thread-count 1))
-                    (conj (m/GestureDetector
-                           .behavior m.HitTestBehavior/opaque
-                           .onTap (fn []
-                                    (store/toggle-thread-expansion! thread-key)
-                                    nil)
-                           .child (m/Padding
-                                   .padding (m.EdgeInsets/only .bottom 8.0
-                                                               .left 4.0
-                                                               .right 4.0)
-                                   .child
-                                   (m/Icon (if expanded?
-                                             m.Icons/unfold_less
-                                             m.Icons/unfold_more)
-                                           .size 16.0 .color m.Colors/blue))))
-                    (.-isStarred msg)
-                    (conj (m/Icon m.Icons/star .size 14.0 .color m.Colors/amber))
-                    (.-hasAttachment msg)
-                    (conj (m/Icon m.Icons/attach_file .size 16.0
-                                  .color m.Colors/black45))))
+      (m/InkWell
+       .hoverColor theme/sky-light
        .onTap (fn []
                 (let [kb (.-instance s/HardwareKeyboard)
                       cmd? (cmd-or-ctrl-pressed? kb)
                       shift? (shift-pressed? kb)
                       has-selection? (seq selected-message-ids)]
                   (cond
-                    ;; Shift: range select
                     shift?
                     (let [last-idx (or last-clicked-index 0)
                           start (min last-idx idx)
@@ -161,65 +118,120 @@
                       (store/set-selected-message-ids! (into selected-message-ids ids))
                       (store/set-last-clicked-index! idx))
 
-                    ;; Cmd/Ctrl: toggle
                     cmd?
                     (do
                       (store/toggle-message-selection! (.-id msg))
                       (store/set-last-clicked-index! idx))
 
-                    ;; Multi-select mode: clear and open
                     has-selection?
                     (do
                       (store/clear-message-selection!)
-                      (mail/open-message! (.-id msg))
-                      (.pushNamed navigator "/mail_detail"))
+                      (mail/open-message! (.-id msg)))
 
-                    ;; Open / edit (header and child alike)
                     :else
-                    (do
-                      (store/set-last-clicked-index! idx)
-                      (if draft?
-                        (-> (mail/edit-draft! (.-id msg))
-                            (.then (fn [_] (.pushNamed navigator "/compose") nil))
-                            (.catchError (fn [_]
-                                           (mail/open-message! (.-id msg))
-                                           (.pushNamed navigator "/mail_detail")
-                                           nil)))
-                        (do
-                          (mail/open-message! (.-id msg))
-                          (.pushNamed navigator "/mail_detail"))))))
-                nil))))))
+                    (open-or-edit!)))
+                nil)
+       .child
+       (m/SizedBox
+        .width theme/mail-col-width
+        .child
+        (m/Padding
+         .padding (if is-child?
+                    (m.EdgeInsets/only .top 32.0 .left 4.0 .right 4.0)
+                    m.EdgeInsets/zero)
+         .child
+         (mgl/MongolListTile
+          .leading (when unread?
+                     (m/Container
+                      .width 8.0
+                      .height 8.0
+                      .decoration (m/BoxDecoration
+                                   .color theme/sky
+                                   .shape m.BoxShape/circle)))
+          .title (m/Padding
+                  .padding (m.EdgeInsets/only .top 8.0)
+                  .child
+                  (mgl/MongolText
+                   display-subject
+                   .style (m/TextStyle
+                           .fontSize 16.0
+                           .fontFamily font-family
+                           .color title-color
+                           .height 1.4
+                           .fontWeight (if unread?
+                                         m/FontWeight.bold
+                                         m/FontWeight.normal))))
+          .subtitle (m/Column
+                     .crossAxisAlignment m.CrossAxisAlignment/start
+                     .mainAxisSize m.MainAxisSize/min
+                     .children
+                     [(mgl/MongolText
+                       (or (.-fromName msg) (.-from msg) "")
+                       .style (m/TextStyle .fontSize 13.0
+                                           .fontFamily font-family
+                                           .color subtitle-color
+                                           .height 1.4))
+                      (m/SizedBox .height 4.0)
+                      (mgl/MongolText (or (format-date (.-date msg)) "")
+                                      .style (m/TextStyle .fontSize 11.0
+                                                          .color theme/ink-muted))])
+          .trailing (m/Row
+                     .mainAxisSize m.MainAxisSize/min
+                     .children
+                     (cond-> []
+                       (and header? (> thread-count 1))
+                       (conj (m/GestureDetector
+                              .behavior m.HitTestBehavior/opaque
+                              .onTap (fn []
+                                       (store/toggle-thread-expansion! thread-key)
+                                       nil)
+                              .child (m/Padding
+                                      .padding (m.EdgeInsets/only .bottom 8.0
+                                                                  .left 4.0
+                                                                  .right 4.0)
+                                      .child
+                                      (m/Icon (if expanded?
+                                                m.Icons/unfold_less
+                                                m.Icons/unfold_more)
+                                              .size 16.0 .color theme/sky))))
+                       (.-isStarred msg)
+                       (conj (m/Icon m.Icons/star .size 14.0 .color theme/gold))
+                       (.-hasAttachment msg)
+                       (conj (m/Icon m.Icons/attach_file .size 16.0
+                                     .color theme/ink-muted))))))))))))
 (defn- outbox-item [^mc/MailOutboxDto row]
   (f/widget
-   :get [m/Navigator]
-   (mgl/MongolListTile
-    .title (m/Padding
-            .padding (m.EdgeInsets/only .top 8.0)
-            .child
-            (mgl/MongolText
-             (or (.-subject row) "No Subject")
-             .style (m/TextStyle .fontSize 16.0 .fontFamily font-family)))
-    .subtitle (mgl/MongolText
-               (str (.-status row)
-                    (when (.-lastError row)
-                      (str " · " (.-lastError row))))
-               .style (m/TextStyle .fontSize 12.0
-                                   .fontFamily font-family
-                                   .color m.Colors/black54))
-    .trailing (when (or (= (.-status row) "failed")
-                        (= (.-status row) "pending"))
-                (m/IconButton
-                 .icon (m/Icon m.Icons/refresh)
-                 .tooltip "Retry"
-                 .onPressed (fn []
-                              (mail/retry-outbox! (.-id row))
-                              nil)))
-    .onTap (fn []
-             (mail/open-message! (.-messageId row))
-             (.pushNamed navigator "/mail_detail")
-             nil))))
+   (m/SizedBox
+    .width theme/mail-col-width
+    .child
+    (mgl/MongolListTile
+     .title (m/Padding
+             .padding (m.EdgeInsets/only .top 8.0)
+             .child
+             (mgl/MongolText
+              (or (.-subject row) "No Subject")
+              .style (m/TextStyle .fontSize 16.0 .fontFamily font-family .height 1.4 .color theme/ink)))
+     .subtitle (mgl/MongolText
+                (str (.-status row)
+                     (when (.-lastError row)
+                       (str " · " (.-lastError row))))
+                .style (m/TextStyle .fontSize 12.0
+                                    .fontFamily font-family
+                                    .color theme/ink-muted))
+     .trailing (when (or (= (.-status row) "failed")
+                         (= (.-status row) "pending"))
+                 (m/IconButton
+                  .icon (m/Icon m.Icons/refresh)
+                  .tooltip "Retry"
+                  .onPressed (fn []
+                               (mail/retry-outbox! (.-id row))
+                               nil)))
+     .onTap (fn []
+              (mail/open-message! (.-messageId row))
+              nil)))))
 
 (defn list-view
+  "Horizontal Mongol conversation columns."
   []
   (f/widget
    :watch [{:keys [selected-mailbox mail-list outbox-list expanded-threads]} store/app-state]
@@ -228,9 +240,10 @@
      (if (empty? items)
        (m/Center
         .child (mgl/MongolText
-                "empty."
+                "ᠬᠣᠭᠣᠰᠣᠨ"
                 .style (m/TextStyle .fontFamily font-family
-                                    .color m.Colors/black54)))
+                                    .color theme/ink-muted
+                                    .height 1.4)))
        (m/ListView
         .scrollDirection m.Axis/horizontal
         .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)

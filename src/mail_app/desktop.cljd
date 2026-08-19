@@ -14,7 +14,7 @@
             [mail-app.desktop.screens.signup :as signup]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme]))
 
 (defn app []
   (life/wrap
@@ -46,10 +46,7 @@
       .navigatorKey nav-key
       .title "MGL Mail"
       .debugShowCheckedModeBanner false
-      .theme (m/ThemeData
-              .primarySwatch m.Colors/blue
-              .fontFamily font-family
-              .scaffoldBackgroundColor m.Colors/white)
+      .theme (theme/sky-theme)
       .builder
       (fn [_ctx child]
         (st/StyledToast

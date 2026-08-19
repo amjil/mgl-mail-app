@@ -10,7 +10,7 @@
             [mail-app.state.store :as store]
             [shared-ime.overlay-view :as overlay]
             [rich-editor.components.text-field :as custom-tf]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]))
 
 (defn- create-folder-dialog! [ctx]
   (let [ctrl (m/TextEditingController.)
@@ -36,8 +36,8 @@
                    .padding (m.EdgeInsets/all 8.0)
                    .alignment m.Alignment/topLeft
                    .decoration (m/BoxDecoration 
-                                .color (-> m.Colors/grey (.withOpacity 0.05))
-                                .border (m/Border.all .color m.Colors/black12)
+                                .color (-> theme/ink (.withOpacity 0.05))
+                                .border (m/Border.all .color theme/divider)
                                 .borderRadius (m/BorderRadius.circular 8.0))
                    .child
                    ;; Use the exact same custom-tf/text-field as search.cljd
@@ -47,7 +47,7 @@
                      :focus-node focus-node
                      :hint "Folder name"
                      :max-lines nil
-                     :style (m/TextStyle .fontSize 18.0 .fontFamily font-family .color m.Colors/black87)
+                     :style (m/TextStyle .fontSize 18.0 .fontFamily font-family .color theme/ink)
                      :decoration (m/InputDecoration .border m/InputBorder.none)})))
            :actions
            [(mgl/MongolTextButton
@@ -68,6 +68,104 @@
                                                  nil))))))
              .child (mgl/MongolText "Create"))]})
          "folder-dialog-ime"))))))
+
+(declare bulk-action-bar)
+
+(defn- icon-btn
+  [tooltip on-pressed icon & {:keys [color]}]
+  (m/IconButton
+   .padding (m.EdgeInsets/all 10.0)
+   .constraints (m/BoxConstraints.)
+   .tooltip tooltip
+   .onPressed on-pressed
+   .icon (m/Icon icon .color color)))
+
+(defn- chrome-actions [navigator ctx syncing?]
+  (m/Row
+   .children
+   [(icon-btn "New Folder" (fn [] (create-folder-dialog! ctx) nil)
+              m.Icons/create_new_folder)
+    (icon-btn "Search"
+              (fn [] (.pushNamed navigator "/search") nil)
+              m.Icons/search)
+    (m/IconButton
+     .padding (m.EdgeInsets/all 10.0)
+     .constraints (m/BoxConstraints.)
+     .tooltip "Sync"
+     .onPressed (fn [] (mail/sync!) nil)
+     .icon (if syncing?
+             (m/SizedBox
+              .width 20.0 .height 20.0
+              .child (m/CircularProgressIndicator. .strokeWidth 2.0 .color theme/sky))
+             (m/Icon m.Icons/sync)))
+    (icon-btn "Compose"
+              (fn []
+                (store/clear-compose-draft!)
+                (.pushNamed navigator "/compose")
+                nil)
+              m.Icons/edit)]))
+
+(defn- mail-actions
+  [{:keys [on-reply on-forward on-archive on-unarchive on-delete
+           on-star on-toggle-read on-edit-draft
+           archived? draft? starred? read?]}]
+  (m/Row
+   .children
+   (cond-> []
+     on-edit-draft
+     (conj (icon-btn "Edit draft" on-edit-draft m.Icons/edit_note))
+     on-reply
+     (conj (icon-btn "Reply" on-reply m.Icons/reply))
+     on-forward
+     (conj (icon-btn "Forward" on-forward m.Icons/forward))
+     on-star
+     (conj (icon-btn (if starred? "Unstar" "Star") on-star
+                     (if starred? m.Icons/star m.Icons/star_border)
+                     :color (when starred? theme/gold)))
+     on-toggle-read
+     (conj (icon-btn (if read? "Mark unread" "Mark read") on-toggle-read
+                     (if read?
+                       m.Icons/mark_email_unread_outlined
+                       m.Icons/mark_email_read_outlined)))
+     (and (not draft?) (not archived?) on-archive)
+     (conj (icon-btn "Archive" on-archive m.Icons/archive_outlined))
+     (and archived? on-unarchive)
+     (conj (icon-btn "Move to Inbox" on-unarchive m.Icons/unarchive_outlined))
+     on-delete
+     (conj (icon-btn "Delete" on-delete m.Icons/delete_outline
+                     :color theme/danger)))))
+
+(defn shell
+  "Unified home chrome: browse / reading / bulk-select."
+  [& {:keys [on-back] :as action-opts}]
+  (f/widget
+   :get [m/Navigator]
+   :context ctx
+   :watch [{:keys [syncing? reading-mail? selected-message-ids]} store/app-state]
+   (let [bulk? (and (not reading-mail?) (seq selected-message-ids))]
+     (cond
+       bulk?
+       (bulk-action-bar)
+
+       reading-mail?
+       (m/SafeArea
+        .bottom false
+        .child
+        (m/Row
+         .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+         .children
+         [(icon-btn "Back" on-back m.Icons/arrow_back_ios_new)
+          (mail-actions action-opts)]))
+
+       :else
+       (m/SafeArea
+        .bottom false
+        .child
+        (m/Row
+         .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+         .children
+         [(accounts/account-chip)
+          (chrome-actions navigator ctx syncing?)]))))))
 
 (defn mail-box
   []
@@ -209,7 +307,7 @@
                 .tooltip (if starred? "Unstar" "Star")
                 .onPressed on-star
                 .icon (m/Icon (if starred? m.Icons/star m.Icons/star_border)
-                              .color (when starred? m.Colors/amber))))
+                              .color (when starred? theme/gold))))
 
          on-toggle-read
          (conj (m/IconButton
@@ -256,7 +354,7 @@
       .child
       (m/Container
        .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 8.0)
-       .color (-> m.Colors/blue (.withOpacity 0.08))
+       .color theme/sky-light
        .child
        (m/Row
         .mainAxisAlignment m.MainAxisAlignment/spaceBetween
@@ -268,11 +366,11 @@
             .constraints (m/BoxConstraints.)
             .tooltip "Cancel selection"
             .onPressed (fn [] (store/clear-message-selection!) nil)
-            .icon (m/Icon m.Icons/close .color m.Colors/blue))
+            .icon (m/Icon m.Icons/close .color theme/sky))
            (m/SizedBox .width 8.0)
            (m/Text (str cnt " selected")
                    .style (m/TextStyle .fontWeight m/FontWeight.bold
-                                       .color m.Colors/blue))])
+                                       .color theme/sky))])
          (m/Row
           .children
           [(m/IconButton
@@ -298,4 +396,4 @@
             .constraints (m/BoxConstraints.)
             .tooltip "Delete"
             .onPressed (fn [] (mail/bulk-delete!) nil)
-            .icon (m/Icon m.Icons/delete .color m.Colors/red))])]))))))
+            .icon (m/Icon m.Icons/delete .color theme/danger))])]))))))

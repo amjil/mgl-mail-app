@@ -34,8 +34,9 @@
 (defn mail-tile
   ([navigator msg]
    (mail-tile navigator msg nil nil))
-  ([navigator ^mc/MailMessageDto msg on-tap on-long-press]
-   (let [unread? (not (.-isRead msg))
+  ([navigator msg on-tap on-long-press]
+   (let [^mc/MailMessageDto msg msg
+         unread? (not (.-isRead msg))
          handle-tap (or on-tap
                         (fn []
                           (mail/open-message! (.-id msg))
@@ -75,10 +76,11 @@
 ;; ==========================================
 ;; Single mail item (vertical swipe + long-press multi-select)
 ;; ==========================================
-(defn- mail-item [ctx navigator ^mc/MailMessageDto msg !selected-ids]
+(defn- mail-item [ctx navigator msg !selected-ids]
   (f/widget
    :watch [selected-ids !selected-ids]
-   (let [mid (.-id msg)
+   (let [^mc/MailMessageDto msg msg
+         mid (.-id msg)
          in-selection-mode? (seq selected-ids)
          selected? (contains? selected-ids mid)]
      (slide/item

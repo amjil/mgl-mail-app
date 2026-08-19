@@ -1,25 +1,136 @@
 (ns mail-app.desktop.screens.home
   (:require ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as s]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            ["dart:async" :as async]
             [cljd.flutter :as f]
+            [mail-app.desktop.screens.mail-detail :as detail]
             [mail-app.desktop.screens.signup :as signup]
+            [mail-app.desktop.shortcuts :as shortcuts]
             [mail-app.desktop.widgets.error-banner :as err]
             [mail-app.desktop.widgets.mailbox :as mailbox]
+            [mail-app.desktop.widgets.maillist :as maillist]
+            [mail-app.desktop.widgets.reader-pane :as reader-pane]
             [mail-app.desktop.widgets.topbar :as topbar]
-            [mail-app.state.store :as store]))
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]
+            [mail-app.theme :as theme]))
 
 (defn screen []
   (f/widget
-   :watch [{:keys [accounts]} store/app-state]
+   :context ctx
+   :get [m/Navigator]
+   :watch [{:keys [accounts selected-mailbox selected-message-ids mail-list
+                   reading-mail? message-detail]}
+           store/app-state]
    (if (empty? accounts)
      (signup/screen)
-     (m/Scaffold
-      .body
-      (m/SafeArea
-       .child
-       (m/Column
-        .crossAxisAlignment m.CrossAxisAlignment/start
-        .children
-        [(topbar/mail-box)
-         (err/banner)
-         (m/Divider .thickness 1.0 .height 1.0)
-         (m/Expanded .child (mailbox/mailbox-list))]))))))
+     (do
+       (when (nil? selected-mailbox)
+         (async/Future.microtask
+          #(mail/select-mailbox! :inbox)))
+       (let [msg (when message-detail
+                   (.-message ^mc/MailMessageWithBody message-detail))
+             archived? (when msg
+                         (or (= (.-state ^mc/MailMessageDto msg) "archive")
+                             (= (.-folderRole ^mc/MailMessageDto msg) "archive")))
+             draft? (when msg
+                      (or (= (.-state ^mc/MailMessageDto msg) "draft")
+                          (= (.-folderRole ^mc/MailMessageDto msg) "draft")))
+             starred? (when msg (.-isStarred ^mc/MailMessageDto msg))
+             read? (when msg (.-isRead ^mc/MailMessageDto msg))
+             bindings
+             (cond-> {(shortcuts/cmd-key s.LogicalKeyboardKey/keyA)
+                      (fn []
+                        (when (and (not reading-mail?) (seq mail-list))
+                          (let [all-ids (map #(.-id ^mc/MailMessageDto %) mail-list)]
+                            (store/set-selected-message-ids! all-ids)))
+                        nil)
+                      (shortcuts/raw-key s.LogicalKeyboardKey/escape)
+                      (fn []
+                        (cond
+                          reading-mail?
+                          (store/exit-reading!)
+                          (seq selected-message-ids)
+                          (store/clear-message-selection!))
+                        nil)}
+               reading-mail?
+               (assoc (shortcuts/cmd-key s/LogicalKeyboardKey.keyR)
+                      (fn []
+                        (when (and message-detail (not draft?))
+                          (detail/start-reply! navigator message-detail))
+                        nil)
+                      (shortcuts/raw-key s.LogicalKeyboardKey/delete)
+                      (fn []
+                        (when message-detail
+                          (detail/confirm-delete! ctx navigator message-detail))
+                        nil)
+                      (shortcuts/raw-key s.LogicalKeyboardKey/backspace)
+                      (fn []
+                        (when message-detail
+                          (detail/confirm-delete! ctx navigator message-detail))
+                        nil)))]
+         (shortcuts/with-shortcuts
+          bindings
+          (m/Scaffold
+           .backgroundColor theme/paper
+           .body
+           (m/SafeArea
+            .child
+            (m/Column
+             .crossAxisAlignment m.CrossAxisAlignment/stretch
+             .children
+             [(topbar/shell
+               :on-back (fn [] (store/exit-reading!) nil)
+               :archived? archived?
+               :draft? draft?
+               :starred? starred?
+               :read? read?
+               :on-reply (when (and message-detail (not draft?))
+                           #(detail/start-reply! navigator message-detail))
+               :on-forward (when (and message-detail (not draft?))
+                             #(detail/start-forward! navigator message-detail))
+               :on-edit-draft (when (and message-detail draft?)
+                                #(detail/start-edit-draft! navigator message-detail))
+               :on-star (when msg
+                          (fn []
+                            (let [^mc/MailMessageDto m msg]
+                              (mail/set-starred! (.-id m) (not (.-isStarred m)))
+                              nil)))
+               :on-toggle-read (when msg
+                                 (fn []
+                                   (let [^mc/MailMessageDto m msg]
+                                     (mail/set-read! (.-id m) (not (.-isRead m)))
+                                     nil)))
+               :on-archive (when (and message-detail (not archived?) (not draft?))
+                             #(detail/archive-pressed! ctx navigator message-detail))
+               :on-unarchive (when (and message-detail archived?)
+                               #(detail/move-to-inbox-pressed! ctx navigator message-detail))
+               :on-delete (when message-detail
+                            #(detail/confirm-delete! ctx navigator message-detail)))
+              (err/banner)
+              (m/Divider .thickness 1.0 .height 1.0 .color theme/divider)
+              (m/Expanded
+               .child
+               (m/Row
+                .crossAxisAlignment m.CrossAxisAlignment/stretch
+                .children
+                (if reading-mail?
+                  [(m/Expanded
+                    .child
+                    (m/ColoredBox
+                     .color theme/surface
+                     .child (reader-pane/pane)))]
+                  [(m/SizedBox
+                    .width theme/folder-pane-width
+                    .child
+                    (m/ColoredBox
+                     .color theme/sky-light
+                     .child (mailbox/mailbox-list)))
+                   (m/VerticalDivider
+                    .width 1.0 .thickness 1.0 .color theme/divider)
+                   (m/Expanded
+                    .child
+                    (m/ColoredBox
+                     .color theme/surface
+                     .child (maillist/list-view)))])))])))))))))

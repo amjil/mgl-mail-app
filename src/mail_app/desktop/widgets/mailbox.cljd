@@ -11,7 +11,7 @@
             [mail-app.state.store :as store]
             [shared-ime.overlay-view :as overlay]
             [rich-editor.components.text-field :as custom-tf]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]))
 
 (def ^:private role-order
   {"inbox" 0
@@ -91,8 +91,8 @@
                    .padding (m.EdgeInsets/all 8.0)
                    .alignment m.Alignment/topLeft
                    .decoration (m/BoxDecoration
-                                .color (-> m.Colors/grey (.withOpacity 0.05))
-                                .border (m/Border.all .color m.Colors/black12)
+                                .color theme/paper
+                                .border (m/Border.all .color theme/divider)
                                 .borderRadius (m/BorderRadius.circular 8.0))
                    .child
                    (custom-tf/text-field
@@ -101,7 +101,7 @@
                      :focus-node focus-node
                      :hint "Folder name"
                      :max-lines nil
-                     :style (m/TextStyle .fontSize 18.0 .fontFamily font-family .color m.Colors/black87)
+                     :style (m/TextStyle .fontSize 18.0 .fontFamily font-family .color theme/ink)
                      :decoration (m/InputDecoration .border m/InputBorder.none)})))
            :actions
            [(mgl/MongolTextButton
@@ -160,7 +160,7 @@
                                          nil)))
                       nil)
          .child (mgl/MongolText "Delete"
-                               .style (m/TextStyle .color m.Colors/red)))]}))))
+                               .style (m/TextStyle .color theme/danger)))]}))))
 
 
 ;; ==========================================
@@ -173,31 +173,50 @@
    .top 4.0
    .child
    (m/Container
-    .padding (m.EdgeInsets/all 4.0)
+    .padding (m.EdgeInsets/symmetric .horizontal 5.0 .vertical 2.0)
     .decoration (m/BoxDecoration
-                 .color m.Colors/red
-                 .shape m.BoxShape/circle)
+                 .color theme/sky
+                 .borderRadius (m.BorderRadius/circular 8.0))
     .child
     (m/Text (if (> badge-count 99) "99+" (str badge-count))
             .style (m/TextStyle .color m.Colors/white
                                 .fontSize 10.0
                                 .fontWeight m/FontWeight.bold)))))
 
+(defn- folder-icon [key]
+  (case key
+    :inbox m.Icons/inbox
+    :sent m.Icons/send_outlined
+    :draft m.Icons/drafts_outlined
+    :archive m.Icons/archive_outlined
+    :trash m.Icons/delete_outline
+    :junk m.Icons/report
+    :outbox m.Icons/outbox
+    m.Icons/folder))
+
 (defn- mailbox-item [key label selected? badge-count & {:keys [folder-path]}]
   (f/widget
-   :get [m/Navigator]
    :context ctx
    (let [tile (mgl/MongolListTile
                .selected selected?
+               .leading (m/Icon (folder-icon key)
+                                .size 20.0
+                                .color (if selected? theme/sky theme/ink-muted))
                .title (m/Padding
                        .padding (m.EdgeInsets/only .top 8.0)
                        .child
                        (mgl/MongolText
                         label
-                        .style (m/TextStyle .fontSize 18.0 .fontFamily font-family)))
+                        .style (m/TextStyle
+                                .fontSize 18.0
+                                .fontFamily font-family
+                                .height 1.4
+                                .color (if selected? theme/ink theme/ink-muted)
+                                .fontWeight (if selected?
+                                              m/FontWeight.w600
+                                              m/FontWeight.normal))))
                .onTap (fn []
                         (mail/select-mailbox! key)
-                        (.pushNamed navigator "/mail_list")
                         nil))
          children (cond-> [tile]
                     (and badge-count (> badge-count 0))
@@ -211,7 +230,7 @@
                       .right 0.0
                       .child
                       (m/PopupMenuButton
-                       .icon (m/Icon m.Icons/more_vert .size 16.0 .color m.Colors/black45)
+                       .icon (m/Icon m.Icons/more_vert .size 16.0 .color theme/ink-muted)
                        .tooltip "Folder Options"
                        .onSelected (fn [val]
                                      (cond
@@ -226,10 +245,19 @@
                           [(m/PopupMenuItem .value :rename .child (m/Text "Rename"))
                            (m/PopupMenuItem .value :delete
                                             .child (m/Text "Delete"
-                                                           .style (m/TextStyle .color m.Colors/red)))]))))))]
-     (m/Stack
-      .alignment m.Alignment/topRight
-      .children children))))
+                                                           .style (m/TextStyle .color theme/danger)))]))))))]
+     (m/Container
+      .width theme/folder-col-width
+      .decoration (m/BoxDecoration
+                   .color (when selected? theme/surface)
+                   .border (m/Border
+                            .left (m/BorderSide
+                                   .color (if selected? theme/sky theme/divider)
+                                   .width (if selected? 3.0 0.0))))
+      .child
+      (m/Stack
+       .alignment m.Alignment/topCenter
+       .children children)))))
 
 (defn- mailbox-dedupe-key
   "System folders collapse by role; custom folders by display name.
@@ -290,14 +318,15 @@
     (into (into head mid) tail)))
 
 (defn mailbox-list
+  "Horizontal Mongol folder columns."
   []
   (f/widget
    :watch [{:keys [selected-mailbox accounts folder-list]} store/app-state]
    (if (empty? accounts)
      (m/Center
       .child (mgl/MongolText
-              "No account"
-              .style (m/TextStyle .fontFamily font-family .color m.Colors/black54)))
+              "ᠬᠠᠶᠢᠭᠤᠯᠤᠭᠰᠠᠨ ᠦᠭᠡᠢ"
+              .style (m/TextStyle .fontFamily font-family .color theme/ink-muted .height 1.4)))
      (m/ListView
       .scrollDirection m.Axis/horizontal
       .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)

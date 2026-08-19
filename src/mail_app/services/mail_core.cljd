@@ -192,6 +192,7 @@
   (store/clear-message-detail!)
   (store/clear-message-selection!)
   (store/clear-thread-expansion!)
+  (store/exit-reading!)
   (when-let [b @!bridge]
     (let [aid (:current-account-id @store/app-state)]
       (cond
@@ -250,6 +251,7 @@
     (store/set-outbox-list! [])
     (store/clear-message-detail!)
     (store/clear-message-selection!)
+    (store/exit-reading!)
     nil))
 
 (defn open-message!
@@ -257,6 +259,7 @@
   (when-let [b @!bridge]
     (store/set-selected-message! message-id)
     (store/set-message-detail! nil)
+    (store/set-reading-mail! true)
     (store/clear-error!)
     (-> (.openMessage ^mc/MailBridge b message-id)
         (.then (fn [detail]

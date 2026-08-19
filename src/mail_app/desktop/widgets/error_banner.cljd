@@ -2,7 +2,8 @@
   "Surfaces store :last-error as a dismissible Material banner."
   (:require ["package:flutter/material.dart" :as m]
             [cljd.flutter :as f]
-            [mail-app.state.store :as store]))
+            [mail-app.state.store :as store]
+            [mail-app.theme :as theme]))
 
 (defn banner
   "Returns a MaterialBanner or SizedBox.shrink."
@@ -11,11 +12,12 @@
    :watch [{:keys [last-error]} store/app-state]
    (if (seq last-error)
      (m/MaterialBanner
+      .backgroundColor theme/sky-light
       .content (m/Text last-error
-                       .style (m/TextStyle .fontSize 13.0))
-      .leading (m/Icon m.Icons/error_outline .color m.Colors/red)
+                       .style (m/TextStyle .fontSize 13.0 .color theme/ink))
+      .leading (m/Icon m.Icons/error_outline .color theme/danger)
       .actions
       [(m/TextButton
         .onPressed (fn [] (store/clear-error!) nil)
-        .child (m/Text "Dismiss"))])
+        .child (m/Text "Dismiss" .style (m/TextStyle .color theme/sky)))])
      (m/SizedBox.shrink))))

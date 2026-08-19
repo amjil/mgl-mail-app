@@ -10,7 +10,7 @@
             [rich-editor.components.text-field :as custom-tf]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]))
 
 ;; Predefined dispose function for the text listener
 (defn- unlisten-search! [{:keys [ctrl listener]}]
@@ -32,7 +32,7 @@
     :max-lines nil
     :style (m/TextStyle .fontSize 18.0
                         .fontFamily font-family
-                        .color m.Colors/black87)
+                        .color theme/ink)
     :decoration (m/InputDecoration .border m/InputBorder.none)}))
 
 
@@ -54,11 +54,11 @@
                (or (.-snippet hit) "")
                .style (m/TextStyle .fontSize 14.0
                                    .fontFamily font-family
-                                   .color m.Colors/black54
-                                   .height 1.4))) ;; Increase line height for comfortable Mongol text reading
+                                   .color theme/ink-muted
+                                   .height 1.4)))
    .onTap (fn []
             (mail/open-message! (.-messageId hit))
-            (.pushNamed navigator "/mail_detail")
+            (.pop navigator)
             nil)))
 
 (defn- results-body [search-results searching? navigator search-query]
@@ -72,20 +72,20 @@
      (m/Row
       .mainAxisSize m.MainAxisSize/min
       .children
-      [(m/Icon m.Icons/search .size 64.0 .color m.Colors/black12)
+      [(m/Icon m.Icons/search .size 64.0 .color theme/divider)
        (m/SizedBox .width 16.0)
        (mgl/MongolText
         (if (seq search-query)
           "Илэрц олдсонгүй" ;; No results
           "Хайх утгаа оруулна уу") ;; Please enter search text
-        .style (m/TextStyle .fontFamily font-family .color m.Colors/black38 .fontSize 18.0))]))
+        .style (m/TextStyle .fontFamily font-family .color theme/ink-muted .fontSize 18.0 .height 1.4))]))
 
     :else
     (m/ListView.separated
      .scrollDirection m.Axis/horizontal
      .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 12.0)
      .itemCount (count search-results)
-     .separatorBuilder (fn [_ _] (m/VerticalDivider .width 1.0 .thickness 1.0 .color m.Colors/black12))
+     .separatorBuilder (fn [_ _] (m/VerticalDivider .width 1.0 .thickness 1.0 .color theme/divider))
      .itemBuilder (fn [_ idx]
                     (m/Container
                      .width 280.0
@@ -127,7 +127,7 @@
      :watch [{:keys [search-results searching? search-query]} store/app-state]
      
      (m/Scaffold
-      .backgroundColor m.Colors/white
+      .backgroundColor theme/paper
       .body
       ;; Page-level IME overlay (same as compose). Wrapping only the 100px
       ;; search field clips the candidates popup.
@@ -138,7 +138,7 @@
         [;; --- Left panel: Vertical search panel ---
          (m/Container
           .width 100.0
-          .color (-> m.Colors/blue (.withOpacity 0.05))
+          .color theme/sky-light
           .child
           (m/Column
            .children
@@ -186,7 +186,7 @@
                              (store/set-search-results! [])
                              nil))))]))
          
-         (m/VerticalDivider .width 1.0 .thickness 1.0)
+         (m/VerticalDivider .width 1.0 .thickness 1.0 .color theme/divider)
          
          ;; --- Right panel: Horizontal scrollable search results ---
          (m/Expanded
