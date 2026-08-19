@@ -199,8 +199,18 @@
       .alignment m.Alignment/topRight
       .children children))))
 
+(defn- mailbox-dedupe-key
+  "System folders collapse by role; custom folders by display name.
+  Needed for All-accounts view, where each account contributes its own row."
+  [^mc/MailFolderDto f]
+  (or (role-key (.-role f) (.-name f))
+      (let [n (str/lower-case (str/trim (or (.-name f) "")))]
+        (when (seq n) n))
+      (.-id f)))
+
 (defn- dedupe-by-role-key
-  "Keep one folder per UI mailbox key (e.g. Drafts + 草稿箱 → one :draft)."
+  "Keep one folder per UI mailbox key (e.g. Drafts + 草稿箱 → one :draft,
+  and same-named custom folders across accounts → one row)."
   [folders]
   (let [ordered (->> folders (sort-by folder-sort-key) vec)]
     (loop [xs ordered
@@ -209,7 +219,7 @@
       (if (empty? xs)
         out
         (let [^mc/MailFolderDto f (first xs)
-              rk (or (role-key (.-role f) (.-name f)) (.-id f))]
+              rk (mailbox-dedupe-key f)]
           (if (contains? seen rk)
             (recur (rest xs) seen out)
             (recur (rest xs) (conj seen rk) (conj out f))))))))

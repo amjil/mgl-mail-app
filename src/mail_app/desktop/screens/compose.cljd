@@ -212,5 +212,4 @@
                  has-quote?
                  (conj (m/Expanded
                         .flex 1
-                        .child (quote/panel !quote-state))))))]))
-          "compose-ime")))))))
+                        .child (quote/panel !quote-state))))))])))))))))

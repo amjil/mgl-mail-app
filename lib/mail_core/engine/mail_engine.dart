@@ -198,7 +198,10 @@ class MailEngine {
   Future<List<MailFolderDto>> listFolders({String? accountId}) async {
     final filter = accountId ?? context.currentAccountId;
     final rows = await db.folderDao.listSelectable(accountId: filter);
-    return _dedupeFolderDtos(rows.map(MailMapper.toFolderDto).toList());
+    return _dedupeFolderDtos(
+      rows.map(MailMapper.toFolderDto).toList(),
+      acrossAccounts: filter == null,
+    );
   }
 
   Stream<List<MailFolderDto>> watchFolders({String? accountId}) {
@@ -207,8 +210,10 @@ class MailEngine {
     // Repair stale unreadCount=0 for already-synced local messages.
     unawaited(_refreshUnreadCounts(accountId: filter));
     return db.folderDao.watchSelectable(accountId: filter).asyncMap(
-      (rows) async =>
-          _dedupeFolderDtos(rows.map(MailMapper.toFolderDto).toList()),
+      (rows) async => _dedupeFolderDtos(
+        rows.map(MailMapper.toFolderDto).toList(),
+        acrossAccounts: filter == null,
+      ),
     );
   }
 
@@ -228,10 +233,14 @@ class MailEngine {
     await db.folderDao.setUnreadCount(folderId, n);
   }
 
-  /// Collapse duplicate special-use / same-name folders per account.
-  /// Uses effective role (DB role, or name→role for stale custom rows) so
-  /// twins like Drafts + 草稿箱 do not both appear in the sidebar.
-  List<MailFolderDto> _dedupeFolderDtos(List<MailFolderDto> rows) {
+  /// Collapse duplicate special-use / same-name folders.
+  /// Per account: one inbox/sent/… and one row per display name.
+  /// Across accounts (All accounts): same, but globally, so two accounts'
+  /// "Projects" custom folders become one sidebar row.
+  List<MailFolderDto> _dedupeFolderDtos(
+    List<MailFolderDto> rows, {
+    bool acrossAccounts = false,
+  }) {
     String effectiveRole(MailFolderDto f) {
       if (f.role != 'custom') return f.role;
       return ImapSyncService.mapRoleFromName(f.name);
@@ -246,29 +255,45 @@ class MailEngine {
       return s;
     }
 
+    String keepKey(MailFolderDto f, String eff) {
+      final scope = acrossAccounts ? '' : '${f.accountId}|';
+      if (eff != 'custom') return 'role:$scope$eff';
+      final n = f.name.trim().toLowerCase();
+      if (n.isEmpty) return 'id:${f.id}';
+      return 'name:$scope$n';
+    }
+
     final sorted = List<MailFolderDto>.from(rows)
       ..sort((a, b) {
         final c = score(b).compareTo(score(a));
         return c != 0 ? c : a.id.compareTo(b.id);
       });
 
-    final seenRoles = <String>{};
-    final seenNames = <String>{};
-    final out = <MailFolderDto>[];
+    final byKey = <String, MailFolderDto>{};
+    final order = <String>[];
     for (final f in sorted) {
-      final eff = effectiveRole(f);
-      final roleKey = '${f.accountId}|$eff';
-      if (eff != 'custom' && !seenRoles.add(roleKey)) continue;
-      final nameKey = '${f.accountId}|${f.name.trim().toLowerCase()}';
-      if (nameKey.endsWith('|')) {
-        out.add(f);
+      final key = keepKey(f, effectiveRole(f));
+      final existing = byKey[key];
+      if (existing != null) {
+        if (f.unreadCount != 0) {
+          byKey[key] = MailFolderDto(
+            id: existing.id,
+            accountId: existing.accountId,
+            name: existing.name,
+            path: existing.path,
+            role: existing.role,
+            selectable: existing.selectable,
+            unreadCount: existing.unreadCount + f.unreadCount,
+          );
+        }
         continue;
       }
-      if (!seenNames.add(nameKey)) continue;
-      out.add(f);
+      byKey[key] = f;
+      order.add(key);
     }
+    final out = [for (final k in order) byKey[k]!];
     out.sort((a, b) {
-      const order = {
+      const orderMap = {
         'inbox': 0,
         'sent': 1,
         'draft': 2,
@@ -279,34 +304,65 @@ class MailEngine {
       };
       final ae = effectiveRole(a);
       final be = effectiveRole(b);
-      final c = (order[ae] ?? 50).compareTo(order[be] ?? 50);
+      final c = (orderMap[ae] ?? 50).compareTo(orderMap[be] ?? 50);
       if (c != 0) return c;
       return a.path.compareTo(b.path);
     });
     return out;
   }
 
+  /// In All-accounts view, same-named custom folders from every account
+  /// are one sidebar row — watch/sync them together.
+  Future<List<int>> _idsForCustomFolderWatch(int folderId) async {
+    final folder = await db.folderDao.findById(folderId);
+    if (folder == null) return [folderId];
+    if (context.currentAccountId != null) return [folderId];
+    if (folder.role != 'custom') return [folderId];
+    final name = folder.name.trim().toLowerCase();
+    if (name.isEmpty) return [folderId];
+    final all = await db.folderDao.listSelectable();
+    final ids = all
+        .where(
+          (f) =>
+              f.role == 'custom' && f.name.trim().toLowerCase() == name,
+        )
+        .map((f) => f.id)
+        .toList();
+    return ids.isEmpty ? [folderId] : ids;
+  }
+
   Stream<List<MailMessageDto>> watchFolder(int folderId) {
-    return db.messageDao.watchByFolderIds([folderId]).asyncMap((rows) async {
-      final folder = await db.folderDao.findById(folderId);
-      final role = folder?.role;
-      final dtos = <MailMessageDto>[];
-      for (final m in rows) {
-        final body = await db.messageBodyDao.find(m.id);
-        dtos.add(MailMapper.toMessageDto(
-          m,
-          hasBody: body?.isDownloaded == true,
-          folderRole: role,
-        ));
-      }
-      return dtos;
+    return Stream.fromFuture(_idsForCustomFolderWatch(folderId))
+        .asyncExpand((ids) {
+      return db.messageDao.watchByFolderIds(ids).asyncMap((rows) async {
+        final folder = await db.folderDao.findById(folderId);
+        final role = folder?.role;
+        final dtos = <MailMessageDto>[];
+        for (final m in rows) {
+          final body = await db.messageBodyDao.find(m.id);
+          dtos.add(MailMapper.toMessageDto(
+            m,
+            hasBody: body?.isDownloaded == true,
+            folderRole: role,
+          ));
+        }
+        return dtos;
+      });
     });
   }
 
   Future<void> syncFolder(int folderId) async {
-    final folder = await db.folderDao.findById(folderId);
-    if (folder == null) return;
-    await _accounts[folder.accountId]?.syncFolder(folderId);
+    final ids = await _idsForCustomFolderWatch(folderId);
+    for (final id in ids) {
+      final folder = await db.folderDao.findById(id);
+      if (folder == null) continue;
+      try {
+        await _accounts[folder.accountId]?.syncFolder(id);
+      } catch (e) {
+        // ignore: avoid_print
+        print('syncFolder($id) for ${folder.accountId} failed: $e');
+      }
+    }
   }
 
   Future<void> syncRole(String role, {String? accountId}) async {
