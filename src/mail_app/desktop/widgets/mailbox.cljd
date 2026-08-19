@@ -9,6 +9,8 @@
             [mail-app.desktop.toast :as toast]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
+            [shared-ime.overlay-view :as overlay]
+            [rich-editor.components.text-field :as custom-tf]
             [mail-app.theme :refer [font-family]]))
 
 (def ^:private role-order
@@ -67,35 +69,65 @@
 ;; ==========================================
 
 (defn- rename-folder-dialog! [ctx folder-path current-name]
-  (let [ctrl (m/TextEditingController. .text current-name)]
+  (let [ctrl (m/TextEditingController. .text current-name)
+        !ime (atom {})]
     (m/showDialog
      .context ctx
      .builder
      (fn [d-ctx]
-       (dialog/vertical-custom-dialog
-        {:title "Rename Folder"
-         :width-factor 0.7
-         :height-factor 0.5
-         :body (m/TextField .controller ctrl .autofocus true)
-         :actions
-         [(m/TextButton
-           .onPressed #(.pop (m/Navigator.of d-ctx))
-           .child (mgl/MongolText "Cancel"))
-          (m/TextButton
-           .onPressed (fn []
-                        (let [new-name (str/trim (.-text ctrl))]
-                          (when (and (seq new-name) (not= new-name current-name))
-                            (-> (mail/rename-folder! folder-path new-name)
-                                (.then (fn [_]
-                                         (toast/success! ctx "Folder renamed")
-                                         (.pop (m/Navigator.of d-ctx))))
-                                (.catchError (fn [e]
-                                               (toast/error! ctx (str e))
-                                               nil)))))
-                        nil)
-           .child (mgl/MongolText "Rename"))]})))))
+       (f/widget
+        :managed [focus-node (m/FocusNode)]
+        (overlay/ime-global-wrapper
+         (dialog/vertical-custom-dialog
+          {:title "Rename Folder"
+           :width-factor 0.7
+           :height-factor 0.5
+           :body (m/GestureDetector
+                  .behavior m.HitTestBehavior/opaque
+                  .onTap (fn [] (.requestFocus focus-node) nil)
+                  .child
+                  (m/Container
+                   .height 200.0
+                   .padding (m.EdgeInsets/all 8.0)
+                   .alignment m.Alignment/topLeft
+                   .decoration (m/BoxDecoration
+                                .color (-> m.Colors/grey (.withOpacity 0.05))
+                                .border (m/Border.all .color m.Colors/black12)
+                                .borderRadius (m/BorderRadius.circular 8.0))
+                   .child
+                   (custom-tf/text-field
+                    !ime
+                    {:controller ctrl
+                     :focus-node focus-node
+                     :hint "Folder name"
+                     :max-lines nil
+                     :style (m/TextStyle .fontSize 18.0 .fontFamily font-family .color m.Colors/black87)
+                     :decoration (m/InputDecoration .border m/InputBorder.none)})))
+           :actions
+           [(mgl/MongolTextButton
+             .onPressed #(.pop (m/Navigator.of d-ctx))
+             .child (mgl/MongolText "Cancel"))
+            (mgl/MongolTextButton
+             .onPressed (fn []
+                          (let [new-name (str/trim (.-text ctrl))]
+                            (cond
+                              (empty? new-name)
+                              (toast/error! ctx "Folder name is empty")
+                              (= new-name current-name)
+                              (.pop (m/Navigator.of d-ctx))
+                              :else
+                              (-> (mail/rename-folder! folder-path new-name)
+                                  (.then (fn [_]
+                                           (toast/success! ctx "Folder renamed")
+                                           (.pop (m/Navigator.of d-ctx))
+                                           nil))
+                                  (.catchError (fn [e]
+                                                 (toast/error! ctx (str e))
+                                                 nil))))))
+             .child (mgl/MongolText "Rename"))]})
+         "folder-dialog-ime"))))))
 
-(defn- confirm-delete-folder! [ctx folder-path folder-key]
+(defn- confirm-delete-folder! [ctx folder-path folder-key folder-name]
   (m/showDialog
    .context ctx
    .builder
@@ -106,13 +138,13 @@
        :height-factor 0.5
        :body (mgl/MongolText
               (str "Are you sure you want to delete folder '"
-                   folder-path
+                   folder-name
                    "'? This may also delete the emails inside it on the server."))
        :actions
-       [(m/TextButton
+       [(mgl/MongolTextButton
          .onPressed #(.pop (m/Navigator.of d-ctx))
          .child (mgl/MongolText "Cancel"))
-        (m/TextButton
+        (mgl/MongolTextButton
          .onPressed (fn []
                       (-> (mail/delete-folder! folder-path)
                           (.then (fn [_]
@@ -186,7 +218,7 @@
                                        (= val :rename)
                                        (rename-folder-dialog! ctx folder-path label)
                                        (= val :delete)
-                                       (confirm-delete-folder! ctx folder-path key))
+                                       (confirm-delete-folder! ctx folder-path key label))
                                      nil)
                        .itemBuilder
                        (fn [_]
