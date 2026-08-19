@@ -16,6 +16,69 @@
             [mail-app.state.store :as store]
             [mail-app.theme :as theme]))
 
+(def ^:private split-handle-width 8.0)
+
+(defn- clamp-folder-width [w max-w]
+  (let [lo theme/folder-pane-min-width
+        hi (max lo (min theme/folder-pane-max-width max-w))]
+    (-> (double (or w theme/folder-pane-width))
+        (max lo)
+        (min hi))))
+
+(defn- folder-split-handle [max-w]
+  (f/widget
+   :managed [!active? (atom false) :dispose nil]
+   :watch [active? !active?]
+   (m/MouseRegion
+    .cursor m.SystemMouseCursors/resizeColumn
+    .onEnter (fn [_] (reset! !active? true) nil)
+    .onExit (fn [_] (reset! !active? false) nil)
+    .child
+    (m/GestureDetector
+     .behavior m.HitTestBehavior/translucent
+     .onHorizontalDragUpdate
+     (fn [^m/DragUpdateDetails d]
+       (let [dx (.-dx ^m/Offset (.-delta d))
+             cur (or (:folder-pane-width @store/app-state)
+                     theme/folder-pane-width)]
+         (store/set-folder-pane-width! (clamp-folder-width (+ cur dx) max-w)))
+       nil)
+     .child
+     (m/Tooltip
+      .message "Drag to resize"
+      .waitDuration (dart:core/Duration. .milliseconds 800)
+      .child
+      (m/VerticalDivider
+       .width split-handle-width
+       .thickness (if active? 3.0 1.0)
+       .color (if active? theme/sky theme/divider)))))))
+
+(defn- folder-mail-split []
+  (f/widget
+   :watch [{:keys [folder-pane-width]} store/app-state]
+   (m/LayoutBuilder
+    .builder
+    (fn [_ctx ^m/BoxConstraints constraints]
+      (let [avail (.-maxWidth constraints)
+            max-folder (max theme/folder-pane-min-width
+                            (- avail theme/mail-list-min-width))
+            folder-w (clamp-folder-width folder-pane-width max-folder)]
+        (m/Row
+         .crossAxisAlignment m.CrossAxisAlignment/stretch
+         .children
+         [(m/SizedBox
+           .width folder-w
+           .child
+           (m/ColoredBox
+            .color theme/sky-light
+            .child (mailbox/mailbox-list)))
+          (folder-split-handle max-folder)
+          (m/Expanded
+           .child
+           (m/ColoredBox
+            .color theme/surface
+            .child (maillist/list-view)))]))))))
+
 (defn screen []
   (f/widget
    :context ctx
@@ -112,25 +175,8 @@
               (m/Divider .thickness 1.0 .height 1.0 .color theme/divider)
               (m/Expanded
                .child
-               (m/Row
-                .crossAxisAlignment m.CrossAxisAlignment/stretch
-                .children
-                (if reading-mail?
-                  [(m/Expanded
-                    .child
-                    (m/ColoredBox
-                     .color theme/surface
-                     .child (reader-pane/pane)))]
-                  [(m/SizedBox
-                    .width theme/folder-pane-width
-                    .child
-                    (m/ColoredBox
-                     .color theme/sky-light
-                     .child (mailbox/mailbox-list)))
-                   (m/VerticalDivider
-                    .width 1.0 .thickness 1.0 .color theme/divider)
-                   (m/Expanded
-                    .child
-                    (m/ColoredBox
-                     .color theme/surface
-                     .child (maillist/list-view)))])))])))))))))
+               (if reading-mail?
+                 (m/ColoredBox
+                  .color theme/surface
+                  .child (reader-pane/pane))
+                 (folder-mail-split)))])))))))))

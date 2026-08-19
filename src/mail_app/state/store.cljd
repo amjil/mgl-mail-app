@@ -16,6 +16,8 @@
          :message-detail nil
          ;; Home shell: reading pane expanded, folders+list collapsed
          :reading-mail? false
+         ;; Desktop folder pane width (user-draggable)
+         :folder-pane-width 320.0
          ;; search
          :search-query ""
          :search-results []
@@ -70,6 +72,9 @@
 
 (defn set-reading-mail! [v]
   (swap! app-state assoc :reading-mail? (boolean v)))
+
+(defn set-folder-pane-width! [w]
+  (swap! app-state assoc :folder-pane-width (double w)))
 
 (defn exit-reading!
   "Leave reading mode; keep selected-message-id highlight and body cache."

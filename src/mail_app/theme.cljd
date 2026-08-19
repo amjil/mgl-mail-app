@@ -17,6 +17,9 @@
 
 ;; --- Layout ---
 (def folder-pane-width 320.0)
+(def folder-pane-min-width 160.0)
+(def folder-pane-max-width 720.0)
+(def mail-list-min-width 200.0)
 (def folder-col-width 60.0)
 (def mail-col-width 100.0)
 (def pane-anim (dart:core/Duration. .milliseconds 200))
