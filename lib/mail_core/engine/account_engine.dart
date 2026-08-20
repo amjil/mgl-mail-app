@@ -33,6 +33,8 @@ class AccountEngine {
   SentWorker? sentWorker;
   AttachmentDownloader? attachments;
 
+  bool _stopped = false;
+
   String get accountId => account.id;
 
   bool get _useOAuth => AuthType.parse(account.authType) == AuthType.oauth2;
@@ -102,10 +104,17 @@ class AccountEngine {
   }
 
   Future<void> stop() async {
+    if (_stopped) return;
+    _stopped = true;
     await imapWorker?.stop();
     await outboxWorker?.stop();
     await sentWorker?.stop();
     await sync?.disconnect();
+    imapWorker = null;
+    outboxWorker = null;
+    sentWorker = null;
+    attachments = null;
+    sync = null;
   }
 
   Future<void> syncNow() async {
@@ -296,6 +305,7 @@ class AccountEngine {
   }
 
   Future<void> setBackground(bool background) async {
+    if (_stopped) return;
     await imapWorker?.setPollMode(background);
   }
 

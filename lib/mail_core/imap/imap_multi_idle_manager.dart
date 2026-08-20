@@ -28,6 +28,7 @@ class ImapMultiIdleManager {
   StreamSubscription<ImapEvent>? _sub;
   Completer<void>? _wake;
   Future<void>? _loopFuture;
+  Future<void>? _stopFuture;
   Future<void>? _inFlightHandler;
 
   Future<void> start(List<Mailbox> mailboxes) async {
@@ -36,6 +37,7 @@ class ImapMultiIdleManager {
             !m.isNotSelectable && m.encodedPath.trim().isNotEmpty)
         .toList();
     if (_mailboxes.isEmpty) return;
+    _stopFuture = null;
     _running = true;
     _index = 0;
     _loopFuture = _runLoop();
@@ -43,24 +45,35 @@ class ImapMultiIdleManager {
 
   /// Exit IDLE immediately and wait until the rotation loop is fully stopped.
   Future<void> stop() async {
-    _running = false;
-    _wakeUp();
-    await _sub?.cancel();
-    _sub = null;
-    await _idleDoneIfNeeded();
-    // Finish any folder-change handler started before we cancelled the sub.
-    final handler = _inFlightHandler;
-    if (handler != null) {
-      try {
-        await handler;
-      } catch (_) {}
+    final inFlight = _stopFuture;
+    if (inFlight != null) {
+      await inFlight;
+      return;
     }
-    final loop = _loopFuture;
-    if (loop != null) {
-      try {
-        await loop;
-      } catch (_) {}
-      _loopFuture = null;
+    final done = Completer<void>();
+    _stopFuture = done.future;
+    try {
+      _running = false;
+      _wakeUp();
+      await _sub?.cancel();
+      _sub = null;
+      await _idleDoneIfNeeded();
+      // Finish any folder-change handler started before we cancelled the sub.
+      final handler = _inFlightHandler;
+      if (handler != null) {
+        try {
+          await handler;
+        } catch (_) {}
+      }
+      final loop = _loopFuture;
+      if (loop != null) {
+        try {
+          await loop;
+        } catch (_) {}
+        _loopFuture = null;
+      }
+    } finally {
+      done.complete();
     }
   }
 

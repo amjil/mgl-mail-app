@@ -17,6 +17,41 @@ class AccountDao extends DatabaseAccessor<AppDatabase> with _$AccountDaoMixin {
   Future<void> upsert(AccountsCompanion row) =>
       into(accounts).insertOnConflictUpdate(row);
 
-  Future<void> deleteById(String id) =>
-      (delete(accounts)..where((a) => a.id.equals(id))).go();
+  Future<void> deleteById(String id) async {
+    await transaction(() async {
+      await customStatement(
+        'DELETE FROM attachments WHERE message_id IN '
+        '(SELECT id FROM messages WHERE account_id = ?)',
+        [id],
+      );
+      await customStatement(
+        'DELETE FROM message_bodies WHERE message_id IN '
+        '(SELECT id FROM messages WHERE account_id = ?)',
+        [id],
+      );
+      await customStatement(
+        'DELETE FROM outbox WHERE account_id = ?',
+        [id],
+      );
+      await customStatement(
+        'DELETE FROM sync_states WHERE account_id = ?',
+        [id],
+      );
+      await customStatement(
+        'DELETE FROM messages WHERE account_id = ?',
+        [id],
+      );
+      await customStatement(
+        'DELETE FROM folders WHERE account_id = ?',
+        [id],
+      );
+      await (delete(accounts)..where((a) => a.id.equals(id))).go();
+    });
+    try {
+      await customStatement(
+        'DELETE FROM fts_messages WHERE account_id = ?',
+        [id],
+      );
+    } catch (_) {}
+  }
 }

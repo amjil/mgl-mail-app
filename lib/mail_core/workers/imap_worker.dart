@@ -61,7 +61,7 @@ class ImapWorker {
     try {
       await _locked(() async {
         await supervisor.start();
-        if (!_pollMode && sync.isConnected) {
+        if (_started && !_pollMode && sync.isConnected) {
           await _startIdle();
         }
       });
@@ -92,13 +92,26 @@ class ImapWorker {
   Future<void> stop() async {
     _started = false;
     _pollTimer?.cancel();
-    await _idle?.stop();
-    _idle = null;
-    await supervisor.stop();
+    _pollTimer = null;
+    try {
+      await _locked(() async {
+        await _idle?.stop();
+        _idle = null;
+        await supervisor.stop();
+      });
+    } catch (e) {
+      // ignore: avoid_print
+      print('ImapWorker.stop failed: $e');
+      try {
+        await supervisor.stop();
+      } catch (_) {}
+    }
   }
 
   Future<void> setPollMode(bool enabled) async {
+    if (!_started) return;
     await _locked(() async {
+      if (!_started) return;
       _pollMode = enabled;
       if (enabled) {
         await _idle?.stop();
@@ -126,7 +139,7 @@ class ImapWorker {
   }
 
   Future<void> _startIdle() async {
-    if (!sync.isConnected) return;
+    if (!_started || _pollMode || !sync.isConnected) return;
     final folders = <Mailbox>[];
     try {
       final boxes = await sync.client.listMailboxes(recursive: true);
@@ -154,7 +167,7 @@ class ImapWorker {
       return;
     }
 
-    if (folders.isEmpty) return;
+    if (!_started || folders.isEmpty) return;
 
     await _idle?.stop();
     _idle = ImapMultiIdleManager(

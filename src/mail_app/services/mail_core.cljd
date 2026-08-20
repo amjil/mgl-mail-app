@@ -84,19 +84,23 @@
 (defn on-app-background!
   [background?]
   (when-let [b @!bridge]
-    (.onAppBackground b (boolean background?))))
+    (-> (.onAppBackground b (boolean background?))
+        (.catchError (fn [e]
+                       (dart:core/print (str "onAppBackground failed: " e))
+                       nil)))))
 
 (defn remove-account!
   [account-id]
   (when-let [b @!bridge]
-    (await (.removeAccount b account-id))
     (when (= account-id (:current-account-id @store/app-state))
       (store/set-current-account! nil)
       (cancel-mailbox-sub!)
+      (cancel-folder-sub!)
       (store/set-mail-list! [])
       (store/set-outbox-list! [])
       (store/set-folder-list! [])
       (store/clear-message-detail!))
+    (await (.removeAccount b account-id))
     (await (refresh-accounts!))
     (start-folder-watch!)))
 

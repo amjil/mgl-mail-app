@@ -49,6 +49,16 @@ class ImapSyncService {
     });
   }
 
+  /// Client identity for RFC 2971 IMAP ID.
+  ///
+  /// NetEase (163/126/yeah) accepts LOGIN without this, then rejects SELECT
+  /// with "Unsafe Login. Please contact kefu@188.com for help".
+  static const _clientId = Id(
+    name: 'mgl-mail',
+    version: '1.0.0',
+    vendor: 'mgl',
+  );
+
   Future<void> connect() async {
     if (isConnected) return;
     final c = ImapClient(isLogEnabled: isLogEnabled);
@@ -63,19 +73,33 @@ class ImapSyncService {
     } else {
       await c.login(account.username, secret);
     }
+    await _identifyClient(c);
     _client = c;
+  }
+
+  /// Tell the server who we are before SELECT / IDLE / APPEND.
+  Future<void> _identifyClient(ImapClient c) async {
+    try {
+      await c.id(clientId: _clientId);
+    } catch (e) {
+      // ignore: avoid_print
+      print('IMAP ID failed: $e');
+    }
   }
 
   Future<void> disconnect() async {
     final c = _client;
     if (c == null) return;
+    _client = null;
+    try {
+      await c.idleDone();
+    } catch (_) {}
     try {
       if (c.isLoggedIn) await c.logout();
     } catch (_) {}
     try {
       await c.disconnect();
     } catch (_) {}
-    _client = null;
   }
 
   Future<void> syncAll({int inboxLimit = 50}) => _serialized(() async {

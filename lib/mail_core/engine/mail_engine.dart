@@ -52,11 +52,17 @@ class MailEngine {
     }
   }
 
+  List<AccountEngine> get _enginesSnapshot =>
+      List<AccountEngine>.of(_accounts.values);
+
   Future<void> dispose() async {
-    for (final engine in _accounts.values) {
-      await engine.stop();
-    }
+    final engines = _enginesSnapshot;
     _accounts.clear();
+    for (final engine in engines) {
+      try {
+        await engine.stop();
+      } catch (_) {}
+    }
     await db.close();
   }
 
@@ -150,7 +156,15 @@ class MailEngine {
 
   Future<void> removeAccount(String accountId) async {
     final engine = _accounts.remove(accountId);
-    await engine?.stop();
+    if (context.currentAccountId == accountId) {
+      context.setAccount(null);
+    }
+    try {
+      await engine?.stop();
+    } catch (e) {
+      // ignore: avoid_print
+      print('AccountEngine.stop failed for $accountId: $e');
+    }
     // best-effort keychain cleanup (may fail without Keychain entitlement)
     try {
       await credentials.delete(accountId);
@@ -180,7 +194,7 @@ class MailEngine {
   void setCurrentAccount(String? accountId) => context.setAccount(accountId);
 
   Future<void> syncAll() async {
-    for (final engine in _accounts.values) {
+    for (final engine in _enginesSnapshot) {
       await engine.syncNow();
     }
   }
@@ -190,8 +204,14 @@ class MailEngine {
   }
 
   Future<void> onAppBackground(bool background) async {
-    for (final engine in _accounts.values) {
-      await engine.setBackground(background);
+    // Snapshot: removeAccount / dispose may mutate `_accounts` while we await.
+    for (final engine in _enginesSnapshot) {
+      try {
+        await engine.setBackground(background);
+      } catch (e) {
+        // ignore: avoid_print
+        print('setBackground failed for ${engine.accountId}: $e');
+      }
     }
   }
 
@@ -371,7 +391,7 @@ class MailEngine {
       await _accounts[filter]?.syncRole(role);
       return;
     }
-    for (final engine in _accounts.values) {
+    for (final engine in _enginesSnapshot) {
       try {
         await engine.syncRole(role);
       } catch (e) {
