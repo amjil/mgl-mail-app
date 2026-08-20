@@ -223,7 +223,10 @@ class MailEngine {
     final filter = accountId ?? context.currentAccountId;
     final rows = await db.folderDao.listSelectable(accountId: filter);
     return _dedupeFolderDtos(
-      rows.map(MailMapper.toFolderDto).toList(),
+      rows
+          .where((f) => _isVisibleAccount(f.accountId, filter))
+          .map(MailMapper.toFolderDto)
+          .toList(),
       acrossAccounts: filter == null,
     );
   }
@@ -235,7 +238,10 @@ class MailEngine {
     unawaited(_refreshUnreadCounts(accountId: filter));
     return db.folderDao.watchSelectable(accountId: filter).asyncMap(
       (rows) async => _dedupeFolderDtos(
-        rows.map(MailMapper.toFolderDto).toList(),
+        rows
+            .where((f) => _isVisibleAccount(f.accountId, filter))
+            .map(MailMapper.toFolderDto)
+            .toList(),
         acrossAccounts: filter == null,
       ),
     );
@@ -348,7 +354,9 @@ class MailEngine {
     final ids = all
         .where(
           (f) =>
-              f.role == 'custom' && f.name.trim().toLowerCase() == name,
+              _isVisibleAccount(f.accountId, null) &&
+              f.role == 'custom' &&
+              f.name.trim().toLowerCase() == name,
         )
         .map((f) => f.id)
         .toList();
@@ -689,11 +697,16 @@ class MailEngine {
   Future<List<MailSearchResultDto>> search(
     String query, {
     String? accountId,
-  }) {
-    return searchService.search(
+  }) async {
+    final filter = accountId ?? context.currentAccountId;
+    final results = await searchService.search(
       query,
-      accountId: accountId ?? context.currentAccountId,
+      accountId: filter,
     );
+    if (filter != null) return results;
+    return results
+        .where((r) => _accounts.containsKey(r.accountId))
+        .toList();
   }
 
   Future<List<String>> searchContacts(String query, {String? accountId}) {
