@@ -6,6 +6,7 @@
             [cljd.flutter :as f]
             [clojure.string :as str]
             [components.dialog :as dialog]
+            [components.menu :as menu]
             [mail-app.desktop.toast :as toast]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
@@ -229,23 +230,34 @@
                       .bottom 4.0
                       .right 0.0
                       .child
-                      (m/PopupMenuButton
-                       .icon (m/Icon m.Icons/more_vert .size 16.0 .color theme/ink-muted)
-                       .tooltip "Folder Options"
-                       .onSelected (fn [val]
-                                     (cond
-                                       (= val :rename)
-                                       (rename-folder-dialog! ctx folder-path label)
-                                       (= val :delete)
-                                       (confirm-delete-folder! ctx folder-path key label))
-                                     nil)
-                       .itemBuilder
-                       (fn [_]
-                         (.cast
-                          [(m/PopupMenuItem .value :rename .child (m/Text "Rename"))
-                           (m/PopupMenuItem .value :delete
-                                            .child (m/Text "Delete"
-                                                           .style (m/TextStyle .color theme/danger)))]))))))]
+                      (menu/custom-popup-menu
+                       {:offset-y 4.0
+                        :menu-width 160.0
+                        :bg-color theme/surface
+                        :trigger-builder
+                        (fn [show-menu]
+                          (m/IconButton
+                           .icon (m/Icon m.Icons/more_vert
+                                         .size 16.0
+                                         .color theme/ink-muted)
+                           .iconSize 16.0
+                           .tooltip "Folder Options"
+                           .padding (m.EdgeInsets/all 2.0)
+                           .constraints (m/BoxConstraints
+                                         .minWidth 24.0
+                                         .minHeight 24.0)
+                           .onPressed show-menu))
+                        :items [{:type :item
+                                 :title "Rename"
+                                 :on-tap (fn []
+                                           (rename-folder-dialog! ctx folder-path label)
+                                           nil)}
+                                {:type :item
+                                 :title "Delete"
+                                 :title-style (m/TextStyle .color theme/danger)
+                                 :on-tap (fn []
+                                           (confirm-delete-folder! ctx folder-path key label)
+                                           nil)}]}))))]
      (m/Container
       .width theme/folder-col-width
       .decoration (m/BoxDecoration
