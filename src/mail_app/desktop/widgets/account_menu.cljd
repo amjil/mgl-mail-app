@@ -1,5 +1,5 @@
 (ns mail-app.desktop.widgets.account-menu
-  "Account switcher + remove / add / edit account actions."
+  "Account switcher + remove / add / edit / signature actions."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
@@ -8,7 +8,10 @@
             [components.dialog :as dialog]
             [mail-app.desktop.toast :as toast]
             [mail-app.services.mail-core :as mail]
-            [mail-app.state.store :as store]))
+            [mail-app.state.store :as store]
+            [mail-app.theme :as theme :refer [font-family]]
+            [rich-editor.components.text-field :as custom-tf]
+            [shared-ime.overlay-view :as overlay]))
 
 (defn- edit-account-dialog!
   [ctx ^mc/MailAccountDto account]
@@ -94,6 +97,67 @@
         (.catchError (fn [_] nil)))
     nil))
 
+(defn- signature-dialog!
+  [ctx account-id email]
+  (let [ctrl (m/TextEditingController.
+              .text (or (store/get-signature account-id) ""))
+        !ime (atom {})]
+    (m/showDialog
+     .context ctx
+     .builder
+     (fn [d-ctx]
+       (f/widget
+        :managed [focus-node (m/FocusNode)]
+        (overlay/ime-global-wrapper
+         (dialog/vertical-custom-dialog
+          {:title "Signature"
+           :width-factor 0.7
+           :height-factor 0.7
+           :body
+           (m/Column
+            .crossAxisAlignment m.CrossAxisAlignment/stretch
+            .children
+            [(m/Text (or email "")
+                     .style (m/TextStyle .color m.Colors/black54 .fontSize 13.0))
+             (m/SizedBox .height 8.0)
+             (m/Expanded
+              .child
+              (m/GestureDetector
+               .behavior m.HitTestBehavior/opaque
+               .onTap (fn [] (.requestFocus focus-node) nil)
+               .child
+               (m/Container
+                .padding (m.EdgeInsets/all 8.0)
+                .alignment m.Alignment/topLeft
+                .decoration (m/BoxDecoration
+                             .color theme/paper
+                             .border (m/Border.all .color theme/divider)
+                             .borderRadius (m/BorderRadius.circular 8.0))
+                .child
+                (custom-tf/text-field
+                 !ime
+                 {:controller ctrl
+                  :focus-node focus-node
+                  :hint "Enter your signature..."
+                  :max-lines nil
+                  :style (m/TextStyle .fontSize 18.0
+                                      .fontFamily font-family
+                                      .color theme/ink)
+                  :decoration (m/InputDecoration .border m/InputBorder.none)}))))])
+           :actions
+           [(mgl/MongolTextButton
+             .onPressed #(.pop (m/Navigator.of d-ctx))
+             .child (mgl/MongolText "Cancel"))
+            (mgl/MongolTextButton
+             .onPressed (fn []
+                          (store/set-signature! account-id (.-text ctrl))
+                          (toast/success! ctx "Signature updated")
+                          (.pop (m/Navigator.of d-ctx))
+                          nil)
+             .child (mgl/MongolText "Save"))]})
+         "signature-dialog-ime"))))
+    nil))
+
 (defn account-chip
   []
   (f/widget
@@ -123,6 +187,12 @@
           (= value :edit)
           (when current
             (edit-account-dialog! ctx current)
+            nil)
+
+          (= value :signature)
+          (when current
+            (signature-dialog! ctx (.-id ^mc/MailAccountDto current)
+                               (.-email ^mc/MailAccountDto current))
             nil)
 
           (= value :remove)
@@ -159,6 +229,9 @@
             (m/PopupMenuItem .value :edit
                              .enabled (some? current)
                              .child (m/Text "Edit current"))
+            (m/PopupMenuItem .value :signature
+                             .enabled (some? current)
+                             .child (m/Text "Signature"))
             (m/PopupMenuItem .value :remove .child (m/Text "Remove current"))]))))
       .child
       (m/Padding
