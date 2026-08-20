@@ -105,6 +105,14 @@ WHERE m.deleted = 0
     );
   }
 
+  Future<void> deleteByAccount(String accountId) async {
+    await ensureTable();
+    await customStatement(
+      'DELETE FROM fts_messages WHERE account_id = ?',
+      [accountId],
+    );
+  }
+
   Future<List<MailSearchHit>> search(
     String query, {
     String? accountId,

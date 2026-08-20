@@ -46,6 +46,10 @@ class MailEngine {
 
   Future<void> initialize() async {
     await indexer.ensureReady();
+    // Older removes only deleted the account row; drop leftover mail so
+    // All-accounts cannot keep showing a signed-out mailbox.
+    await db.purgeOrphanedMail();
+    await indexer.ensureReady();
     final rows = await db.accountDao.listAccounts();
     for (final row in rows) {
       await _register(row, start: true);
@@ -351,14 +355,21 @@ class MailEngine {
     return ids.isEmpty ? [folderId] : ids;
   }
 
+  bool _isVisibleAccount(String accountId, String? filter) {
+    if (filter != null) return accountId == filter;
+    return _accounts.containsKey(accountId);
+  }
+
   Stream<List<MailMessageDto>> watchFolder(int folderId) {
     return Stream.fromFuture(_idsForCustomFolderWatch(folderId))
         .asyncExpand((ids) {
       return db.messageDao.watchByFolderIds(ids).asyncMap((rows) async {
         final folder = await db.folderDao.findById(folderId);
         final role = folder?.role;
+        final filter = context.currentAccountId;
         final dtos = <MailMessageDto>[];
         for (final m in rows) {
+          if (!_isVisibleAccount(m.accountId, filter)) continue;
           final body = await db.messageBodyDao.find(m.id);
           dtos.add(MailMapper.toMessageDto(
             m,
@@ -403,24 +414,29 @@ class MailEngine {
 
   Stream<List<MailMessageDto>> watchInbox({String? accountId}) async* {
     final filter = accountId ?? context.currentAccountId;
-    // Re-subscribe when folders change by polling folder ids periodically
-    // via a simple approach: watch all messages for inbox folders.
+    // Re-subscribe when folders/accounts change so a removed mailbox
+    // disappears from All-accounts immediately.
     yield* Stream.multi((controller) async {
       Future<List<int>> inboxIds() async {
-        final folders = await db.folderDao.listByRole('inbox', accountId: filter);
-        return folders.map((f) => f.id).toList();
+        final folders =
+            await db.folderDao.listByRole('inbox', accountId: filter);
+        return folders
+            .where((f) => _isVisibleAccount(f.accountId, filter))
+            .map((f) => f.id)
+            .toList();
       }
 
-      var ids = await inboxIds();
       StreamSubscription<List<Message>>? sub;
+      StreamSubscription<List<Folder>>? foldersSub;
+      StreamSubscription<List<Account>>? accountsSub;
 
       Future<void> resubscribe() async {
         await sub?.cancel();
-        ids = await inboxIds();
+        final ids = await inboxIds();
         sub = db.messageDao.watchByFolderIds(ids).listen((rows) async {
           final dtos = <MailMessageDto>[];
           for (final m in rows) {
-            if (filter != null && m.accountId != filter) continue;
+            if (!_isVisibleAccount(m.accountId, filter)) continue;
             final body = await db.messageBodyDao.find(m.id);
             dtos.add(MailMapper.toMessageDto(
               m,
@@ -433,12 +449,22 @@ class MailEngine {
       }
 
       await resubscribe();
+      foldersSub = db.folderDao.watchSelectable(accountId: filter).listen((_) {
+        unawaited(resubscribe());
+      });
+      if (filter == null) {
+        accountsSub = db.accountDao.watchAll().listen((_) {
+          unawaited(resubscribe());
+        });
+      }
       final refresh = Stream.periodic(const Duration(seconds: 15)).listen((_) {
-        resubscribe();
+        unawaited(resubscribe());
       });
 
       controller.onCancel = () async {
         await refresh.cancel();
+        await foldersSub?.cancel();
+        await accountsSub?.cancel();
         await sub?.cancel();
       };
     });
@@ -450,6 +476,7 @@ class MailEngine {
       (rows) async {
         final dtos = <MailMessageDto>[];
         for (final m in rows) {
+          if (!_isVisibleAccount(m.accountId, filter)) continue;
           final body = await db.messageBodyDao.find(m.id);
           dtos.add(MailMapper.toMessageDto(
             m,
@@ -483,7 +510,10 @@ class MailEngine {
       Future<List<int>> folderIds() async {
         if (filter == null) {
           final folders = await db.folderDao.listByRole(role);
-          return folders.map((f) => f.id).toList();
+          return folders
+              .where((f) => _isVisibleAccount(f.accountId, filter))
+              .map((f) => f.id)
+              .toList();
         }
         final all = await db.folderDao.listForAccount(filter);
         return all
@@ -499,16 +529,17 @@ class MailEngine {
       StreamSubscription<List<Message>>? byStateSub;
       StreamSubscription<List<Message>>? byFolderSub;
       StreamSubscription<List<Folder>>? foldersSub;
+      StreamSubscription<List<Account>>? accountsSub;
       var stateRows = <Message>[];
       var folderRows = <Message>[];
 
       Future<void> emit() async {
         final byId = <int, Message>{};
         for (final m in stateRows) {
-          byId[m.id] = m;
+          if (_isVisibleAccount(m.accountId, filter)) byId[m.id] = m;
         }
         for (final m in folderRows) {
-          byId[m.id] = m;
+          if (_isVisibleAccount(m.accountId, filter)) byId[m.id] = m;
         }
         final merged = byId.values.toList()
           ..sort((a, b) => b.date.compareTo(a.date));
@@ -541,18 +572,20 @@ class MailEngine {
           await emit();
         },
       );
-      // Re-bind when folder roles/paths change after sync probe.
-      if (filter != null) {
-        foldersSub = db.folderDao.watchSelectable(accountId: filter).listen(
-          (_) {
-            resubscribeFolders();
-          },
-        );
+      foldersSub = db.folderDao.watchSelectable(accountId: filter).listen(
+        (_) {
+          unawaited(resubscribeFolders());
+        },
+      );
+      if (filter == null) {
+        accountsSub = db.accountDao.watchAll().listen((_) {
+          unawaited(resubscribeFolders());
+        });
       }
       await resubscribeFolders();
       final refresh =
           Stream.periodic(const Duration(seconds: 5)).listen((_) {
-        resubscribeFolders();
+        unawaited(resubscribeFolders());
       });
 
       controller.onCancel = () async {
@@ -560,6 +593,7 @@ class MailEngine {
         await byStateSub?.cancel();
         await byFolderSub?.cancel();
         await foldersSub?.cancel();
+        await accountsSub?.cancel();
       };
     });
   }
@@ -569,6 +603,7 @@ class MailEngine {
     return db.outboxDao.watchAll(accountId: filter).asyncMap((rows) async {
       final out = <MailOutboxDto>[];
       for (final o in rows) {
+        if (!_isVisibleAccount(o.accountId, filter)) continue;
         final m = await db.messageDao.findById(o.messageId);
         out.add(MailMapper.toOutboxDto(o, subject: m?.subject));
       }

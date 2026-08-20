@@ -11,6 +11,8 @@ class AccountDao extends DatabaseAccessor<AppDatabase> with _$AccountDaoMixin {
 
   Future<List<Account>> listAccounts() => select(accounts).get();
 
+  Stream<List<Account>> watchAll() => select(accounts).watch();
+
   Future<Account?> findById(String id) =>
       (select(accounts)..where((a) => a.id.equals(id))).getSingleOrNull();
 
@@ -18,40 +20,10 @@ class AccountDao extends DatabaseAccessor<AppDatabase> with _$AccountDaoMixin {
       into(accounts).insertOnConflictUpdate(row);
 
   Future<void> deleteById(String id) async {
-    await transaction(() async {
-      await customStatement(
-        'DELETE FROM attachments WHERE message_id IN '
-        '(SELECT id FROM messages WHERE account_id = ?)',
-        [id],
-      );
-      await customStatement(
-        'DELETE FROM message_bodies WHERE message_id IN '
-        '(SELECT id FROM messages WHERE account_id = ?)',
-        [id],
-      );
-      await customStatement(
-        'DELETE FROM outbox WHERE account_id = ?',
-        [id],
-      );
-      await customStatement(
-        'DELETE FROM sync_states WHERE account_id = ?',
-        [id],
-      );
-      await customStatement(
-        'DELETE FROM messages WHERE account_id = ?',
-        [id],
-      );
-      await customStatement(
-        'DELETE FROM folders WHERE account_id = ?',
-        [id],
-      );
-      await (delete(accounts)..where((a) => a.id.equals(id))).go();
-    });
+    await attachedDatabase.purgeAccountData(id);
+    await (delete(accounts)..where((a) => a.id.equals(id))).go();
     try {
-      await customStatement(
-        'DELETE FROM fts_messages WHERE account_id = ?',
-        [id],
-      );
+      await attachedDatabase.mailSearchDao.deleteByAccount(id);
     } catch (_) {}
   }
 }

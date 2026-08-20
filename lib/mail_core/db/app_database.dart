@@ -88,6 +88,69 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Delete local mail rows for [accountId] and notify Drift watchers.
+  /// `customStatement` would skip table updates, leaving All-accounts streams stale.
+  Future<void> purgeAccountData(String accountId) async {
+    await _purgeMailWhereAccount(
+      'account_id = ?',
+      [Variable.withString(accountId)],
+    );
+  }
+
+  /// Drop folders/messages whose account row is already gone.
+  Future<void> purgeOrphanedMail() async {
+    await _purgeMailWhereAccount(
+      'account_id NOT IN (SELECT id FROM accounts)',
+      const [],
+    );
+  }
+
+  Future<void> _purgeMailWhereAccount(
+    String accountPred,
+    List<Variable> vars,
+  ) async {
+    await transaction(() async {
+      await customUpdate(
+        'DELETE FROM attachments WHERE message_id IN '
+        '(SELECT id FROM messages WHERE $accountPred)',
+        variables: vars,
+        updates: {attachments},
+        updateKind: UpdateKind.delete,
+      );
+      await customUpdate(
+        'DELETE FROM message_bodies WHERE message_id IN '
+        '(SELECT id FROM messages WHERE $accountPred)',
+        variables: vars,
+        updates: {messageBodies},
+        updateKind: UpdateKind.delete,
+      );
+      await customUpdate(
+        'DELETE FROM outbox WHERE $accountPred',
+        variables: vars,
+        updates: {outbox},
+        updateKind: UpdateKind.delete,
+      );
+      await customUpdate(
+        'DELETE FROM sync_states WHERE $accountPred',
+        variables: vars,
+        updates: {syncStates},
+        updateKind: UpdateKind.delete,
+      );
+      await customUpdate(
+        'DELETE FROM messages WHERE $accountPred',
+        variables: vars,
+        updates: {messages},
+        updateKind: UpdateKind.delete,
+      );
+      await customUpdate(
+        'DELETE FROM folders WHERE $accountPred',
+        variables: vars,
+        updates: {folders},
+        updateKind: UpdateKind.delete,
+      );
+    });
+  }
+
   /// Attachment storage root under app documents.
   static Future<Directory> attachmentDir({
     required String accountId,
