@@ -6,7 +6,8 @@
             [mail-app.bootstrap.mobile :as mobile-boot]
             [mail-app.desktop :as desktop]
             [mail-app.mobile :as mobile]
-            [mail-app.services.mail-core :as mail]))
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]))
 
 (defn main []
   (m/WidgetsFlutterBinding.ensureInitialized)
@@ -17,6 +18,12 @@
       (mobile-boot/init!))
     (catch Exception e
       (dart:core/print (str "bootstrap failed: " e))))
+
+  ;; Per-account signatures (SharedPreferences) — soft-fail
+  (try
+    (await (store/load-signatures!))
+    (catch Exception e
+      (dart:core/print (str "load signatures failed: " e))))
 
   ;; MailBridge init — soft-fail so UI still launches without DB issues
   (try

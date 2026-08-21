@@ -108,10 +108,10 @@
       (store/set-folder-list! [])
       (store/clear-message-detail!))
     (store/set-selected-mailbox! nil)
+    (await (store/clear-signature! account-id))
     (await (.removeAccount b account-id))
     (await (refresh-accounts!))
     (start-folder-watch!)))
-
 (defn- after-account-added!
   [^mc/MailBridge b account]
   (store/set-current-account! (.-id account))

@@ -1,4 +1,11 @@
-(ns mail-app.state.store)
+(ns mail-app.state.store
+  (:require ["package:shared_preferences/shared_preferences.dart" :as sp]
+            [clojure.string :as str]))
+
+(def ^:private sig-prefix "mail_sig_")
+
+(defn- sig-key [account-id]
+  (str sig-prefix account-id))
 
 (defonce app-state
   (atom {:accounts []
@@ -133,8 +140,42 @@
 (defn clear-thread-expansion! []
   (swap! app-state assoc :expanded-threads #{}))
 
-(defn set-signature! [account-id sig]
-  (swap! app-state assoc-in [:signatures account-id] sig))
+(defn load-signatures!
+  "Hydrate :signatures from SharedPreferences (key mail_sig_<accountId>)."
+  []
+  (try
+    (let [prefs (await (.getInstance sp/SharedPreferences))
+          keys (.getKeys prefs)
+          sigs (into {}
+                     (for [k keys
+                           :let [ks (str k)]
+                           :when (str/starts-with? ks sig-prefix)]
+                       [(subs ks (count sig-prefix))
+                        (or (.getString prefs ks) "")]))]
+      (swap! app-state assoc :signatures sigs))
+    (catch Exception e
+      (dart:core/print (str "load-signatures failed: " e)))))
+
+(defn set-signature!
+  "Update in-memory signature and persist to SharedPreferences."
+  [account-id sig]
+  (let [text (or sig "")]
+    (swap! app-state assoc-in [:signatures account-id] text)
+    (try
+      (let [prefs (await (.getInstance sp/SharedPreferences))]
+        (await (.setString prefs (sig-key account-id) text)))
+      (catch Exception e
+        (dart:core/print (str "persist signature failed: " e))))))
+
+(defn clear-signature!
+  "Drop signature for a removed account (memory + prefs)."
+  [account-id]
+  (swap! app-state update :signatures dissoc account-id)
+  (try
+    (let [prefs (await (.getInstance sp/SharedPreferences))]
+      (await (.remove prefs (sig-key account-id))))
+    (catch Exception e
+      (dart:core/print (str "clear signature failed: " e)))))
 
 (defn get-signature [account-id]
   (get-in @app-state [:signatures account-id]
