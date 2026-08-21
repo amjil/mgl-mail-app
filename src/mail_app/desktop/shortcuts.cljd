@@ -16,6 +16,13 @@
     (m/SingleActivator logical-key .meta true)
     (m/SingleActivator logical-key .control true)))
 
+(defn cmd-shift-key
+  "Cmd/Ctrl+Shift+key. Returns a SingleActivator for binding maps."
+  [^s/LogicalKeyboardKey logical-key]
+  (if (apple?)
+    (m/SingleActivator logical-key .meta true .shift true)
+    (m/SingleActivator logical-key .control true .shift true)))
+
 (defn raw-key
   "Unmodified key (no Cmd/Ctrl/Alt). Returns a SingleActivator for binding maps."
   [^s/LogicalKeyboardKey logical-key]

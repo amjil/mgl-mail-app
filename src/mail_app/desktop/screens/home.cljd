@@ -123,6 +123,11 @@
                         (when (and message-detail (not draft?))
                           (detail/start-reply! navigator message-detail))
                         nil)
+                      (shortcuts/cmd-shift-key s/LogicalKeyboardKey.keyR)
+                      (fn []
+                        (when (and message-detail (not draft?))
+                          (detail/start-reply-all! navigator message-detail))
+                        nil)
                       (shortcuts/raw-key s.LogicalKeyboardKey/delete)
                       (fn []
                         (when message-detail
@@ -151,6 +156,8 @@
                :read? read?
                :on-reply (when (and message-detail (not draft?))
                            #(detail/start-reply! navigator message-detail))
+               :on-reply-all (when (and message-detail (not draft?))
+                               #(detail/start-reply-all! navigator message-detail))
                :on-forward (when (and message-detail (not draft?))
                              #(detail/start-forward! navigator message-detail))
                :on-edit-draft (when (and message-detail draft?)

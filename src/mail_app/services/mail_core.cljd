@@ -759,3 +759,49 @@
                          (let [msg (clean-error-msg e)]
                            (store/set-error! msg)
                            (throw (Exception. msg)))))))))
+
+;; --- Reply All recipients ---
+
+(defn- split-addrs [s]
+  (->> (str/split (or s "") #"[,\s;]+")
+       (map str/trim)
+       (remove str/blank?)
+       vec))
+
+(defn- norm-email [s]
+  (str/lower-case (str/trim (or s ""))))
+
+(defn- dedupe-addrs [addrs]
+  (reduce (fn [acc e]
+            (if (some #(= (norm-email %) (norm-email e)) acc)
+              acc
+              (conj acc e)))
+          []
+          addrs))
+
+(defn- account-email-for [account-id]
+  (some (fn [^mc/MailAccountDto a]
+          (when (= (.-id a) account-id) (.-email a)))
+        (:accounts @store/app-state)))
+
+(defn reply-all-recipients
+  "Build :to / :cc for Reply All. Excludes this account's address.
+   To = From + original To; Cc = original Cc (minus anyone already in To)."
+  [^mc/MailMessageDto msg]
+  (let [self (norm-email (account-email-for (.-accountId msg)))
+        exclude? (fn [e]
+                   (let [n (norm-email e)]
+                     (or (str/blank? n) (and (seq self) (= n self)))))
+        from (str/trim (or (.-from msg) ""))
+        to-list (->> (cond-> (split-addrs (.-to msg))
+                       (and (seq from) (not (exclude? from)))
+                       (cons from))
+                     (remove exclude?)
+                     dedupe-addrs)
+        in-to? (set (map norm-email to-list))
+        cc-list (->> (split-addrs (.-cc msg))
+                     (remove exclude?)
+                     (remove #(contains? in-to? (norm-email %)))
+                     dedupe-addrs)]
+    {:to (str/join ", " to-list)
+     :cc (when (seq cc-list) (str/join ", " cc-list))}))

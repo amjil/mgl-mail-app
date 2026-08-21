@@ -112,6 +112,21 @@
     (.pushNamed navigator "/compose")
     nil))
 
+(defn- start-reply-all! [navigator ^mc/MailMessageWithBody detail]
+  (let [^mc/MailMessageDto msg (.-message detail)
+        from (or (.-from msg) "")
+        subject (ensure-prefix (.-subject msg) "Re: ")
+        text (body-text detail)
+        date (format-date (.-date msg))
+        mid (.-rfcMessageId msg)
+        {:keys [to cc]} (mail/reply-all-recipients msg)]
+    (store/set-compose-draft!
+     (cond-> {:to to :subject subject :in-reply-to mid :references (build-references msg)
+              :quote-state (export/quote-toggle-state from date text)}
+       (seq cc) (assoc :cc cc)))
+    (.pushNamed navigator "/compose")
+    nil))
+
 (defn- start-forward! [navigator ^mc/MailMessageWithBody detail]
   (let [^mc/MailMessageDto msg (.-message detail)
         from (or (.-fromName msg) (.-from msg) "")
@@ -271,6 +286,10 @@
                         .tooltip "Reply"
                         .icon (m/Icon m.Icons/reply)
                         .onPressed #(start-reply! navigator message-detail))
+                       (m/IconButton
+                        .tooltip "Reply All"
+                        .icon (m/Icon m.Icons/reply_all)
+                        .onPressed #(start-reply-all! navigator message-detail))
                        (m/IconButton
                         .tooltip "Forward"
                         .icon (m/Icon m.Icons/forward)
