@@ -12,7 +12,7 @@ The UI is written in [ClojureDart](https://github.com/tensegritics/ClojureDart) 
 - Folders: Inbox, Sent, Drafts, Outbox, Archive, Trash, Junk, and custom IMAP folders
 - Create, rename, and delete custom folders
 - Full-text search (FTS) over subject and body; contact autocomplete when composing
-- Attachments, read/unread, star, archive, reply, forward, and bulk actions
+- Attachments, read/unread, star, archive, reply, reply all, forward, and bulk actions
 - Conversation grouping in the desktop mail list (by Message-ID / In-Reply-To / References)
 - Vertical Mongolian layout for reading and composing
 - Block editor for compose (headings, lists, quotes, attachments)
@@ -98,6 +98,7 @@ Desktop home is a three-pane shell (folders | list | reading pane) with a dragga
 | **Cmd/Ctrl+N** | Compose |
 | **Cmd/Ctrl+F** | Search |
 | **Cmd/Ctrl+R** | Sync (or Reply when reading a message) |
+| **Cmd/Ctrl+Shift+R** | Reply All (when reading a message) |
 | **Cmd/Ctrl+A** | Select all in the current list |
 | **Cmd/Ctrl+click** / **Shift+click** | Multi-select / range-select |
 | **Escape** | Clear selection or leave reading pane |
