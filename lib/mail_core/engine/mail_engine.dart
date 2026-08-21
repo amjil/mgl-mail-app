@@ -16,6 +16,7 @@ import '../search/fts_indexer.dart';
 import '../search/mail_search_service.dart';
 import '../secure/account_credential_store.dart';
 import '../smtp/outgoing_mime.dart';
+import '../threading/message_threading.dart';
 import 'account_context.dart';
 import 'account_engine.dart';
 
@@ -32,6 +33,7 @@ class MailEngine {
         context = AccountContext() {
     searchService = MailSearchService(db);
     indexer = FtsIndexer(db);
+    threading = MessageThreading(db);
   }
 
   final AppDatabase db;
@@ -40,6 +42,7 @@ class MailEngine {
   final AccountContext context;
   late final MailSearchService searchService;
   late final FtsIndexer indexer;
+  late final MessageThreading threading;
 
   final Map<String, AccountEngine> _accounts = {};
   final _uuid = const Uuid();
@@ -50,6 +53,7 @@ class MailEngine {
     // All-accounts cannot keep showing a signed-out mailbox.
     await db.purgeOrphanedMail();
     await indexer.ensureReady();
+    await threading.backfillMissing();
     final rows = await db.accountDao.listAccounts();
     for (final row in rows) {
       await _register(row, start: true);
@@ -824,6 +828,7 @@ class MailEngine {
       body: plainText ?? htmlText,
       toAddr: toJoined,
     );
+    await threading.assignForMessage(messageId);
     await db.outboxDao.insert(
       OutboxCompanion.insert(
         accountId: accountId,
@@ -956,6 +961,7 @@ class MailEngine {
       body: plainText ?? htmlText,
       toAddr: toJoined,
     );
+    await threading.assignForMessage(messageId);
 
     unawaited(
       _pushDraftToImap(

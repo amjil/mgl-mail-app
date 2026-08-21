@@ -11,6 +11,7 @@ class MailMessageDto {
     this.rfcMessageId,
     this.inReplyTo,
     this.referencesHeader,
+    this.threadId,
     required this.date,
     required this.isRead,
     required this.isStarred,
@@ -32,6 +33,8 @@ class MailMessageDto {
   final String? rfcMessageId;
   final String? inReplyTo;
   final String? referencesHeader;
+  /// Conversation id from Message-ID graph (not subject).
+  final String? threadId;
   final DateTime date;
   final bool isRead;
   final bool isStarred;

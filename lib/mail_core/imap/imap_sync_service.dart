@@ -7,6 +7,7 @@ import 'package:enough_mail/src/private/imap/noop_parser.dart';
 
 import '../db/app_database.dart';
 import '../search/fts_indexer.dart';
+import '../threading/message_threading.dart';
 
 class ImapSyncService {
   ImapSyncService({
@@ -15,7 +16,8 @@ class ImapSyncService {
     required this.getSecret,
     this.useOAuth = false,
     this.isLogEnabled = false,
-  }) : indexer = FtsIndexer(db);
+  })  : indexer = FtsIndexer(db),
+        threading = MessageThreading(db);
 
   final AppDatabase db;
   final Account account;
@@ -25,6 +27,7 @@ class ImapSyncService {
   final bool useOAuth;
   final bool isLogEnabled;
   final FtsIndexer indexer;
+  final MessageThreading threading;
 
   ImapClient? _client;
 
@@ -932,6 +935,7 @@ class ImapSyncService {
           fromAddr: from?.email,
           toAddr: to,
         );
+        await threading.assignForMessage(existing.id);
         return existing.id;
       }
     }
@@ -959,6 +963,7 @@ class ImapSyncService {
           fromAddr: byClient.fromAddr,
           toAddr: byClient.toAddr,
         );
+        await threading.assignForMessage(byClient.id);
         return byClient.id;
       }
     }
@@ -982,6 +987,7 @@ class ImapSyncService {
           fromAddr: byMid.fromAddr,
           toAddr: byMid.toAddr,
         );
+        await threading.assignForMessage(byMid.id);
         return byMid.id;
       }
     }
@@ -1020,6 +1026,7 @@ class ImapSyncService {
     if (hasAtt) {
       await _storeAttachmentMeta(id, mime);
     }
+    await threading.assignForMessage(id);
     return id;
   }
 

@@ -13,7 +13,7 @@ The UI is written in [ClojureDart](https://github.com/tensegritics/ClojureDart) 
 - Create, rename, and delete custom folders
 - Full-text search (FTS) over subject and body; contact autocomplete when composing
 - Attachments, read/unread, star, archive, reply, forward, and bulk actions
-- Conversation grouping in the desktop mail list (by subject, stripping Re/Fwd prefixes)
+- Conversation grouping in the desktop mail list (by Message-ID / In-Reply-To / References)
 - Vertical Mongolian layout for reading and composing
 - Block editor for compose (headings, lists, quotes, attachments)
 - Draft auto-save (~5s) and per-account signatures

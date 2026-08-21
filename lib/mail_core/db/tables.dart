@@ -64,6 +64,9 @@ class Messages extends Table {
   /// Space-separated References chain for threading.
   TextColumn get referencesHeader => text().nullable()();
 
+  /// Stable conversation id (usually root Message-ID, JWZ-style).
+  TextColumn get threadId => text().nullable()();
+
   DateTimeColumn get date => dateTime()();
 
   /// inbox | sent | draft | outbox | failed

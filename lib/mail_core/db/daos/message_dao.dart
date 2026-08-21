@@ -37,6 +37,79 @@ class MessageDao extends DatabaseAccessor<AppDatabase> with _$MessageDaoMixin {
         .getSingleOrNull();
   }
 
+  Future<List<Message>> findWithoutThreadId() {
+    return (select(messages)
+          ..where((m) => m.threadId.isNull() & m.deleted.equals(false)))
+        .get();
+  }
+
+  Future<void> reassignThreadId(
+    String accountId, {
+    required String from,
+    required String to,
+  }) {
+    return (update(messages)
+          ..where(
+              (m) => m.accountId.equals(accountId) & m.threadId.equals(from)))
+        .write(MessagesCompanion(
+          threadId: Value(to),
+          updatedAt: Value(DateTime.now()),
+        ));
+  }
+
+  /// Messages sharing Message-ID graph edges with [normalizedIds].
+  Future<List<Message>> findThreadingCandidates(
+    String accountId,
+    Set<String> normalizedIds,
+  ) async {
+    if (normalizedIds.isEmpty) return const [];
+    final ids = normalizedIds.toList();
+    final inPlaceholders = List.filled(ids.length, '?').join(', ');
+    final likeClauses =
+        List.filled(ids.length, 'lower(ifnull(references_header, \'\')) LIKE ?')
+            .join(' OR ');
+    const normMid =
+        "lower(replace(replace(trim(ifnull(message_id, '')), '<', ''), '>', ''))";
+    const normIrt =
+        "lower(replace(replace(trim(ifnull(in_reply_to, '')), '<', ''), '>', ''))";
+
+    final variables = <Variable>[
+      Variable.withString(accountId),
+      ...ids.map(Variable.withString),
+      ...ids.map(Variable.withString),
+      ...ids.map(Variable.withString),
+      ...ids.map((id) => Variable.withString('%$id%')),
+    ];
+
+    final idRows = await customSelect(
+      '''
+      SELECT id FROM messages
+      WHERE account_id = ?
+        AND deleted = 0
+        AND (
+          ($normMid IN ($inPlaceholders))
+          OR ($normIrt IN ($inPlaceholders))
+          OR (thread_id IN ($inPlaceholders))
+          OR ($likeClauses)
+        )
+      ''',
+      variables: variables,
+      readsFrom: {messages},
+    ).get();
+
+    final localIds = <int>[];
+    for (final r in idRows) {
+      final v = r.data['id'];
+      if (v is int) {
+        localIds.add(v);
+      } else if (v is BigInt) {
+        localIds.add(v.toInt());
+      }
+    }
+    if (localIds.isEmpty) return const [];
+    return (select(messages)..where((m) => m.id.isIn(localIds))).get();
+  }
+
   Future<Set<String>> findExistingUids(
       int folderId, Iterable<String> uids) async {
     if (uids.isEmpty) return {};

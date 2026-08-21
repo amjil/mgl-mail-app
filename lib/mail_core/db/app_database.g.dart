@@ -782,7 +782,7 @@ class Folder extends DataClass implements Insertable<Folder> {
   final String name;
   final String path;
 
-  /// inbox / sent / trash / draft / custom
+  /// inbox / sent / trash / junk / draft / archive / custom
   final String role;
   final int unreadCount;
   final bool selectable;
@@ -1110,6 +1110,12 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
   late final GeneratedColumn<String> referencesHeader = GeneratedColumn<String>(
       'references_header', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _threadIdMeta =
+      const VerificationMeta('threadId');
+  @override
+  late final GeneratedColumn<String> threadId = GeneratedColumn<String>(
+      'thread_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _dateMeta = const VerificationMeta('date');
   @override
   late final GeneratedColumn<DateTime> date = GeneratedColumn<DateTime>(
@@ -1206,6 +1212,7 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
         subject,
         inReplyTo,
         referencesHeader,
+        threadId,
         date,
         state,
         isRead,
@@ -1290,6 +1297,10 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
           referencesHeader.isAcceptableOrUnknown(
               data['references_header']!, _referencesHeaderMeta));
     }
+    if (data.containsKey('thread_id')) {
+      context.handle(_threadIdMeta,
+          threadId.isAcceptableOrUnknown(data['thread_id']!, _threadIdMeta));
+    }
     if (data.containsKey('date')) {
       context.handle(
           _dateMeta, date.isAcceptableOrUnknown(data['date']!, _dateMeta));
@@ -1371,6 +1382,8 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
           .read(DriftSqlType.string, data['${effectivePrefix}in_reply_to']),
       referencesHeader: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}references_header']),
+      threadId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}thread_id']),
       date: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}date'])!,
       state: attachedDatabase.typeMapping
@@ -1419,6 +1432,9 @@ class Message extends DataClass implements Insertable<Message> {
 
   /// Space-separated References chain for threading.
   final String? referencesHeader;
+
+  /// Stable conversation id (usually root Message-ID, JWZ-style).
+  final String? threadId;
   final DateTime date;
 
   /// inbox | sent | draft | outbox | failed
@@ -1446,6 +1462,7 @@ class Message extends DataClass implements Insertable<Message> {
       this.subject,
       this.inReplyTo,
       this.referencesHeader,
+      this.threadId,
       required this.date,
       required this.state,
       required this.isRead,
@@ -1492,6 +1509,9 @@ class Message extends DataClass implements Insertable<Message> {
     }
     if (!nullToAbsent || referencesHeader != null) {
       map['references_header'] = Variable<String>(referencesHeader);
+    }
+    if (!nullToAbsent || threadId != null) {
+      map['thread_id'] = Variable<String>(threadId);
     }
     map['date'] = Variable<DateTime>(date);
     map['state'] = Variable<String>(state);
@@ -1541,6 +1561,9 @@ class Message extends DataClass implements Insertable<Message> {
       referencesHeader: referencesHeader == null && nullToAbsent
           ? const Value.absent()
           : Value(referencesHeader),
+      threadId: threadId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(threadId),
       date: Value(date),
       state: Value(state),
       isRead: Value(isRead),
@@ -1572,6 +1595,7 @@ class Message extends DataClass implements Insertable<Message> {
       subject: serializer.fromJson<String?>(json['subject']),
       inReplyTo: serializer.fromJson<String?>(json['inReplyTo']),
       referencesHeader: serializer.fromJson<String?>(json['referencesHeader']),
+      threadId: serializer.fromJson<String?>(json['threadId']),
       date: serializer.fromJson<DateTime>(json['date']),
       state: serializer.fromJson<String>(json['state']),
       isRead: serializer.fromJson<bool>(json['isRead']),
@@ -1602,6 +1626,7 @@ class Message extends DataClass implements Insertable<Message> {
       'subject': serializer.toJson<String?>(subject),
       'inReplyTo': serializer.toJson<String?>(inReplyTo),
       'referencesHeader': serializer.toJson<String?>(referencesHeader),
+      'threadId': serializer.toJson<String?>(threadId),
       'date': serializer.toJson<DateTime>(date),
       'state': serializer.toJson<String>(state),
       'isRead': serializer.toJson<bool>(isRead),
@@ -1630,6 +1655,7 @@ class Message extends DataClass implements Insertable<Message> {
           Value<String?> subject = const Value.absent(),
           Value<String?> inReplyTo = const Value.absent(),
           Value<String?> referencesHeader = const Value.absent(),
+          Value<String?> threadId = const Value.absent(),
           DateTime? date,
           String? state,
           bool? isRead,
@@ -1659,6 +1685,7 @@ class Message extends DataClass implements Insertable<Message> {
         referencesHeader: referencesHeader.present
             ? referencesHeader.value
             : this.referencesHeader,
+        threadId: threadId.present ? threadId.value : this.threadId,
         date: date ?? this.date,
         state: state ?? this.state,
         isRead: isRead ?? this.isRead,
@@ -1690,6 +1717,7 @@ class Message extends DataClass implements Insertable<Message> {
       referencesHeader: data.referencesHeader.present
           ? data.referencesHeader.value
           : this.referencesHeader,
+      threadId: data.threadId.present ? data.threadId.value : this.threadId,
       date: data.date.present ? data.date.value : this.date,
       state: data.state.present ? data.state.value : this.state,
       isRead: data.isRead.present ? data.isRead.value : this.isRead,
@@ -1722,6 +1750,7 @@ class Message extends DataClass implements Insertable<Message> {
           ..write('subject: $subject, ')
           ..write('inReplyTo: $inReplyTo, ')
           ..write('referencesHeader: $referencesHeader, ')
+          ..write('threadId: $threadId, ')
           ..write('date: $date, ')
           ..write('state: $state, ')
           ..write('isRead: $isRead, ')
@@ -1752,6 +1781,7 @@ class Message extends DataClass implements Insertable<Message> {
         subject,
         inReplyTo,
         referencesHeader,
+        threadId,
         date,
         state,
         isRead,
@@ -1781,6 +1811,7 @@ class Message extends DataClass implements Insertable<Message> {
           other.subject == this.subject &&
           other.inReplyTo == this.inReplyTo &&
           other.referencesHeader == this.referencesHeader &&
+          other.threadId == this.threadId &&
           other.date == this.date &&
           other.state == this.state &&
           other.isRead == this.isRead &&
@@ -1808,6 +1839,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
   final Value<String?> subject;
   final Value<String?> inReplyTo;
   final Value<String?> referencesHeader;
+  final Value<String?> threadId;
   final Value<DateTime> date;
   final Value<String> state;
   final Value<bool> isRead;
@@ -1833,6 +1865,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     this.subject = const Value.absent(),
     this.inReplyTo = const Value.absent(),
     this.referencesHeader = const Value.absent(),
+    this.threadId = const Value.absent(),
     this.date = const Value.absent(),
     this.state = const Value.absent(),
     this.isRead = const Value.absent(),
@@ -1859,6 +1892,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     this.subject = const Value.absent(),
     this.inReplyTo = const Value.absent(),
     this.referencesHeader = const Value.absent(),
+    this.threadId = const Value.absent(),
     required DateTime date,
     this.state = const Value.absent(),
     this.isRead = const Value.absent(),
@@ -1886,6 +1920,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     Expression<String>? subject,
     Expression<String>? inReplyTo,
     Expression<String>? referencesHeader,
+    Expression<String>? threadId,
     Expression<DateTime>? date,
     Expression<String>? state,
     Expression<bool>? isRead,
@@ -1912,6 +1947,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       if (subject != null) 'subject': subject,
       if (inReplyTo != null) 'in_reply_to': inReplyTo,
       if (referencesHeader != null) 'references_header': referencesHeader,
+      if (threadId != null) 'thread_id': threadId,
       if (date != null) 'date': date,
       if (state != null) 'state': state,
       if (isRead != null) 'is_read': isRead,
@@ -1940,6 +1976,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       Value<String?>? subject,
       Value<String?>? inReplyTo,
       Value<String?>? referencesHeader,
+      Value<String?>? threadId,
       Value<DateTime>? date,
       Value<String>? state,
       Value<bool>? isRead,
@@ -1965,6 +2002,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       subject: subject ?? this.subject,
       inReplyTo: inReplyTo ?? this.inReplyTo,
       referencesHeader: referencesHeader ?? this.referencesHeader,
+      threadId: threadId ?? this.threadId,
       date: date ?? this.date,
       state: state ?? this.state,
       isRead: isRead ?? this.isRead,
@@ -2023,6 +2061,9 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     if (referencesHeader.present) {
       map['references_header'] = Variable<String>(referencesHeader.value);
     }
+    if (threadId.present) {
+      map['thread_id'] = Variable<String>(threadId.value);
+    }
     if (date.present) {
       map['date'] = Variable<DateTime>(date.value);
     }
@@ -2073,6 +2114,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
           ..write('subject: $subject, ')
           ..write('inReplyTo: $inReplyTo, ')
           ..write('referencesHeader: $referencesHeader, ')
+          ..write('threadId: $threadId, ')
           ..write('date: $date, ')
           ..write('state: $state, ')
           ..write('isRead: $isRead, ')
@@ -4168,6 +4210,7 @@ typedef $$MessagesTableCreateCompanionBuilder = MessagesCompanion Function({
   Value<String?> subject,
   Value<String?> inReplyTo,
   Value<String?> referencesHeader,
+  Value<String?> threadId,
   required DateTime date,
   Value<String> state,
   Value<bool> isRead,
@@ -4194,6 +4237,7 @@ typedef $$MessagesTableUpdateCompanionBuilder = MessagesCompanion Function({
   Value<String?> subject,
   Value<String?> inReplyTo,
   Value<String?> referencesHeader,
+  Value<String?> threadId,
   Value<DateTime> date,
   Value<String> state,
   Value<bool> isRead,
@@ -4258,6 +4302,9 @@ class $$MessagesTableFilterComposer
   ColumnFilters<String> get referencesHeader => $composableBuilder(
       column: $table.referencesHeader,
       builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get threadId => $composableBuilder(
+      column: $table.threadId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get date => $composableBuilder(
       column: $table.date, builder: (column) => ColumnFilters(column));
@@ -4343,6 +4390,9 @@ class $$MessagesTableOrderingComposer
       column: $table.referencesHeader,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get threadId => $composableBuilder(
+      column: $table.threadId, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get date => $composableBuilder(
       column: $table.date, builder: (column) => ColumnOrderings(column));
 
@@ -4426,6 +4476,9 @@ class $$MessagesTableAnnotationComposer
   GeneratedColumn<String> get referencesHeader => $composableBuilder(
       column: $table.referencesHeader, builder: (column) => column);
 
+  GeneratedColumn<String> get threadId =>
+      $composableBuilder(column: $table.threadId, builder: (column) => column);
+
   GeneratedColumn<DateTime> get date =>
       $composableBuilder(column: $table.date, builder: (column) => column);
 
@@ -4494,6 +4547,7 @@ class $$MessagesTableTableManager extends RootTableManager<
             Value<String?> subject = const Value.absent(),
             Value<String?> inReplyTo = const Value.absent(),
             Value<String?> referencesHeader = const Value.absent(),
+            Value<String?> threadId = const Value.absent(),
             Value<DateTime> date = const Value.absent(),
             Value<String> state = const Value.absent(),
             Value<bool> isRead = const Value.absent(),
@@ -4520,6 +4574,7 @@ class $$MessagesTableTableManager extends RootTableManager<
             subject: subject,
             inReplyTo: inReplyTo,
             referencesHeader: referencesHeader,
+            threadId: threadId,
             date: date,
             state: state,
             isRead: isRead,
@@ -4546,6 +4601,7 @@ class $$MessagesTableTableManager extends RootTableManager<
             Value<String?> subject = const Value.absent(),
             Value<String?> inReplyTo = const Value.absent(),
             Value<String?> referencesHeader = const Value.absent(),
+            Value<String?> threadId = const Value.absent(),
             required DateTime date,
             Value<String> state = const Value.absent(),
             Value<bool> isRead = const Value.absent(),
@@ -4572,6 +4628,7 @@ class $$MessagesTableTableManager extends RootTableManager<
             subject: subject,
             inReplyTo: inReplyTo,
             referencesHeader: referencesHeader,
+            threadId: threadId,
             date: date,
             state: state,
             isRead: isRead,

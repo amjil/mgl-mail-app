@@ -19,6 +19,7 @@ class MailMapper {
       rfcMessageId: m.messageId,
       inReplyTo: m.inReplyTo,
       referencesHeader: m.referencesHeader,
+      threadId: m.threadId,
       date: m.date,
       isRead: m.isRead,
       isStarred: m.isStarred,

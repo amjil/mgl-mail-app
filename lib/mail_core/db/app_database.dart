@@ -42,7 +42,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -52,6 +52,10 @@ class AppDatabase extends _$AppDatabase {
             'CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_uid '
             'ON messages(account_id, folder_id, uid) '
             'WHERE uid IS NOT NULL',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_messages_thread '
+            'ON messages(account_id, thread_id)',
           );
           await customStatement(kFtsMessagesCreateSql);
         },
@@ -67,6 +71,13 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 4) {
             await customStatement(kFtsMessagesCreateSql);
+          }
+          if (from < 5) {
+            await m.addColumn(messages, messages.threadId);
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_messages_thread '
+              'ON messages(account_id, thread_id)',
+            );
           }
         },
         beforeOpen: (details) async {

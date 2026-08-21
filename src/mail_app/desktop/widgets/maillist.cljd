@@ -4,29 +4,24 @@
             ["package:mongol/mongol.dart" :as mgl]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [cljd.flutter :as f]
-            [clojure.string :as str]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]))
 
-;; --- Conversation threading ---
+;; --- Conversation threading (Message-ID / threadId) ---
 
-(defn- clean-subject
-  "Strip reply/forward prefixes for conversation grouping."
+(defn- thread-key-of
+  "Stable conversation key from mail_core threadId."
   [^mc/MailMessageDto msg]
-  (let [s (str/trim (or (.-subject msg) ""))]
-    (if (empty? s)
-      (str "id-" (.-id msg)) ;; no-subject messages stay independent
-      ;; Dart RegExp has no (?i); lower-case first then strip prefixes.
-      (-> s
-          str/lower-case
-          (str/replace #"^(re|fwd|fw|回复|转发|答复)\s*[:：]\s*" "")
-          str/trim))))
+  (let [t (.-threadId msg)]
+    (if (or (nil? t) (empty? t))
+      (str "id-" (.-id msg))
+      t)))
 
 (defn- thread-messages
   "Group a flat mail list into threads ordered by latest date desc."
   [msgs]
-  (let [grouped (group-by clean-subject msgs)
+  (let [grouped (group-by thread-key-of msgs)
         threads (map (fn [[k v]]
                        (let [sorted (sort-by #(.-date ^mc/MailMessageDto %)
                                              (fn [^DateTime d1 ^DateTime d2] (.compareTo d2 d1))
