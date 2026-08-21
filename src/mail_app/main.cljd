@@ -19,7 +19,11 @@
     (catch Exception e
       (dart:core/print (str "bootstrap failed: " e))))
 
-  ;; Per-account signatures (SharedPreferences) — soft-fail
+  ;; UI prefs + signatures (SharedPreferences) — soft-fail; prefs before mail init
+  (try
+    (await (store/load-ui-prefs!))
+    (catch Exception e
+      (dart:core/print (str "load ui prefs failed: " e))))
   (try
     (await (store/load-signatures!))
     (catch Exception e

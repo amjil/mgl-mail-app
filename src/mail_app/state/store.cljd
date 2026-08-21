@@ -1,11 +1,63 @@
 (ns mail-app.state.store
   (:require ["package:shared_preferences/shared_preferences.dart" :as sp]
+            ["dart:async" :as async]
             [clojure.string :as str]))
 
 (def ^:private sig-prefix "mail_sig_")
+(def ^:private pref-account "ui_current_account_id")
+(def ^:private pref-folder-width "ui_folder_pane_width")
+(def ^:private pref-mailbox "ui_selected_mailbox")
 
 (defn- sig-key [account-id]
   (str sig-prefix account-id))
+
+(defn- encode-mailbox [sel]
+  (cond
+    (nil? sel) nil
+    (keyword? sel) (str ":" (name sel))
+    :else (str "#" sel)))
+
+(defn- decode-mailbox [s]
+  (cond
+    (or (nil? s) (empty? s)) nil
+    (str/starts-with? s ":") (keyword (subs s 1))
+    (str/starts-with? s "#")
+    (try
+      (dart:core/int.parse (subs s 1))
+      (catch Exception _ nil))
+    :else nil))
+
+(defn- prefs-write!
+  "Fire-and-forget SharedPreferences mutation. `write-fn` receives prefs and
+  should return the Future from set*/remove."
+  [write-fn]
+  (-> (.getInstance sp/SharedPreferences)
+      (.then write-fn)
+      (.catchError (fn [e]
+                     (dart:core/print (str "ui prefs write failed: " e))
+                     nil)))
+  nil)
+
+(defn- persist-account-id! [account-id]
+  (prefs-write!
+   (fn [prefs]
+     (if account-id
+       (.setString prefs pref-account account-id)
+       (.setString prefs pref-account "")))))
+
+(defn- persist-mailbox! [sel]
+  (prefs-write!
+   (fn [prefs]
+     (if-let [enc (encode-mailbox sel)]
+       (.setString prefs pref-mailbox enc)
+       (.remove prefs pref-mailbox)))))
+
+(defn- persist-folder-width! [w]
+  (prefs-write!
+   (fn [prefs]
+     (.setDouble prefs pref-folder-width (double w)))))
+
+(defonce ^:private !folder-width-timer (atom nil))
 
 (defonce app-state
   (atom {:accounts []
@@ -41,11 +93,35 @@
          ;; account-id -> signature plain text
          :signatures {}}))
 
+(defn load-ui-prefs!
+  "Hydrate account / mailbox / folder-pane width from SharedPreferences."
+  []
+  (try
+    (let [prefs (await (.getInstance sp/SharedPreferences))
+          aid (.getString prefs pref-account)
+          width (.getDouble prefs pref-folder-width)
+          mailbox (decode-mailbox (.getString prefs pref-mailbox))]
+      (swap! app-state
+             (fn [s]
+               (cond-> s
+                 ;; "" means explicit "all accounts"; missing key leaves default nil
+                 (some? aid)
+                 (assoc :current-account-id (if (empty? aid) nil aid))
+
+                 (some? width)
+                 (assoc :folder-pane-width (double width))
+
+                 (some? mailbox)
+                 (assoc :selected-mailbox mailbox)))))
+    (catch Exception e
+      (dart:core/print (str "load-ui-prefs failed: " e)))))
+
 (defn set-accounts! [accounts]
   (swap! app-state assoc :accounts (or accounts [])))
 
 (defn set-current-account! [account-id]
-  (swap! app-state assoc :current-account-id account-id))
+  (swap! app-state assoc :current-account-id account-id)
+  (persist-account-id! account-id))
 
 (defn set-sending! [v]
   (swap! app-state assoc :sending? (boolean v)))
@@ -60,7 +136,8 @@
   (swap! app-state assoc :folder-list (or folders [])))
 
 (defn set-selected-mailbox! [sel]
-  (swap! app-state assoc :selected-mailbox sel))
+  (swap! app-state assoc :selected-mailbox sel)
+  (persist-mailbox! sel))
 
 (defn set-mail-list! [msgs]
   (swap! app-state assoc :mail-list (or msgs [])))
@@ -81,7 +158,16 @@
   (swap! app-state assoc :reading-mail? (boolean v)))
 
 (defn set-folder-pane-width! [w]
-  (swap! app-state assoc :folder-pane-width (double w)))
+  (let [w (double w)]
+    (swap! app-state assoc :folder-pane-width w)
+    (when-let [^async/Timer t @!folder-width-timer]
+      (.cancel t))
+    (reset! !folder-width-timer
+            (async/Timer.
+             (dart:core/Duration. .milliseconds 250)
+             (fn []
+               (reset! !folder-width-timer nil)
+               (persist-folder-width! (:folder-pane-width @app-state)))))))
 
 (defn exit-reading!
   "Leave reading mode; keep selected-message-id highlight and body cache."

@@ -9,6 +9,8 @@
 (defonce !mailbox-sub (atom nil))
 (defonce !folder-sub (atom nil))
 
+(declare select-mailbox!)
+
 (defn- cancel-mailbox-sub! []
   (when-let [^async/StreamSubscription s @!mailbox-sub]
     (.cancel s)
@@ -71,6 +73,9 @@
     (reset! !bridge b)
     (await (refresh-accounts!))
     (start-folder-watch!)
+    ;; Re-subscribe after restoring :selected-mailbox from prefs
+    (when-let [sel (:selected-mailbox @store/app-state)]
+      (select-mailbox! sel))
     b))
 
 (defn dispose!

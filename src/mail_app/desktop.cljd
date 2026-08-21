@@ -12,6 +12,7 @@
             [mail-app.desktop.screens.mail-detail :as mail-detail]
             [mail-app.desktop.screens.search :as search]
             [mail-app.desktop.screens.signup :as signup]
+            [mail-app.desktop.screens.settings :as settings]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme]))
@@ -62,4 +63,5 @@
                "/compose" (fn ^m/Widget [_] (compose/screen))
                "/mail_list" (fn ^m/Widget [_] (mail-list/screen))
                "/mail_detail" (fn ^m/Widget [_] (mail-detail/screen))
-               "/search" (fn ^m/Widget [_] (search/screen))})))))
+               "/search" (fn ^m/Widget [_] (search/screen))
+               "/settings" (fn ^m/Widget [_] (settings/screen))})))))

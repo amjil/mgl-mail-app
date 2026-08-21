@@ -98,6 +98,9 @@
               .width 20.0 .height 20.0
               .child (m/CircularProgressIndicator. .strokeWidth 2.0 .color theme/sky))
              (m/Icon m.Icons/sync)))
+    (icon-btn "Settings"
+              (fn [] (.pushNamed navigator "/settings") nil)
+              m.Icons/settings_outlined)
     (icon-btn "Compose"
               (fn []
                 (store/clear-compose-draft!)
@@ -213,6 +216,14 @@
                   .width 20.0 .height 20.0
                   .child (m/CircularProgressIndicator. .strokeWidth 2.0))
                  (m/Icon m.Icons/sync)))
+        (m/IconButton
+         .padding (m.EdgeInsets/all 10.0)
+         .constraints (m/BoxConstraints.)
+         .tooltip "Settings"
+         .onPressed (fn []
+                      (.pushNamed navigator "/settings")
+                      nil)
+         .icon (m/Icon m.Icons/settings_outlined))
         (m/IconButton
          .padding (m.EdgeInsets/all 10.0)
          .constraints (m/BoxConstraints.)

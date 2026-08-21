@@ -1,21 +1,24 @@
-(ns mail-app.mobile.screens.settings
-  "Mobile settings screen built on components.setting design system."
+(ns mail-app.desktop.screens.settings
+  "Desktop settings: horizontal Mongolian layout via components.setting."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [cljd.flutter :as f]
             [components.setting :as cs]
             [mail-app.desktop.toast :as toast]
-            [mail-app.mobile.widgets.signature :as signature]
+            [mail-app.desktop.widgets.account-menu :as accounts]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]))
 
 (defn screen []
   (f/widget
    :context ctx
    :get [m/Navigator]
    :watch [{:keys [current-account-id accounts]} store/app-state]
-   (let [current-sig (or (store/get-signature current-account-id) "")
+   (let [current (some #(when (= (.-id ^mc/MailAccountDto %) current-account-id) %)
+                       accounts)
+         current-email (when current (.-email ^mc/MailAccountDto current))
+         current-sig (or (store/get-signature current-account-id) "")
          !auto-sync? (atom true)
          !notify? (atom true)
          acc-items (mapv
@@ -25,7 +28,7 @@
                             active? (= aid current-account-id)]
                         {:leading (if active? m.Icons/check_circle m.Icons/account_circle_outlined)
                          :title email
-                         :subtitle (if active? "Идэвхтэй (Active)" "Сонгох (Switch)")
+                         :subtitle (if active? "Active" "Switch")
                          :show-arrow? false
                          :on-tap (fn []
                                    (if active?
@@ -37,15 +40,15 @@
                                    nil)}))
                     (or accounts []))
          add-item {:leading m.Icons/add_circle_outline
-                   :title "Данс нэмэх"
-                   :subtitle "Шинэ хаяг холбох"
+                   :title "Add account"
+                   :subtitle "Connect a new address"
                    :show-arrow? true
                    :on-tap (fn []
                              (.pushNamed navigator "/signup")
                              nil)}
          remove-item {:leading m.Icons/delete_outline_rounded
-                      :title "Данс устгах"
-                      :subtitle "Идэвхтэй дансыг устгах"
+                      :title "Remove account"
+                      :subtitle "Delete the active account"
                       :show-arrow? false
                       :on-tap (fn []
                                 (when current-account-id
@@ -53,31 +56,45 @@
                                    .context ctx
                                    .builder (fn [^m/BuildContext dialog-ctx]
                                               (m/AlertDialog
-                                               .title (m/Text "Данс устгах")
-                                               .content (m/Text "Энэ дансыг устгахдаа итгэлтэй байна уу?")
+                                               .title (m/Text "Remove account")
+                                               .content (m/Text (str "Remove "
+                                                                     (or current-email "this account")
+                                                                     "?"))
                                                .actions
                                                [(m/TextButton
                                                  .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx)) nil)
-                                                 .child (m/Text "Цуцлах"))
+                                                 .child (m/Text "Cancel"))
                                                 (m/TextButton
                                                  .onPressed (fn []
                                                               (.pop (m/Navigator.of dialog-ctx))
                                                               (-> (mail/remove-account! current-account-id)
-                                                                  (.then (fn [_] (toast/success! ctx "Данс устгагдлаа") nil))
+                                                                  (.then (fn [_]
+                                                                           (toast/success! ctx "Account removed")
+                                                                           nil))
                                                                   (.catchError (fn [e]
                                                                                  (toast/error! ctx (str e))
                                                                                  nil)))
                                                               nil)
-                                                 .child (m/Text "Устгах"
-                                                               .style (m/TextStyle .color m/Colors.red)))]))))
+                                                 .child (m/Text "Remove"
+                                                               .style (m/TextStyle .color theme/danger)))]))))
                                 nil)}]
      (m/Scaffold
-      .backgroundColor (m/Color 0xFFF8F9FA)
-      .appBar (m/AppBar
-               .elevation 0.0
-               .backgroundColor (m/Color 0xFFF8F9FA)
-               .foregroundColor m/Colors.black87
-               .title (m/Text "Settings" .style (m/TextStyle .fontFamily font-family .fontWeight m/FontWeight.bold)))
+      .backgroundColor theme/paper
+      .appBar
+      (m/AppBar
+       .elevation 0.0
+       .backgroundColor theme/paper
+       .foregroundColor theme/ink
+       .leading (m/IconButton
+                 .icon (m/Icon m.Icons/arrow_back_ios_new)
+                 .tooltip "Back"
+                 .onPressed (fn []
+                              (when (.canPop navigator)
+                                (.pop navigator))
+                              nil))
+       .title (m/Text "Settings"
+                      .style (m/TextStyle .fontFamily font-family
+                                          .fontWeight m.FontWeight/bold)))
       .body
       (m/SafeArea
        .child
@@ -88,17 +105,22 @@
         (m/Row
          .crossAxisAlignment m.CrossAxisAlignment/start
          .children
-         [          (cs/settings-section
-           "Данс (Accounts)"
+         [(cs/settings-section
+           "Accounts"
            (conj acc-items add-item remove-item))
           (cs/settings-section
-           "Гарын үсэг (Signature)"
+           "Signature"
            [{:leading m.Icons/edit_note_rounded
-             :title "Гарын үсэг"
-             :subtitle (if (seq current-sig) "Configured" "Empty")
+             :title "Signature"
+             :subtitle (cond
+                         (nil? current-account-id) "Select an account first"
+                         (seq current-sig) "Configured"
+                         :else "Empty")
              :show-arrow? true
              :on-tap (fn []
-                       (signature/open-dialog! ctx current-account-id current-sig)
+                       (when current-account-id
+                         (accounts/signature-dialog!
+                          ctx current-account-id current-email))
                        nil)}])
           (f/widget
            :watch [auto-sync? !auto-sync?

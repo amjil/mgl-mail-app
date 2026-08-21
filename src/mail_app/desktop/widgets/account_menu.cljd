@@ -97,7 +97,7 @@
         (.catchError (fn [_] nil)))
     nil))
 
-(defn- signature-dialog!
+(defn signature-dialog!
   [ctx account-id email]
   (let [ctrl (m/TextEditingController.
               .text (or (store/get-signature account-id) ""))
