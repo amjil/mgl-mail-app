@@ -189,6 +189,7 @@
         #(case role
            "inbox" (mail/move-to-inbox! mid)
            "archive" (mail/archive-message! mid)
+           "junk" (mail/move-to-junk! mid)
            "trash" (mail/delete-message! mid)
            (mail/move-to-folder! mid role))
         (str "Moved to " label))))
@@ -197,6 +198,7 @@
 (def ^:private move-targets
   [{:role "inbox" :label "Inbox" :icon m.Icons/inbox}
    {:role "archive" :label "Archive" :icon m.Icons/archive_outlined}
+   {:role "junk" :label "Junk" :icon m.Icons/report_outlined}
    {:role "trash" :label "Trash" :icon m.Icons/delete_outline}])
 
 (defn- folder-label [^mc/MailFolderDto f fallback]
@@ -207,6 +209,7 @@
   (case role
     "inbox" m.Icons/inbox
     "archive" m.Icons/archive_outlined
+    "junk" m.Icons/report_outlined
     "trash" m.Icons/delete_outline
     m.Icons/folder_outlined))
 
@@ -221,7 +224,7 @@
         by-role (into {}
                       (keep (fn [^mc/MailFolderDto f]
                               (when-let [r (.-role f)]
-                                (when (#{"inbox" "archive" "trash"} r)
+                                (when (#{"inbox" "archive" "junk" "trash"} r)
                                   [r f])))
                             folders))]
     (->> move-targets

@@ -106,9 +106,10 @@
               m.Icons/edit)]))
 
 (defn- mail-actions
-  [{:keys [on-reply on-reply-all on-forward on-archive on-unarchive on-delete
+  [{:keys [on-reply on-reply-all on-forward on-archive on-unarchive
+           on-junk on-not-junk on-delete
            on-star on-toggle-read on-edit-draft
-           archived? draft? starred? read?]}]
+           archived? junked? draft? starred? read?]}]
   (m/Row
    .children
    (cond-> []
@@ -133,6 +134,10 @@
      (conj (icon-btn "Archive" on-archive m.Icons/archive_outlined))
      (and archived? on-unarchive)
      (conj (icon-btn "Move to Inbox" on-unarchive m.Icons/unarchive_outlined))
+     (and (not draft?) (not junked?) on-junk)
+     (conj (icon-btn "Mark as Junk" on-junk m.Icons/report_outlined))
+     (and junked? on-not-junk)
+     (conj (icon-btn "Not Junk" on-not-junk m.Icons/report_off_outlined))
      on-delete
      (conj (icon-btn "Delete" on-delete m.Icons/delete_outline
                      :color theme/danger)))))
@@ -255,9 +260,10 @@
          .icon (m/Icon m.Icons/edit))])]))))
 
 (defn mail-detail
-  [& {:keys [on-reply on-reply-all on-forward on-archive on-unarchive on-delete
+  [& {:keys [on-reply on-reply-all on-forward on-archive on-unarchive
+             on-junk on-not-junk on-delete
              on-star on-toggle-read on-edit-draft
-             archived? draft? starred? read?]}]
+             archived? junked? draft? starred? read?]}]
   (f/widget
    :get [m/Navigator]
    (m/SafeArea
@@ -345,6 +351,22 @@
                 .onPressed on-unarchive
                 .icon (m/Icon m.Icons/unarchive_outlined)))
 
+         (and (not draft?) (not junked?) on-junk)
+         (conj (m/IconButton
+                .padding (m.EdgeInsets/all 10.0)
+                .constraints (m/BoxConstraints.)
+                .tooltip "Mark as Junk"
+                .onPressed on-junk
+                .icon (m/Icon m.Icons/report_outlined)))
+
+         (and junked? on-not-junk)
+         (conj (m/IconButton
+                .padding (m.EdgeInsets/all 10.0)
+                .constraints (m/BoxConstraints.)
+                .tooltip "Not Junk"
+                .onPressed on-not-junk
+                .icon (m/Icon m.Icons/report_off_outlined)))
+
          on-delete
          (conj (m/IconButton
                 .padding (m.EdgeInsets/all 10.0)
@@ -401,6 +423,12 @@
             .tooltip "Archive"
             .onPressed (fn [] (mail/bulk-archive!) nil)
             .icon (m/Icon m.Icons/archive))
+           (m/IconButton
+            .padding (m.EdgeInsets/all 10.0)
+            .constraints (m/BoxConstraints.)
+            .tooltip "Mark as Junk"
+            .onPressed (fn [] (mail/bulk-move-to-junk!) nil)
+            .icon (m/Icon m.Icons/report_outlined))
            (m/IconButton
             .padding (m.EdgeInsets/all 10.0)
             .constraints (m/BoxConstraints.)

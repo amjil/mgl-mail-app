@@ -213,8 +213,14 @@ class MailBridge {
   Future<void> moveToArchive(int messageId) =>
       _engine.moveToArchive(messageId);
 
+  Future<void> moveToJunk(int messageId) =>
+      _engine.moveToJunk(messageId);
+
   Future<void> moveToInbox(int messageId) =>
       _engine.moveToInbox(messageId);
+
+  Future<void> moveToRole(int messageId, String role) =>
+      _engine.moveToRole(messageId, role);
 
   Future<void> onAppBackground(bool background) =>
       _engine.onAppBackground(background);

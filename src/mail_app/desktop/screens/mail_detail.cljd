@@ -200,6 +200,50 @@
                        nil)))
     nil))
 
+(defn junk-pressed! [ctx navigator ^mc/MailMessageWithBody detail]
+  (let [^mc/MailMessageDto msg (.-message detail)
+        mid (.-id msg)
+        already? (or (= (.-state msg) "junk")
+                     (= (.-folderRole msg) "junk"))
+        tctx (toast/safe-ctx ctx)]
+    (if already?
+      (toast/info! tctx "Already in Junk")
+      (-> (mail/move-to-junk! mid)
+          (.then (fn [ok]
+                   (if ok
+                     (do
+                       (toast/success! tctx "Moved to Junk")
+                       (store/clear-message-detail!)
+                       (finish-read! navigator)
+                       nil)
+                     (toast/error! tctx
+                                   (or (:last-error @store/app-state)
+                                       "Move to Junk failed")))))
+          (.catchError (fn [e]
+                         (toast/error! tctx (str e))
+                         nil))))
+    nil))
+
+(defn not-junk-pressed! [ctx navigator ^mc/MailMessageWithBody detail]
+  (let [^mc/MailMessageDto msg (.-message detail)
+        mid (.-id msg)
+        tctx (toast/safe-ctx ctx)]
+    (-> (mail/move-to-inbox! mid)
+        (.then (fn [ok]
+                 (if ok
+                   (do
+                     (toast/success! tctx "Marked as Not Junk")
+                     (store/clear-message-detail!)
+                     (finish-read! navigator)
+                     nil)
+                   (toast/error! tctx
+                                 (or (:last-error @store/app-state)
+                                     "Not Junk failed")))))
+        (.catchError (fn [e]
+                       (toast/error! tctx (str e))
+                       nil)))
+    nil))
+
 (defn screen []
   (f/widget
    :context ctx
@@ -210,6 +254,9 @@
          archived? (when msg
                      (or (= (.-state ^mc/MailMessageDto msg) "archive")
                          (= (.-folderRole ^mc/MailMessageDto msg) "archive")))
+         junked? (when msg
+                   (or (= (.-state ^mc/MailMessageDto msg) "junk")
+                       (= (.-folderRole ^mc/MailMessageDto msg) "junk")))
          draft? (when msg
                   (or (= (.-state ^mc/MailMessageDto msg) "draft")
                       (= (.-folderRole ^mc/MailMessageDto msg) "draft")))
@@ -244,6 +291,7 @@
          .children
          [(topbar/mail-detail
            :archived? archived?
+           :junked? junked?
            :draft? draft?
            :starred? starred?
            :read? read?
@@ -269,6 +317,10 @@
                          #(archive-pressed! ctx navigator message-detail))
            :on-unarchive (when (and message-detail archived?)
                            #(move-to-inbox-pressed! ctx navigator message-detail))
+           :on-junk (when (and message-detail (not junked?) (not draft?))
+                      #(junk-pressed! ctx navigator message-detail))
+           :on-not-junk (when (and message-detail junked?)
+                          #(not-junk-pressed! ctx navigator message-detail))
            :on-delete (when message-detail
                         #(confirm-delete! ctx navigator message-detail)))
           (m/Divider .thickness 1.0 .height 1.0 .color theme/divider)

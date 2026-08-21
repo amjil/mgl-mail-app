@@ -1131,7 +1131,11 @@ class MailEngine {
   Future<void> moveToArchive(int messageId) =>
       moveToRole(messageId, 'archive');
 
-  /// Move message to Inbox on IMAP and locally (e.g. unarchive).
+  /// Move message to Junk on IMAP and locally.
+  Future<void> moveToJunk(int messageId) =>
+      moveToRole(messageId, 'junk');
+
+  /// Move message to Inbox on IMAP and locally (e.g. unarchive / not junk).
   Future<void> moveToInbox(int messageId) =>
       moveToRole(messageId, 'inbox');
 

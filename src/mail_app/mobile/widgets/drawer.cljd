@@ -43,6 +43,7 @@
           (folder-item "Drafts" m.Icons/drafts :draft selected-mailbox ctx)
           (folder-item "Outbox" m.Icons/outbox :outbox selected-mailbox ctx)
           (folder-item "Archive" m.Icons/archive :archive selected-mailbox ctx)
+          (folder-item "Junk" m.Icons/report :junk selected-mailbox ctx)
           (folder-item "Trash" m.Icons/delete :trash selected-mailbox ctx)
           (m/VerticalDivider .width 1.0 .thickness 1.0)
           (m/Padding

@@ -97,6 +97,9 @@
              archived? (when msg
                          (or (= (.-state ^mc/MailMessageDto msg) "archive")
                              (= (.-folderRole ^mc/MailMessageDto msg) "archive")))
+             junked? (when msg
+                       (or (= (.-state ^mc/MailMessageDto msg) "junk")
+                           (= (.-folderRole ^mc/MailMessageDto msg) "junk")))
              draft? (when msg
                       (or (= (.-state ^mc/MailMessageDto msg) "draft")
                           (= (.-folderRole ^mc/MailMessageDto msg) "draft")))
@@ -151,6 +154,7 @@
              [(topbar/shell
                :on-back (fn [] (store/exit-reading!) nil)
                :archived? archived?
+               :junked? junked?
                :draft? draft?
                :starred? starred?
                :read? read?
@@ -176,6 +180,10 @@
                              #(detail/archive-pressed! ctx navigator message-detail))
                :on-unarchive (when (and message-detail archived?)
                                #(detail/move-to-inbox-pressed! ctx navigator message-detail))
+               :on-junk (when (and message-detail (not junked?) (not draft?))
+                          #(detail/junk-pressed! ctx navigator message-detail))
+               :on-not-junk (when (and message-detail junked?)
+                              #(detail/not-junk-pressed! ctx navigator message-detail))
                :on-delete (when message-detail
                             #(detail/confirm-delete! ctx navigator message-detail)))
               (err/banner)
