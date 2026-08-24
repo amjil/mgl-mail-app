@@ -73,6 +73,17 @@
   (when t (.cancel t))
   nil)
 
+(defn- bottom-toolbar
+  "Page-level toolbar; own watch avoids setState-during-build when editor swap!s."
+  [!doc-state editor-config]
+  (f/widget
+   :watch [doc-state !doc-state]
+   :let [editor-body-focused? (and (:cursor-visible doc-state)
+                                   (not (:external-keyboard-delegate doc-state)))]
+   (if editor-body-focused?
+     (toolbar/editor-toolbar !doc-state editor-config)
+     (m/SizedBox.shrink))))
+
 (defn screen []
   (let [draft (:compose-draft @store/app-state)
         _ (when draft (store/clear-compose-draft!))
@@ -266,12 +277,13 @@
                       (editor/mongol-block-editor
                        !doc-state
                        :editor-config compose-editor-config
-                       :toolbar (toolbar/editor-toolbar !doc-state compose-editor-config)
                        :background-color m.Colors/white
                        :show-block-handles? false
                        :wrap-ime? false
                        :padding (m.EdgeInsets/all 16.0)))]))
 
                   (kb/candidates)])))
+              true
+              (conj (bottom-toolbar !doc-state compose-editor-config))
               true
               (conj (kb/bar)))))))))))
