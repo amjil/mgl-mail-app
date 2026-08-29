@@ -16,13 +16,15 @@ class OAuthConfig {
   /// `flutter run -d macos --dart-define=MS_CLIENT_ID=<your-app-id>`
   static const microsoftClientId = String.fromEnvironment(
     'MS_CLIENT_ID',
-    defaultValue: '',
+    defaultValue: 'b891e5ab-aac3-4dc2-b0de-f02625755ef4',
   );
 
+  /// Personal Microsoft accounts only (`signInAudience: PersonalMicrosoftAccount`).
+  /// `/common` requires userAudience All; `/consumers` matches Consumer.
   static const authorizeUrl =
-      'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
+      'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize';
   static const tokenUrl =
-      'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+      'https://login.microsoftonline.com/consumers/oauth2/v2.0/token';
 
   /// Loopback redirect — must match Azure "Mobile and desktop" redirect URI.
   static const redirectUri = 'http://localhost:8765/';
