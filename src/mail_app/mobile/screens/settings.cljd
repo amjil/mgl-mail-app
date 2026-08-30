@@ -8,7 +8,7 @@
             [mail-app.mobile.widgets.signature :as signature]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]))
 
 (defn screen []
   (f/widget
@@ -53,12 +53,17 @@
                                    .context ctx
                                    .builder (fn [^m/BuildContext dialog-ctx]
                                               (m/AlertDialog
-                                               .title (m/Text "Данс устгах")
-                                               .content (m/Text "Энэ дансыг устгахдаа итгэлтэй байна уу?")
+                                               .backgroundColor theme/surface
+                                               .title (m/Text "Данс устгах"
+                                                              .style (m/TextStyle .fontFamily font-family
+                                                                                  .color theme/ink))
+                                               .content (m/Text "Энэ дансыг устгахдаа итгэлтэй байна уу?"
+                                                                .style (m/TextStyle .color theme/ink-muted))
                                                .actions
                                                [(m/TextButton
                                                  .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx)) nil)
-                                                 .child (m/Text "Цуцлах"))
+                                                 .child (m/Text "Цуцлах"
+                                                               .style (m/TextStyle .color theme/ink-muted)))
                                                 (m/TextButton
                                                  .onPressed (fn []
                                                               (.pop (m/Navigator.of dialog-ctx))
@@ -69,15 +74,14 @@
                                                                                  nil)))
                                                               nil)
                                                  .child (m/Text "Устгах"
-                                                               .style (m/TextStyle .color m/Colors.red)))]))))
+                                                               .style (m/TextStyle .color theme/danger)))]))))
                                 nil)}]
      (m/Scaffold
-      .backgroundColor (m/Color 0xFFF8F9FA)
+      .backgroundColor theme/paper
       .appBar (m/AppBar
-               .elevation 0.0
-               .backgroundColor (m/Color 0xFFF8F9FA)
-               .foregroundColor m/Colors.black87
-               .title (m/Text "Settings" .style (m/TextStyle .fontFamily font-family .fontWeight m/FontWeight.bold)))
+               .title (m/Text "Settings" .style (m/TextStyle .fontFamily font-family
+                                                            .fontWeight m/FontWeight.w600
+                                                            .color theme/ink)))
       .body
       (m/SafeArea
        .child
@@ -88,7 +92,7 @@
         (m/Row
          .crossAxisAlignment m.CrossAxisAlignment/start
          .children
-         [          (cs/settings-section
+         [(cs/settings-section
            "Данс (Accounts)"
            (conj acc-items add-item remove-item))
           (cs/settings-section

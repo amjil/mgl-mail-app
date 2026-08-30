@@ -1,5 +1,5 @@
 (ns mail-app.theme
-  "Shared UI constants — Eternal Sky palette for desktop."
+  "Shared UI constants — Eternal Sky palette for mobile and desktop."
   (:require ["package:flutter/material.dart" :as m]))
 
 (def font-family "OyunQaganTig")
@@ -69,11 +69,31 @@
                  .scrolledUnderElevation 0.0
                  .backgroundColor surface
                  .foregroundColor ink
+                 .iconTheme (m/IconThemeData .color ink-muted .size 22.0)
+                 .actionsIconTheme (m/IconThemeData .color ink-muted .size 22.0)
                  .titleTextStyle (m/TextStyle
                                   .fontFamily font-family
                                   .fontSize 18.0
                                   .fontWeight m/FontWeight.w600
                                   .color ink))
+   .floatingActionButtonTheme
+   (m/FloatingActionButtonThemeData
+    .backgroundColor sky
+    .foregroundColor m.Colors/white
+    .elevation 3.0
+    .shape (m/RoundedRectangleBorder
+            .borderRadius (m/BorderRadius.circular radius-lg)))
+   .dialogTheme
+   (m/DialogThemeData
+    .backgroundColor surface
+    .shape (m/RoundedRectangleBorder
+            .borderRadius (m/BorderRadius.circular radius-lg)))
+   .bottomSheetTheme
+   (m/BottomSheetThemeData
+    .backgroundColor surface
+    .shape (m/RoundedRectangleBorder
+            .borderRadius (m/BorderRadius.vertical
+                           .top (m.Radius/circular radius-lg))))
    .dividerTheme (m/DividerThemeData
                   .color divider
                   .space 1.0

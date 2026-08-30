@@ -4,7 +4,8 @@
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             ["package:url_launcher/url_launcher.dart" :as ul]
             [mail-app.desktop.toast :as toast]
-            [mail-app.services.mail-core :as mail]))
+            [mail-app.services.mail-core :as mail]
+            [mail-app.theme :as theme]))
 
 (defn- open-local-path! [ctx path]
   (when (seq path)
@@ -18,19 +19,17 @@
   (let [name (or (.-filename att) "file")
         ready? (and (.-isDownloaded att) (seq (.-localPath att)))]
     (m/ListTile
-     .leading (m/Icon m.Icons/attach_file)
-     .title (m/Text name .style (m/TextStyle .fontSize 14.0))
+     .leading (m/Icon m.Icons/attach_file .color theme/ink-muted)
+     .title (m/Text name .style (m/TextStyle .fontSize 14.0 .color theme/ink))
      .subtitle (when (.-size att)
                  (m/Text (str (.-size att) " bytes")
-                         .style (m/TextStyle .fontSize 12.0
-                                             .color (.-onSurfaceVariant
-                                                     (.-colorScheme (m/Theme.of ctx))))))
+                         .style (m/TextStyle .fontSize 12.0 .color theme/ink-muted)))
      .trailing
      (cond
        downloading?
        (m/SizedBox
         .width 20.0 .height 20.0
-        .child (m/CircularProgressIndicator. .strokeWidth 2.0))
+        .child (m/CircularProgressIndicator. .strokeWidth 2.0 .color theme/sky))
 
        ready?
        (m/IconButton
@@ -59,6 +58,7 @@
       (m/showModalBottomSheet
        .context ctx
        .showDragHandle true
+       .backgroundColor theme/surface
        .builder
        (fn [sheet-ctx]
          (m/SafeArea
@@ -71,8 +71,9 @@
                    .padding (m.EdgeInsets/fromLTRB 16.0 8.0 16.0 8.0)
                    .child
                    (m/Text "Attachments"
-                           .style (m/TextStyle .fontWeight m/FontWeight.bold
-                                               .fontSize 16.0)))]
+                           .style (m/TextStyle .fontWeight m/FontWeight.w600
+                                               .fontSize 16.0
+                                               .color theme/ink)))]
                  (mapv (fn [^mc/MailAttachmentDto a]
                          (attachment-tile sheet-ctx a
                                           (contains? downloading-ids (.-id a))))

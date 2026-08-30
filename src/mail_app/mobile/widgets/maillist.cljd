@@ -8,7 +8,7 @@
             [mail-app.desktop.toast :as toast]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]))
 
 (defn- pad2 [n] (.padLeft (.toString n) 2 "0"))
 
@@ -19,17 +19,31 @@
   (let [s (.-subject msg)]
     (if (or (nil? s) (empty? s)) "No Subject" s)))
 
+(defn- sender-initial [^mc/MailMessageDto msg]
+  (let [s (or (.-fromName msg) (.-from msg) "")]
+    (if (pos? (.-length s))
+      (.substring s 0 1)
+      "?")))
+
 (defn empty-state [icon label]
   (m/Center
    .child (m/Row
            .mainAxisSize m.MainAxisSize/min
            .children
-           [(m/Icon icon .size 64.0 .color m.Colors/black12)
-            (m/SizedBox .width 16.0)
+           [(m/Container
+             .width 88.0
+             .height 88.0
+             .decoration (m/BoxDecoration
+                          .color theme/sky-light
+                          .shape m.BoxShape/circle)
+             .child (m/Center
+                     .child (m/Icon icon .size 40.0 .color theme/sky)))
+            (m/SizedBox .width 20.0)
             (mgl/MongolText label
                             .style (m/TextStyle .fontFamily font-family
-                                                .color m.Colors/black38
-                                                .fontSize 18.0))])))
+                                                .color theme/ink-muted
+                                                .fontSize 18.0
+                                                .height 1.4))])))
 
 (defn mail-tile
   ([navigator msg]
@@ -43,35 +57,63 @@
                           (.pushNamed navigator "/mail_detail")
                           nil))]
      (mgl/MongolListTile
-      .leading (when unread?
-                 (m/Container .width 8.0 .height 8.0
-                              .decoration (m/BoxDecoration .color m.Colors/blue .shape m.BoxShape/circle)))
+      .leading (m/Container
+                .width 28.0
+                .height 28.0
+                .alignment m.Alignment/center
+                .decoration (m/BoxDecoration
+                             .color (if unread? theme/sky-soft theme/paper-deep)
+                             .shape m.BoxShape/circle)
+                .child
+                (m/Text (sender-initial msg)
+                        .style (m/TextStyle
+                                .fontSize 13.0
+                                .fontWeight m/FontWeight.w600
+                                .color (if unread? theme/sky-deep theme/ink-muted)
+                                .fontFamily font-family)))
       .title (m/Padding
               .padding (m.EdgeInsets/only .top 8.0)
               .child (mgl/MongolText
                       (subject-of msg)
                       .style (m/TextStyle .fontFamily font-family
                                           .fontSize 18.0
-                                          .fontWeight (if unread? m/FontWeight.bold m/FontWeight.normal)
-                                          .color (if unread? m.Colors/black87 m.Colors/black54))))
+                                          .height 1.4
+                                          .fontWeight (if unread? m/FontWeight.w700 m/FontWeight.normal)
+                                          .color (if unread? theme/ink theme/ink-muted))))
       .subtitle (m/Column
                  .crossAxisAlignment m.CrossAxisAlignment/start
                  .mainAxisSize m.MainAxisSize/min
                  .children
-                 [(mgl/MongolText (or (.-fromName msg) (.-from msg) "")
-                                  .style (m/TextStyle .fontFamily font-family
-                                                      .fontSize 14.0
-                                                      .color (if unread? m.Colors/black54 m.Colors/black38)))
-                  (m/SizedBox .height 8.0)
-                  (mgl/MongolText (or (format-date (.-date msg)) "")
-                                  .style (m/TextStyle .fontSize 12.0 .color m.Colors/black45))])
+                 (cond->
+                   [(mgl/MongolText (or (.-fromName msg) (.-from msg) "")
+                                    .style (m/TextStyle .fontFamily font-family
+                                                        .fontSize 14.0
+                                                        .height 1.35
+                                                        .color (if unread? theme/ink-muted
+                                                                    (.withOpacity theme/ink-muted 0.8))))
+                    (m/SizedBox .height 8.0)
+                    (mgl/MongolText (or (format-date (.-date msg)) "")
+                                    .style (m/TextStyle .fontSize 12.0
+                                                        .color theme/ink-muted))]
+                   (.-isStarred msg)
+                   (conj (m/Padding
+                          .padding (m.EdgeInsets/only .top 8.0)
+                          .child (m/Icon m.Icons/star .size 14.0 .color theme/gold)))))
       .onTap handle-tap
       .onLongPress on-long-press))))
 
 (defn result-item [^mc/MailMessageDto msg]
   (f/widget
    :get [m/Navigator]
-   (mail-tile navigator msg)))
+   (m/Container
+    .width 148.0
+    .margin (m.EdgeInsets/symmetric .horizontal 4.0)
+    .decoration (m/BoxDecoration
+                 .color theme/surface
+                 .borderRadius (m/BorderRadius.circular theme/radius-md)
+                 .border (m/Border.all .color theme/divider .width 0.5)
+                 .boxShadow (theme/hair-shadow))
+    .child (mail-tile navigator msg))))
 
 ;; ==========================================
 ;; Single mail item (vertical swipe + long-press multi-select)
@@ -81,6 +123,7 @@
    :watch [selected-ids !selected-ids]
    (let [^mc/MailMessageDto msg msg
          mid (.-id msg)
+         unread? (not (.-isRead msg))
          in-selection-mode? (seq selected-ids)
          selected? (contains? selected-ids mid)]
      (slide/item
@@ -123,20 +166,41 @@
                      (swap! !selected-ids conj mid)
                      nil))]
          (m/Container
-          .width 140.0
-          .color (if selected? (-> m.Colors/blue (.withOpacity 0.08)) m.Colors/white)
+          .width 148.0
+          .margin (m.EdgeInsets/symmetric .horizontal 4.0)
+          .decoration (m/BoxDecoration
+                       .color (if selected? theme/sky-soft theme/surface)
+                       .borderRadius (m/BorderRadius.circular theme/radius-md)
+                       .border (m/Border.all
+                                .color (if selected? theme/sky theme/divider)
+                                .width (if selected? 1.5 0.5))
+                       .boxShadow (theme/hair-shadow))
           .child
-          (if in-selection-mode?
-            (m/Stack
-             .children
-             [tile
-              (m/Positioned
-               .top 12.0
-               .right 12.0
-               .child (m/Icon (if selected? m.Icons/check_circle m.Icons/radio_button_unchecked)
-                              .color (if selected? m.Colors/blue m.Colors/black26)
-                              .size 24.0))])
-            tile)))}))))
+          (m/ClipRRect
+           .borderRadius (m/BorderRadius.circular theme/radius-md)
+           .child
+           (m/Stack
+            .children
+            (cond-> [tile]
+              unread?
+              (conj (m/Positioned
+                     .left 0.0
+                     .top 12.0
+                     .bottom 12.0
+                     .child (m/Container
+                             .width 3.0
+                             .decoration (m/BoxDecoration
+                                          .color theme/sky
+                                          .borderRadius (m/BorderRadius.circular 2.0)))))
+              in-selection-mode?
+              (conj (m/Positioned
+                     .top 10.0
+                     .right 10.0
+                     .child (m/Icon (if selected?
+                                      m.Icons/check_circle
+                                      m.Icons/radio_button_unchecked)
+                                    .color (if selected? theme/sky theme/ink-muted)
+                                    .size 22.0))))))))}))))
 
 ;; ==========================================
 ;; Horizontally scrolling mail list
@@ -147,11 +211,11 @@
    :get [m/Navigator]
    :watch [{:keys [mail-list]} store/app-state]
    (if (empty? mail-list)
-     (empty-state m.Icons/inbox "Хоосон байна")
+     (empty-state m.Icons/inbox_outlined "Хоосон байна")
      (m/ListView.separated
       .scrollDirection m.Axis/horizontal
-      .padding (m.EdgeInsets/symmetric .horizontal 12.0 .vertical 8.0)
+      .padding (m.EdgeInsets/symmetric .horizontal 12.0 .vertical 12.0)
       .itemCount (count mail-list)
-      .separatorBuilder (fn [_ _] (m/VerticalDivider .width 1.0 .thickness 1.0 .color m.Colors/black12))
+      .separatorBuilder (fn [_ _] (m/SizedBox .width 2.0))
       .itemBuilder (fn [_ idx]
                      (mail-item ctx navigator (nth mail-list idx) !selected-ids))))))

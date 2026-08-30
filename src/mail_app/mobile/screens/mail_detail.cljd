@@ -15,7 +15,7 @@
             [mail-app.services.compose-export :as export]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]))
 
 (defn- pad2 [n] (.padLeft (.toString n) 2 "0"))
 
@@ -66,15 +66,18 @@
           .child
           (m/Container
            .padding (m.EdgeInsets/all 24.0)
-           .decoration (m/BoxDecoration .color m.Colors/white .borderRadius (m.BorderRadius/circular 12.0))
+           .decoration (m/BoxDecoration
+                        .color theme/surface
+                        .borderRadius (m.BorderRadius/circular theme/radius-lg)
+                        .boxShadow (theme/card-shadow))
            .child (m/Column
                    .mainAxisSize m.MainAxisSize/min
-                   .children [(m/CircularProgressIndicator.)
+                   .children [(m/CircularProgressIndicator. .color theme/sky)
                               (m/SizedBox .height 16.0)
                               (mgl/MongolText "Зөөж байна..."
                                               .style (m/TextStyle .fontFamily font-family
                                                                   .fontSize 16.0
-                                                                  .color m.Colors/black87))])))))))
+                                                                  .color theme/ink))])))))))
     (async/Future.delayed
      (dart:core/Duration. .milliseconds 500)
      (fn []
@@ -166,7 +169,7 @@
               (m/TextButton
                .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) true) nil)
                .child (mgl/MongolText "Delete"
-                                     .style (m/TextStyle .color m.Colors/red)))]})))
+                                     .style (m/TextStyle .color theme/danger)))]})))
         (.then (fn [ok?]
                  (when ok?
                    (async/Future.delayed
@@ -270,13 +273,12 @@
          loading-body? (if msg (not (.-hasBody msg)) true)
          atts (when message-detail
                 (vec (or (.-attachments ^mc/MailMessageWithBody message-detail) [])))
-         cs (.-colorScheme (m/Theme.of ctx))
-         meta-colors {:on-surface (.-onSurface cs)
-                      :on-surface-variant (.-onSurfaceVariant cs)}
+         meta-colors {:on-surface theme/ink
+                      :on-surface-variant theme/ink-muted}
          leading (mail-body/meta-leading subject from to date meta-colors)]
      (m/Scaffold
+      .backgroundColor theme/paper
       .appBar (m/AppBar
-               .elevation 0.0
                .actions
                (cond-> []
                  (and msg draft?)
@@ -311,14 +313,14 @@
                                      ctx navigator message-detail)))
                  msg
                  (conj (m/IconButton
-                        .icon (m/Icon m.Icons/delete_outline)
+                        .icon (m/Icon m.Icons/delete_outline .color theme/danger)
                         .onPressed #(confirm-delete! ctx navigator message-detail)))))
       .body
       (cond
         (nil? message-detail)
         (m/Center .child (if (seq last-error)
-                           (m/Text (str last-error) .style (m/TextStyle .color m.Colors/red))
-                           (m/CircularProgressIndicator.)))
+                           (m/Text (str last-error) .style (m/TextStyle .color theme/danger))
+                           (m/CircularProgressIndicator. .color theme/sky)))
         :else
         (m/SafeArea
          .child
@@ -341,6 +343,6 @@
                    .child
                    (m/Text (str "Failed to load body:\n" last-error)
                            .textAlign m.TextAlign/center
-                           .style (m/TextStyle .color m.Colors/red .fontSize 13.0)))
-                  (m/CircularProgressIndicator.)))))))
+                           .style (m/TextStyle .color theme/danger .fontSize 13.0)))
+                  (m/CircularProgressIndicator. .color theme/sky)))))))
            (mail-body/body-view message-detail leading))))))))

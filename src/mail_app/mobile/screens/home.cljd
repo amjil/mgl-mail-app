@@ -9,7 +9,7 @@
             [mail-app.mobile.widgets.maillist :as mobile-list]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]))
 
 (defn screen []
   (let [!selected-ids (atom #{})]
@@ -41,32 +41,37 @@
                   .padding (m.EdgeInsets/all 16.0)
                   .child
                   (m/SizedBox
-                   .width 24.0
-                   .height 24.0
+                   .width 22.0
+                   .height 22.0
                    .child (m/CircularProgressIndicator
                            .strokeWidth 2.0
-                           .color m.Colors/white)))
+                           .color theme/sky)))
                  (m/IconButton
                   .icon (m/Icon m.Icons/sync)
+                  .tooltip "Sync"
                   .onPressed #(mail/sync!)))]
            (m/Scaffold
+            .backgroundColor theme/paper
             .drawer (when-not in-selection-mode? (drawer/drawer ctx))
             .appBar
             (if in-selection-mode?
               (m/AppBar
-               .backgroundColor m/Colors.blue.shade50
-               .foregroundColor m/Colors.blue.shade900
+               .backgroundColor theme/sky-light
+               .foregroundColor theme/sky-deep
+               .elevation 0.0
+               .scrolledUnderElevation 0.0
                .leading (m/IconButton
-                         .icon (m/Icon m.Icons/close)
+                         .icon (m/Icon m.Icons/close .color theme/sky-deep)
                          .onPressed (fn []
                                       (reset! !selected-ids #{})
                                       nil))
                .title (m/Text (str (count selected-ids) " сонгосон")
                               .style (m/TextStyle .fontFamily font-family
-                                                  .fontWeight m/FontWeight.bold))
+                                                  .fontWeight m/FontWeight.w600
+                                                  .color theme/sky-deep))
                .actions
                [(m/IconButton
-                 .icon (m/Icon m.Icons/archive_outlined)
+                 .icon (m/Icon m.Icons/archive_outlined .color theme/sky-deep)
                  .tooltip "Archive All"
                  .onPressed (fn []
                               (doseq [id selected-ids] (mail/archive-message! id))
@@ -74,7 +79,7 @@
                               (toast/success! (toast/safe-ctx ctx) "Бүгдийг архивлалаа")
                               nil))
                 (m/IconButton
-                 .icon (m/Icon m.Icons/delete_outline .color m.Colors/red)
+                 .icon (m/Icon m.Icons/delete_outline .color theme/danger)
                  .tooltip "Delete All"
                  .onPressed (fn []
                               (doseq [id selected-ids] (mail/delete-message! id))
@@ -82,10 +87,13 @@
                               (toast/success! (toast/safe-ctx ctx) "Бүгдийг устгалаа")
                               nil))])
               (m/AppBar
-               .title (m/Text title .style (m/TextStyle .fontFamily font-family))
+               .title (m/Text title .style (m/TextStyle .fontFamily font-family
+                                                       .fontWeight m/FontWeight.w600
+                                                       .color theme/ink))
                .actions
                [(m/IconButton
                  .icon (m/Icon m.Icons/search)
+                 .tooltip "Search"
                  .onPressed (fn []
                               (.pushNamed (m/Navigator.of ctx) "/search")
                               nil))
@@ -98,7 +106,8 @@
             .floatingActionButton
             (when-not in-selection-mode?
               (m/FloatingActionButton
-               .child (m/Icon m.Icons/edit)
+               .tooltip "Compose"
+               .child (m/Icon m.Icons/edit_outlined)
                .onPressed (fn []
                             (store/clear-compose-draft!)
                             (.pushNamed navigator "/compose")

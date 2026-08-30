@@ -6,15 +6,15 @@
             [mail-app.desktop.toast :as toast]
             [mail-app.mobile.widgets.keyboard :as kb]
             [mail-app.state.store :as store]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]))
 
 (defn open-dialog! [ctx aid initial-sig]
   (m/showModalBottomSheet
    .context ctx
    .isScrollControlled true
-   .backgroundColor m.Colors/white
+   .backgroundColor theme/surface
    .shape (m/RoundedRectangleBorder
-           .borderRadius (m.BorderRadius/vertical .top (m.Radius/circular 16.0)))
+           .borderRadius (m.BorderRadius/vertical .top (m.Radius/circular theme/radius-lg)))
    .builder
    (fn [sheet-ctx]
      (f/widget
@@ -40,9 +40,12 @@
             .children
             [(m/TextButton
               .onPressed (fn [] (.pop (m/Navigator.of sheet-ctx)) nil)
-              .child (m/Text "Cancel"))
+              .child (m/Text "Cancel" .style (m/TextStyle .color theme/ink-muted)))
              (m/Text "Signature"
-                     .style (m/TextStyle .fontFamily font-family .fontSize 16.0 .fontWeight m/FontWeight.bold))
+                     .style (m/TextStyle .fontFamily font-family
+                                         .fontSize 16.0
+                                         .fontWeight m/FontWeight.w600
+                                         .color theme/ink))
              (m/TextButton
               .onPressed (fn []
                            (let [text (.-text sig-ctrl)]
@@ -50,8 +53,9 @@
                              (toast/success! ctx "Signature updated")
                              (.pop (m/Navigator.of sheet-ctx)))
                            nil)
-              .child (m/Text "Save" .style (m/TextStyle .fontWeight m/FontWeight.bold)))]))
-          (m/Divider .height 1.0)
+              .child (m/Text "Save" .style (m/TextStyle .fontWeight m/FontWeight.w600
+                                                        .color theme/sky)))]))
+          (m/Divider .height 1.0 .color theme/divider)
           (m/Expanded
            .child
            (m/Stack
@@ -68,7 +72,7 @@
                .decoration (m/InputDecoration
                             .border m.InputBorder/none
                             .hintText "Enter your signature here..."
-                            .hintStyle (m/TextStyle .fontFamily font-family .color m.Colors/black38))
-               .style (m/TextStyle .fontFamily font-family .fontSize 18.0)))
+                            .hintStyle (m/TextStyle .fontFamily font-family .color theme/ink-muted))
+               .style (m/TextStyle .fontFamily font-family .fontSize 18.0 .color theme/ink)))
              (kb/candidates)]))
           (kb/bar)])))))))

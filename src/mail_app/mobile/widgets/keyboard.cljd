@@ -3,12 +3,13 @@
   (:require ["package:flutter/material.dart" :as m]
             [virtual-keyboard.input-control :as input-control]
             [virtual-keyboard.keyboard :as vk]
-            [virtual-keyboard.options :as vk-options]))
+            [virtual-keyboard.options :as vk-options]
+            [mail-app.theme :as theme]))
 
 (def info
   (merge vk-options/keyboard-option
          {:keyboard/mongol-font-family "OyunQaganTig"
-          :keyboard/key-container-color m/Colors.grey.shade500
+          :keyboard/key-container-color theme/ink-muted
           :keyboard/font-size 16}))
 
 (defn install []
@@ -25,5 +26,6 @@
 (defn bar []
   (m/Container
    .decoration (m/BoxDecoration
-                .border (m/Border .top (m/BorderSide .color m.Colors/black12 .width 0.5)))
+                .color theme/paper
+                .border (m/Border .top (m/BorderSide .color theme/divider .width 1.0)))
    .child (vk/keyboard {})))

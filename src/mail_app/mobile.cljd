@@ -9,20 +9,16 @@
             [mail-app.mobile.screens.search :as search]
             [mail-app.mobile.screens.settings :as settings]
             [mail-app.mobile.screens.signup :as signup]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme]))
 
 (defn app []
   (f/widget
    :managed [nav-key (#/(m/GlobalKey m/NavigatorState))]
    (m/MaterialApp
     .navigatorKey nav-key
-    .title "MGL Mail Mobile"
+    .title "MGL Mail"
     .debugShowCheckedModeBanner false
-    .theme (m/ThemeData
-            .primarySwatch m.Colors/blue
-            .fontFamily font-family
-            .scaffoldBackgroundColor m.Colors/white
-            .useMaterial3 true)
+    .theme (theme/sky-theme)
     .builder
     (fn [_ctx child]
       (st/StyledToast

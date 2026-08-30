@@ -6,22 +6,49 @@
             [cljd.flutter :as f]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]))
 
 (defn- folder-item [label icon key current-sel ctx]
   (let [selected? (= key current-sel)]
-    (mgl/MongolListTile
-     .leading (m/Icon icon .color (if selected? m.Colors/blue m.Colors/black54))
-     .title (mgl/MongolText label
-                            .style (m/TextStyle .fontFamily font-family
-                                                .fontSize 16.0
-                                                .color (if selected? m.Colors/blue m.Colors/black87)))
-     .selected selected?
-     .selectedTileColor (-> m.Colors/blue (.withOpacity 0.1))
-     .onTap (fn []
-              (mail/select-mailbox! key)
-              (.pop (m/Navigator.of ctx))
-              nil))))
+    (m/Container
+     .width 72.0
+     .margin (m.EdgeInsets/symmetric .horizontal 4.0 .vertical 10.0)
+     .decoration (m/BoxDecoration
+                  .color (when selected? theme/surface)
+                  .borderRadius (m/BorderRadius.circular theme/radius-md)
+                  .border (when selected? (m/Border.all .color theme/sky-soft))
+                  .boxShadow (when selected? (theme/hair-shadow)))
+     .child
+     (m/Stack
+      .children
+      (cond->
+        [(mgl/MongolListTile
+          .leading (m/Icon icon
+                           .size 20.0
+                           .color (if selected? theme/sky theme/ink-muted))
+          .title (mgl/MongolText label
+                                 .style (m/TextStyle .fontFamily font-family
+                                                     .fontSize 16.0
+                                                     .height 1.4
+                                                     .fontWeight (if selected?
+                                                                   m/FontWeight.w600
+                                                                   m/FontWeight.normal)
+                                                     .color (if selected? theme/ink theme/ink-muted)))
+          .selected selected?
+          .onTap (fn []
+                   (mail/select-mailbox! key)
+                   (.pop (m/Navigator.of ctx))
+                   nil))]
+        selected?
+        (conj (m/Positioned
+               .left 0.0
+               .top 16.0
+               .bottom 16.0
+               .child (m/Container
+                       .width 3.0
+                       .decoration (m/BoxDecoration
+                                    .color theme/sky
+                                    .borderRadius (m/BorderRadius.circular 2.0))))))))))
 
 (defn- avatar-letter [display-name]
   (let [s (or display-name "")]
@@ -38,44 +65,90 @@
          display-name (when current-acc (.-displayName ^mc/MailAccountDto current-acc))
          email (when current-acc (.-email ^mc/MailAccountDto current-acc))
          folder-tiles
-         [(folder-item "Inbox" m.Icons/inbox :inbox selected-mailbox ctx)
-          (folder-item "Sent" m.Icons/send :sent selected-mailbox ctx)
-          (folder-item "Drafts" m.Icons/drafts :draft selected-mailbox ctx)
+         [(folder-item "Inbox" m.Icons/inbox_outlined :inbox selected-mailbox ctx)
+          (folder-item "Sent" m.Icons/send_outlined :sent selected-mailbox ctx)
+          (folder-item "Drafts" m.Icons/drafts_outlined :draft selected-mailbox ctx)
           (folder-item "Outbox" m.Icons/outbox :outbox selected-mailbox ctx)
-          (folder-item "Archive" m.Icons/archive :archive selected-mailbox ctx)
-          (folder-item "Junk" m.Icons/report :junk selected-mailbox ctx)
-          (folder-item "Trash" m.Icons/delete :trash selected-mailbox ctx)
-          (m/VerticalDivider .width 1.0 .thickness 1.0)
+          (folder-item "Archive" m.Icons/archive_outlined :archive selected-mailbox ctx)
+          (folder-item "Junk" m.Icons/report_outlined :junk selected-mailbox ctx)
+          (folder-item "Trash" m.Icons/delete_outline :trash selected-mailbox ctx)
+          (m/Container
+           .width 1.0
+           .margin (m.EdgeInsets/symmetric .vertical 24.0 .horizontal 8.0)
+           .color theme/divider)
           (m/Padding
            .padding (m.EdgeInsets/symmetric .vertical 16.0 .horizontal 8.0)
            .child (mgl/MongolText "Custom Folders"
-                                  .style (m/TextStyle .fontFamily font-family .color m.Colors/black54 .fontSize 12.0)))
-          (m/VerticalDivider .width 1.0 .thickness 1.0)
-          (mgl/MongolListTile
-           .leading (m/Icon m.Icons/settings .color m.Colors/black54)
-           .title (mgl/MongolText "Settings"
                                   .style (m/TextStyle .fontFamily font-family
-                                                      .fontSize 16.0
-                                                      .color m.Colors/black87))
-           .onTap (fn []
-                    (.pop (m/Navigator.of ctx))
-                    (.pushNamed (m/Navigator.of ctx) "/settings")
-                    nil))]]
+                                                      .color theme/ink-muted
+                                                      .fontSize 12.0)))
+          (m/Container
+           .width 1.0
+           .margin (m.EdgeInsets/symmetric .vertical 24.0 .horizontal 8.0)
+           .color theme/divider)
+          (m/Container
+           .width 72.0
+           .margin (m.EdgeInsets/symmetric .horizontal 4.0 .vertical 10.0)
+           .child
+           (mgl/MongolListTile
+            .leading (m/Icon m.Icons/settings_outlined .size 20.0 .color theme/ink-muted)
+            .title (mgl/MongolText "Settings"
+                                   .style (m/TextStyle .fontFamily font-family
+                                                       .fontSize 16.0
+                                                       .height 1.4
+                                                       .color theme/ink-muted))
+            .onTap (fn []
+                     (.pop (m/Navigator.of ctx))
+                     (.pushNamed (m/Navigator.of ctx) "/settings")
+                     nil)))]]
      (m/Drawer
+      .backgroundColor theme/paper
       .child
       (m/Column
        .crossAxisAlignment m.CrossAxisAlignment/stretch
        .children
-       [(m/UserAccountsDrawerHeader
-         .accountName (m/Text (or display-name "Mail Account")
-                              .style (m/TextStyle .fontFamily font-family))
-         .accountEmail (m/Text (or email "")
-                               .style (m/TextStyle .fontFamily font-family))
-         .currentAccountPicture
-         (m/CircleAvatar .child (m/Text (avatar-letter display-name))))
+       [(m/Container
+         .padding (m.EdgeInsets/fromLTRB 20.0 48.0 20.0 20.0)
+         .decoration (m/BoxDecoration
+                      .gradient (m/LinearGradient
+                                 .begin m.Alignment/topLeft
+                                 .end m.Alignment/bottomRight
+                                 .colors [theme/sky theme/sky-deep]))
+         .child
+         (m/Row
+          .children
+          [(m/CircleAvatar
+            .radius 26.0
+            .backgroundColor m.Colors/white
+            .child (m/Text (avatar-letter display-name)
+                           .style (m/TextStyle .fontSize 20.0
+                                               .fontWeight m/FontWeight.w600
+                                               .color theme/sky
+                                               .fontFamily font-family)))
+           (m/SizedBox .width 14.0)
+           (m/Expanded
+            .child
+            (m/Column
+             .crossAxisAlignment m.CrossAxisAlignment/start
+             .mainAxisSize m.MainAxisSize/min
+             .children
+             [(m/Text (or display-name "Mail Account")
+                      .maxLines 1
+                      .overflow m.TextOverflow/ellipsis
+                      .style (m/TextStyle .fontFamily font-family
+                                          .fontSize 16.0
+                                          .fontWeight m/FontWeight.w600
+                                          .color m.Colors/white))
+              (m/SizedBox .height 4.0)
+              (m/Text (or email "")
+                      .maxLines 1
+                      .overflow m.TextOverflow/ellipsis
+                      .style (m/TextStyle .fontFamily font-family
+                                          .fontSize 12.0
+                                          .color (.withOpacity m.Colors/white 0.85)))]))]))
         (m/Expanded
          .child
          (m/ListView
           .scrollDirection m.Axis/horizontal
-          .padding m.EdgeInsets/zero
+          .padding (m.EdgeInsets/symmetric .horizontal 8.0)
           .children folder-tiles))])))))

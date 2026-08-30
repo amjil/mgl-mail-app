@@ -9,7 +9,7 @@
             [mail-app.mobile.widgets.maillist :as mobile-list]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]))
 
 (defn- dispose-search-trigger! [state]
   (let [{:keys [^m/TextEditingController ctrl trig !timer]} state]
@@ -43,7 +43,7 @@
      :get [m/Navigator]
      :watch [{:keys [search-results searching?]} store/app-state]
      (m/Scaffold
-      .backgroundColor m.Colors/white
+      .backgroundColor theme/paper
       .resizeToAvoidBottomInset false
       .body
       (m/SafeArea
@@ -60,7 +60,10 @@
              .children
              [(m/Container
                .width 90.0
-               .color (-> m.Colors/blue (.withOpacity 0.05))
+               .decoration (m/BoxDecoration
+                            .color theme/sky-light
+                            .border (m/Border
+                                     .right (m/BorderSide .color theme/divider)))
                .child
                (m/Column
                 .children
@@ -68,7 +71,7 @@
                   .padding (m.EdgeInsets/only .top 8.0 .bottom 8.0)
                   .child
                   (m/IconButton
-                   .icon (m/Icon m.Icons/arrow_back)
+                   .icon (m/Icon m.Icons/arrow_back .color theme/ink-muted)
                    .onPressed #(.pop navigator)))
                  (m/Expanded
                   .child
@@ -82,21 +85,20 @@
                     .decoration (m/InputDecoration
                                  .hintText "Search..."
                                  .border m.InputBorder/none
-                                 .hintStyle (m/TextStyle .fontFamily font-family .color m.Colors/black38))
-                    .style (m/TextStyle .fontFamily font-family .fontSize 18.0 .color m.Colors/black87))))
+                                 .hintStyle (m/TextStyle .fontFamily font-family .color theme/ink-muted))
+                    .style (m/TextStyle .fontFamily font-family .fontSize 18.0 .color theme/ink))))
                  (m/Padding
                   .padding (m.EdgeInsets/all 16.0)
                   .child
                   (if searching?
                     (m/SizedBox .width 20.0 .height 20.0
-                                .child (m/CircularProgressIndicator .strokeWidth 2.0 .color m.Colors/black54))
+                                .child (m/CircularProgressIndicator .strokeWidth 2.0 .color theme/sky))
                     (m/IconButton
-                     .icon (m/Icon m.Icons/close)
+                     .icon (m/Icon m.Icons/close .color theme/ink-muted)
                      .onPressed (fn []
                                   (.clear search-ctrl)
                                   (store/set-search-results! [])
                                   nil))))]))
-              (m/VerticalDivider .width 1.0 .thickness 1.0)
               (m/Expanded
                .child
                (if (empty? search-results)
