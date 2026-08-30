@@ -204,39 +204,16 @@
    {:role "junk" :label "Junk" :icon m.Icons/report_outlined}
    {:role "trash" :label "Trash" :icon m.Icons/delete_outline}])
 
-(defn- folder-label [^mc/MailFolderDto f fallback]
-  (let [n (.-name f)]
-    (if (seq n) n fallback)))
-
-(defn- folder-icon [role]
-  (case role
-    "inbox" m.Icons/inbox
-    "archive" m.Icons/archive_outlined
-    "junk" m.Icons/report_outlined
-    "trash" m.Icons/delete_outline
-    m.Icons/folder_outlined))
-
 (defn- current-folder-role [^mc/MailMessageDto msg]
   (or (.-folderRole msg)
       (when (#{"inbox" "archive" "trash" "sent" "draft" "junk"} (.-state msg))
         (.-state msg))))
 
 (defn- move-targets-for [^mc/MailMessageDto msg]
-  (let [current (current-folder-role msg)
-        folders (:folder-list @store/app-state)
-        by-role (into {}
-                      (keep (fn [^mc/MailFolderDto f]
-                              (when-let [r (.-role f)]
-                                (when (#{"inbox" "archive" "junk" "trash"} r)
-                                  [r f])))
-                            folders))]
+  (let [current (current-folder-role msg)]
     (->> move-targets
          (remove #(= (:role %) current))
-         (mapv (fn [{:keys [role label icon]}]
-                 (let [^mc/MailFolderDto f (get by-role role)]
-                   {:role role
-                    :label (if f (folder-label f label) label)
-                    :icon (if f (folder-icon role) icon)}))))))
+         vec)))
 
 (defn- show-move-to-sheet! [ctx navigator ^mc/MailMessageWithBody detail]
   (let [^mc/MailMessageDto msg (.-message detail)
