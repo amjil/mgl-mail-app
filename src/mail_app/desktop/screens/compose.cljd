@@ -15,7 +15,7 @@
             [mail-app.desktop.widgets.compose-topbar :as topbar]
             [mail-app.services.compose-export :as export]
             [mail-app.state.store :as store]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]))
 
 (def compose-editor-config
   {:text-block-types #{:paragraph :heading-1 :heading-2 :heading-3
@@ -24,13 +24,13 @@
    (fn [b-type]
      (case b-type
        :heading-1 (m/TextStyle .fontSize 28.0 .fontWeight m/FontWeight.bold
-                               .color m.Colors/black87 .fontFamily font-family)
+                               .color theme/ink .fontFamily font-family)
        :heading-2 (m/TextStyle .fontSize 22.0 .fontWeight m/FontWeight.bold
-                               .color m.Colors/black87 .fontFamily font-family)
+                               .color theme/ink .fontFamily font-family)
        :heading-3 (m/TextStyle .fontSize 18.0 .fontWeight m/FontWeight.w600
-                               .color m.Colors/black87 .fontFamily font-family)
-       (m/TextStyle .fontSize 16.0 .color m.Colors/black87
-                    .fontFamily font-family)))})
+                               .color theme/ink .fontFamily font-family)
+       (m/TextStyle .fontSize 16.0 .color theme/ink
+                    .fontFamily font-family .height 1.4)))})
 
 (defn- apply-fields!
   [draft to-ctrl cc-ctrl bcc-ctrl subject-ctrl !show-cc? !show-bcc?]
@@ -173,7 +173,7 @@
            nil)}
 
         (m/Scaffold
-         .backgroundColor m.Colors/white
+         .backgroundColor theme/paper
          .body
          ;; One page-level IME overlay (like rich-editor desktop). Header fields
          ;; share !doc-state; editor uses :wrap-ime? false to avoid nested
@@ -194,29 +194,33 @@
                              :!show-bcc? !show-bcc?
                              :!attachment-paths !attachment-paths
                              :!draft-meta !draft-meta})
-             (m/Divider .thickness 1.0 .height 1.0)
              (m/Expanded
               .child
               (m/Row
                .crossAxisAlignment m.CrossAxisAlignment/stretch
                .children
                (cond->
-                 [(fields/header-row
-                   {:!ime !doc-state
-                    :to-ctrl to-ctrl :to-focus to-focus
-                    :cc-ctrl cc-ctrl :cc-focus cc-focus
-                    :bcc-ctrl bcc-ctrl :bcc-focus bcc-focus
-                    :subject-ctrl subject-ctrl :subject-focus subject-focus
-                    :show-cc? show-cc?
-                    :show-bcc? show-bcc?})
-                  (m/VerticalDivider .width 1.0 .thickness 1.0)
+                 [(m/DecoratedBox
+                   .decoration (m/BoxDecoration
+                                .color theme/paper
+                                .border (m/Border
+                                         .right (m/BorderSide .color theme/divider)))
+                   .child
+                   (fields/header-row
+                    {:!ime !doc-state
+                     :to-ctrl to-ctrl :to-focus to-focus
+                     :cc-ctrl cc-ctrl :cc-focus cc-focus
+                     :bcc-ctrl bcc-ctrl :bcc-focus bcc-focus
+                     :subject-ctrl subject-ctrl :subject-focus subject-focus
+                     :show-cc? show-cc?
+                     :show-bcc? show-bcc?}))
                   (m/Expanded
                    .flex 2
                    .child
                    (editor/mongol-block-editor
                     !doc-state
                     :editor-config compose-editor-config
-                    :background-color m.Colors/white
+                    :background-color theme/surface
                     :show-block-handles? false
                     :wrap-ime? false
                     :padding (m.EdgeInsets/all 24.0)))]

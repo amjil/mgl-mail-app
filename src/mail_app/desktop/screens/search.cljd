@@ -40,31 +40,43 @@
 ;; Search Results UI
 ;; ==========================================
 (defn- result-item [^mc/MailSearchResultDto hit navigator]
-  (mgl/MongolListTile
-   .title (m/Padding
-           .padding (m.EdgeInsets/only .top 8.0)
-           .child
-           (mgl/MongolText
-            (or (.-subject hit) "No Subject")
-            .style (m/TextStyle .fontSize 18.0 .fontFamily font-family .fontWeight m.FontWeight/bold)))
-   .subtitle (m/Padding
-              .padding (m.EdgeInsets/only .top 8.0)
-              .child
-              (mgl/MongolText
-               (or (.-snippet hit) "")
-               .style (m/TextStyle .fontSize 14.0
-                                   .fontFamily font-family
-                                   .color theme/ink-muted
-                                   .height 1.4)))
-   .onTap (fn []
-            (mail/open-message! (.-messageId hit))
-            (.pop navigator)
-            nil)))
+  (m/Material
+   .color theme/surface
+   .borderRadius (m/BorderRadius.circular theme/radius-md)
+   .child
+   (m/InkWell
+    .borderRadius (m/BorderRadius.circular theme/radius-md)
+    .hoverColor theme/hover
+    .onTap (fn []
+             (mail/open-message! (.-messageId hit))
+             (.pop navigator)
+             nil)
+    .child
+    (mgl/MongolListTile
+     .title (m/Padding
+             .padding (m.EdgeInsets/only .top 8.0)
+             .child
+             (mgl/MongolText
+              (or (.-subject hit) "No Subject")
+              .style (m/TextStyle .fontSize 18.0
+                                  .fontFamily font-family
+                                  .fontWeight m.FontWeight/bold
+                                  .color theme/ink
+                                  .height 1.4)))
+     .subtitle (m/Padding
+                .padding (m.EdgeInsets/only .top 8.0)
+                .child
+                (mgl/MongolText
+                 (or (.-snippet hit) "")
+                 .style (m/TextStyle .fontSize 14.0
+                                     .fontFamily font-family
+                                     .color theme/ink-muted
+                                     .height 1.4)))))))
 
 (defn- results-body [search-results searching? navigator search-query]
   (cond
     searching?
-    (m/Center .child (m/CircularProgressIndicator.))
+    (m/Center .child (m/CircularProgressIndicator. .color theme/sky))
 
     (empty? search-results)
     (m/Center
@@ -72,7 +84,7 @@
      (m/Row
       .mainAxisSize m.MainAxisSize/min
       .children
-      [(m/Icon m.Icons/search .size 64.0 .color theme/divider)
+      [(m/Icon m.Icons/search .size 48.0 .color theme/divider)
        (m/SizedBox .width 16.0)
        (mgl/MongolText
         (if (seq search-query)
@@ -83,12 +95,16 @@
     :else
     (m/ListView.separated
      .scrollDirection m.Axis/horizontal
-     .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 12.0)
+     .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 16.0)
      .itemCount (count search-results)
-     .separatorBuilder (fn [_ _] (m/VerticalDivider .width 1.0 .thickness 1.0 .color theme/divider))
+     .separatorBuilder (fn [_ _] (m/SizedBox .width 10.0))
      .itemBuilder (fn [_ idx]
                     (m/Container
-                     .width 280.0
+                     .width 260.0
+                     .decoration (m/BoxDecoration
+                                  .border (m/Border.all .color theme/divider)
+                                  .borderRadius (m/BorderRadius.circular theme/radius-md)
+                                  .boxShadow (theme/hair-shadow))
                      .child (result-item (nth search-results idx) navigator))))))
 
 ;; ==========================================
@@ -137,8 +153,11 @@
         .children
         [;; --- Left panel: Vertical search panel ---
          (m/Container
-          .width 100.0
-          .color theme/sky-light
+          .width 104.0
+          .decoration (m/BoxDecoration
+                       .color theme/sky-light
+                       .border (m/Border
+                                .right (m/BorderSide .color theme/divider)))
           .child
           (m/Column
            .children
@@ -147,7 +166,9 @@
              .padding (m.EdgeInsets/only .top 16.0 .bottom 8.0)
              .child
              (m/IconButton
-              .icon (m/Icon m.Icons/arrow_back)
+              .icon (m/Icon m.Icons/arrow_back_ios_new
+                            .size 20.0
+                            .color theme/ink-muted)
               .tooltip "Back"
               .onPressed (fn []
                            (when-let [t @!timer] (.cancel ^async/Timer t))
@@ -185,8 +206,6 @@
                              (store/set-search-query! "")
                              (store/set-search-results! [])
                              nil))))]))
-         
-         (m/VerticalDivider .width 1.0 .thickness 1.0 .color theme/divider)
          
          ;; --- Right panel: Horizontal scrollable search results ---
          (m/Expanded

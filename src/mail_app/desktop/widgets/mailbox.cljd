@@ -171,18 +171,19 @@
 (defn- unread-badge [badge-count]
   (m/Positioned
    .right 4.0
-   .top 4.0
+   .top 6.0
    .child
    (m/Container
-    .padding (m.EdgeInsets/symmetric .horizontal 5.0 .vertical 2.0)
+    .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 2.0)
     .decoration (m/BoxDecoration
                  .color theme/sky
-                 .borderRadius (m.BorderRadius/circular 8.0))
+                 .borderRadius (m.BorderRadius/circular 10.0))
     .child
     (m/Text (if (> badge-count 99) "99+" (str badge-count))
             .style (m/TextStyle .color m.Colors/white
                                 .fontSize 10.0
-                                .fontWeight m/FontWeight.bold)))))
+                                .fontWeight m/FontWeight.w600
+                                .height 1.2)))))
 
 (defn- folder-icon [key]
   (case key
@@ -260,16 +261,30 @@
                                            nil)}]}))))]
      (m/Container
       .width theme/folder-col-width
+      .margin (m.EdgeInsets/symmetric .horizontal 3.0)
       .decoration (m/BoxDecoration
                    .color (when selected? theme/surface)
-                   .border (m/Border
-                            .left (m/BorderSide
-                                   .color (if selected? theme/sky theme/divider)
-                                   .width (if selected? 3.0 0.0))))
+                   .borderRadius (m/BorderRadius.circular theme/radius-md)
+                   .border (when selected?
+                             (m/Border.all .color theme/sky-soft))
+                   .boxShadow (when selected? (theme/hair-shadow)))
       .child
       (m/Stack
        .alignment m.Alignment/topCenter
-       .children children)))))
+       .children
+       (cond-> children
+         selected?
+         (conj
+          (m/Positioned
+           .left 0.0
+           .top 10.0
+           .bottom 10.0
+           .child
+           (m/Container
+            .width 3.0
+            .decoration (m/BoxDecoration
+                         .color theme/sky
+                         .borderRadius (m/BorderRadius.circular 2.0)))))))))))
 
 (defn- mailbox-dedupe-key
   "System folders collapse by role; custom folders by display name.
@@ -341,5 +356,5 @@
               .style (m/TextStyle .fontFamily font-family .color theme/ink-muted .height 1.4)))
      (m/ListView
       .scrollDirection m.Axis/horizontal
-      .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+      .padding (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 14.0)
       .children (build-items folder-list selected-mailbox)))))

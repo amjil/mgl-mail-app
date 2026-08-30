@@ -283,6 +283,7 @@
          nil)}
 
       (m/Scaffold
+       .backgroundColor theme/paper
        .body
        (m/SafeArea
         .child
@@ -323,5 +324,4 @@
                           #(not-junk-pressed! ctx navigator message-detail))
            :on-delete (when message-detail
                         #(confirm-delete! ctx navigator message-detail)))
-          (m/Divider .thickness 1.0 .height 1.0 .color theme/divider)
           (m/Expanded .child (reader-pane/pane))])))))))

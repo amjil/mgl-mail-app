@@ -6,19 +6,20 @@
             [clojure.string :as str]
             [block-editor.widgets.reader :as reader]
             [mail-app.services.compose-export :as export]
-            [mail-app.theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]))
 
 (def ^:private reader-cfg
   {:block-style
    (fn [_b-type]
      (m/TextStyle .fontSize 16.0
-                  .color m.Colors/black87
-                  .fontFamily font-family))
+                  .color theme/ink
+                  .fontFamily font-family
+                  .height 1.4))
    :block-plugins []})
 
 (defn- label-style []
   (m/TextStyle .fontSize 14.0
-               .color m.Colors/black54
+               .color theme/ink-muted
                .fontFamily font-family))
 
 (defn- flip-collapsed! [!quote-state]
@@ -62,8 +63,9 @@
          plain (quote-plain state)]
      (m/Container
       .decoration (m/BoxDecoration
+                   .color theme/paper
                    .border (m/Border
-                            .left (m/BorderSide .color m.Colors/black12)))
+                            .left (m/BorderSide .color theme/divider)))
       .padding (m.EdgeInsets/only .left 8.0 .top 16.0 .bottom 16.0 .right 8.0)
       .child
       (m/SingleChildScrollView

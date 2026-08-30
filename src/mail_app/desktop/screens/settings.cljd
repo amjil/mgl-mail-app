@@ -83,10 +83,10 @@
       .appBar
       (m/AppBar
        .elevation 0.0
-       .backgroundColor theme/paper
+       .backgroundColor theme/surface
        .foregroundColor theme/ink
        .leading (m/IconButton
-                 .icon (m/Icon m.Icons/arrow_back_ios_new)
+                 .icon (m/Icon m.Icons/arrow_back_ios_new .color theme/ink-muted)
                  .tooltip "Back"
                  .onPressed (fn []
                               (when (.canPop navigator)
@@ -94,7 +94,8 @@
                               nil))
        .title (m/Text "Settings"
                       .style (m/TextStyle .fontFamily font-family
-                                          .fontWeight m.FontWeight/bold)))
+                                          .fontWeight m.FontWeight/w600
+                                          .color theme/ink)))
       .body
       (m/SafeArea
        .child

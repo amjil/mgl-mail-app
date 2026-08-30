@@ -6,7 +6,7 @@
             [cljd.flutter :as f]
             [clojure.string :as str]
             [mail-app.services.mail-core :as mail]
-            [mail-app.theme :refer [font-family]]
+            [mail-app.theme :as theme :refer [font-family]]
             [rich-editor.components.text-field :as custom-tf]))
 
 ;; ~ two compose columns (80+80+80+80); keeps the float inside the header strip.
@@ -24,7 +24,7 @@
     :max-lines nil
     :style (m/TextStyle .fontSize 18.0
                         .fontFamily font-family
-                        .color m.Colors/black87)
+                        .color theme/ink)
     :decoration (m/InputDecoration .border m/InputBorder.none)}))
 
 (defn- unlisten-ac!
@@ -54,7 +54,7 @@
                     .softWrap false
                     .style (m/TextStyle
                             .fontSize chip-font-size
-                            .color m.Colors/black87)))))
+                            .color theme/ink)))))
 
 (defn- panel-height
   "Approx. vertical extent of the tallest Mongol address (+ padding)."
@@ -78,9 +78,10 @@
      (m/UnconstrainedBox
       .alignment m.Alignment/topLeft
       .child
-      (m/Material
+       (m/Material
        .elevation 4.0
-       .color m.Colors/white
+       .color theme/surface
+       .shadowColor (.withOpacity theme/ink 0.12)
        .clipBehavior m.Clip/antiAlias
        .child
        (m/LimitedBox

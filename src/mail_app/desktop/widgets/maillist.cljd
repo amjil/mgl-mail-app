@@ -78,9 +78,9 @@
                            (str (subject-of msg) " (" thread-count ")")
                            (subject-of msg))
          bg (cond
-              multi-selected? theme/sky-light
-              open-selected? (.withOpacity theme/sky 0.12)
-              is-child? (.withOpacity theme/ink 0.03)
+              multi-selected? theme/sky-soft
+              open-selected? theme/sky-light
+              is-child? theme/paper
               :else m.Colors/transparent)
          open-or-edit!
          (fn []
@@ -93,11 +93,16 @@
                                 nil)))
              (mail/open-message! (.-id msg)))
            nil)]
-     (m/Material
-      .color bg
+     (m/DecoratedBox
+      .decoration (m/BoxDecoration
+                   .border (m/Border
+                            .right (m/BorderSide .color theme/divider .width 0.5)))
       .child
-      (m/InkWell
-       .hoverColor theme/sky-light
+      (m/Material
+       .color bg
+       .child
+       (m/InkWell
+        .hoverColor theme/hover
        .onTap (fn []
                 (let [kb (.-instance s/HardwareKeyboard)
                       cmd? (cmd-or-ctrl-pressed? kb)
@@ -193,7 +198,7 @@
                        (conj (m/Icon m.Icons/star .size 14.0 .color theme/gold))
                        (.-hasAttachment msg)
                        (conj (m/Icon m.Icons/attach_file .size 16.0
-                                     .color theme/ink-muted))))))))))))
+                                     .color theme/ink-muted)))))))))))))
 (defn- outbox-item [^mc/MailOutboxDto row]
   (f/widget
    (m/SizedBox
@@ -241,7 +246,7 @@
                                     .height 1.4)))
        (m/ListView
         .scrollDirection m.Axis/horizontal
-        .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+        .padding (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 14.0)
         .children
         (if outbox?
           (mapv outbox-item items)

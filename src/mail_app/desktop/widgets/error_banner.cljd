@@ -12,12 +12,15 @@
    :watch [{:keys [last-error]} store/app-state]
    (if (seq last-error)
      (m/MaterialBanner
-      .backgroundColor theme/sky-light
+      .backgroundColor theme/danger-soft
+      .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 8.0)
       .content (m/Text last-error
                        .style (m/TextStyle .fontSize 13.0 .color theme/ink))
       .leading (m/Icon m.Icons/error_outline .color theme/danger)
       .actions
       [(m/TextButton
         .onPressed (fn [] (store/clear-error!) nil)
-        .child (m/Text "Dismiss" .style (m/TextStyle .color theme/sky)))])
+        .child (m/Text "Dismiss"
+                      .style (m/TextStyle .color theme/sky
+                                          .fontWeight m/FontWeight.w600)))])
      (m/SizedBox.shrink))))

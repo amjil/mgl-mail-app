@@ -234,17 +234,32 @@
                              .child (m/Text "Signature"))
             (m/PopupMenuItem .value :remove .child (m/Text "Remove current"))]))))
       .child
-      (m/Padding
-       .padding (m.EdgeInsets/symmetric .horizontal 8.0)
+      (m/Container
+       .padding (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 6.0)
+       .decoration (m/BoxDecoration
+                    .color theme/sky-light
+                    .borderRadius (m/BorderRadius.circular 20.0)
+                    .border (m/Border.all .color theme/sky-soft))
        .child
        (m/Row
         .mainAxisSize m.MainAxisSize/min
         .children
-        [(m/Icon m.Icons/account_circle .size 20.0)
-         (m/SizedBox .width 6.0)
+        [(m/CircleAvatar
+          .radius 12.0
+          .backgroundColor theme/sky
+          .child
+          (m/Text (if (seq label) (str (first label)) "?")
+                  .style (m/TextStyle .color m.Colors/white
+                                      .fontSize 11.0
+                                      .fontWeight m/FontWeight.w600)))
+         (m/SizedBox .width 8.0)
          (m/ConstrainedBox
           .constraints (m/BoxConstraints .maxWidth 160.0)
           .child
           (m/Text label
                   .overflow m.TextOverflow/ellipsis
-                  .style (m/TextStyle .fontSize 13.0)))]))))))
+                  .style (m/TextStyle .fontSize 13.0
+                                      .color theme/ink
+                                      .fontWeight m/FontWeight.w500)))
+         (m/SizedBox .width 2.0)
+         (m/Icon m.Icons/expand_more .size 16.0 .color theme/ink-muted)]))))))

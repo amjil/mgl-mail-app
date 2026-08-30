@@ -71,42 +71,69 @@
 
 (declare bulk-action-bar)
 
+(defn- chrome
+  "Fixed-height desktop chrome strip."
+  [child]
+  (m/Container
+   .height theme/chrome-height
+   .padding (m.EdgeInsets/symmetric .horizontal 10.0)
+   .alignment m.Alignment/center
+   .decoration (m/BoxDecoration
+                .color theme/surface
+                .boxShadow (theme/hair-shadow))
+   .child child))
+
 (defn- icon-btn
   [tooltip on-pressed icon & {:keys [color]}]
   (m/IconButton
-   .padding (m.EdgeInsets/all 10.0)
-   .constraints (m/BoxConstraints.)
+   .padding (m.EdgeInsets/all 8.0)
+   .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
    .tooltip tooltip
    .onPressed on-pressed
-   .icon (m/Icon icon .color color)))
+   .icon (m/Icon icon .size 20.0 .color (or color theme/ink-muted))))
+
+(defn- compose-btn [on-pressed]
+  (m/Tooltip
+   .message "Compose"
+   .child
+   (m/FilledButton
+    .onPressed on-pressed
+    .style (m/FilledButton.styleFrom
+            .backgroundColor theme/sky
+            .foregroundColor m.Colors/white
+            .minimumSize (m/Size. 40.0 40.0)
+            .padding (m.EdgeInsets/all 8.0)
+            .shape (m/CircleBorder.)
+            .elevation 0.0)
+    .child (m/Icon m.Icons/edit_outlined .size 18.0))))
 
 (defn- chrome-actions [navigator ctx syncing?]
   (m/Row
    .children
    [(icon-btn "New Folder" (fn [] (create-folder-dialog! ctx) nil)
-              m.Icons/create_new_folder)
+              m.Icons/create_new_folder_outlined)
     (icon-btn "Search"
               (fn [] (.pushNamed navigator "/search") nil)
               m.Icons/search)
     (m/IconButton
-     .padding (m.EdgeInsets/all 10.0)
-     .constraints (m/BoxConstraints.)
+     .padding (m.EdgeInsets/all 8.0)
+     .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
      .tooltip "Sync"
      .onPressed (fn [] (mail/sync!) nil)
      .icon (if syncing?
              (m/SizedBox
               .width 20.0 .height 20.0
               .child (m/CircularProgressIndicator. .strokeWidth 2.0 .color theme/sky))
-             (m/Icon m.Icons/sync)))
+             (m/Icon m.Icons/sync .size 20.0 .color theme/ink-muted)))
     (icon-btn "Settings"
               (fn [] (.pushNamed navigator "/settings") nil)
               m.Icons/settings_outlined)
-    (icon-btn "Compose"
-              (fn []
-                (store/clear-compose-draft!)
-                (.pushNamed navigator "/compose")
-                nil)
-              m.Icons/edit)]))
+    (m/SizedBox .width 4.0)
+    (compose-btn
+     (fn []
+       (store/clear-compose-draft!)
+       (.pushNamed navigator "/compose")
+       nil))]))
 
 (defn- mail-actions
   [{:keys [on-reply on-reply-all on-forward on-archive on-unarchive
@@ -158,9 +185,7 @@
        (bulk-action-bar)
 
        reading-mail?
-       (m/SafeArea
-        .bottom false
-        .child
+       (chrome
         (m/Row
          .mainAxisAlignment m.MainAxisAlignment/spaceBetween
          .children
@@ -168,9 +193,7 @@
           (mail-actions action-opts)]))
 
        :else
-       (m/SafeArea
-        .bottom false
-        .child
+       (chrome
         (m/Row
          .mainAxisAlignment m.MainAxisAlignment/spaceBetween
          .children
@@ -183,92 +206,33 @@
    :get [m/Navigator]
    :context ctx
    :watch [{:keys [syncing?]} store/app-state]
-   (m/SafeArea
-    .bottom false
-    .child
+   (chrome
     (m/Row
      .mainAxisAlignment m.MainAxisAlignment/spaceBetween
      .children
      [(accounts/account-chip)
-      (m/Row
-       .children
-       [(m/IconButton
-         .padding (m.EdgeInsets/all 10.0)
-         .constraints (m/BoxConstraints.)
-         .tooltip "New Folder"
-         .onPressed (fn [] (create-folder-dialog! ctx) nil)
-         .icon (m/Icon m.Icons/create_new_folder))
-        (m/IconButton
-         .padding (m.EdgeInsets/all 10.0)
-         .constraints (m/BoxConstraints.)
-         .tooltip "Search"
-         .onPressed (fn []
-                      (.pushNamed navigator "/search")
-                      nil)
-         .icon (m/Icon m.Icons/search))
-        (m/IconButton
-         .padding (m.EdgeInsets/all 10.0)
-         .constraints (m/BoxConstraints.)
-         .tooltip "Sync"
-         .onPressed (fn [] (mail/sync!) nil)
-         .icon (if syncing?
-                 (m/SizedBox
-                  .width 20.0 .height 20.0
-                  .child (m/CircularProgressIndicator. .strokeWidth 2.0))
-                 (m/Icon m.Icons/sync)))
-        (m/IconButton
-         .padding (m.EdgeInsets/all 10.0)
-         .constraints (m/BoxConstraints.)
-         .tooltip "Settings"
-         .onPressed (fn []
-                      (.pushNamed navigator "/settings")
-                      nil)
-         .icon (m/Icon m.Icons/settings_outlined))
-        (m/IconButton
-         .padding (m.EdgeInsets/all 10.0)
-         .constraints (m/BoxConstraints.)
-         .tooltip "Compose"
-         .onPressed (fn []
-                      (store/clear-compose-draft!)
-                      (.pushNamed navigator "/compose")
-                      nil)
-         .icon (m/Icon m.Icons/edit))])]))))
+      (chrome-actions navigator ctx syncing?)]))))
 
 (defn mail-list
   []
   (f/widget
    :get [m/Navigator]
-   (m/SafeArea
-    .bottom false
-    .child
+   (chrome
     (m/Row
      .mainAxisAlignment m.MainAxisAlignment/spaceBetween
      .children
-     [(m/IconButton
-       .padding (m.EdgeInsets/all 10.0)
-       .constraints (m/BoxConstraints.)
-       .tooltip "Back"
-       .onPressed (fn [] (.pop navigator) nil)
-       .icon (m/Icon m.Icons/arrow_back_ios_new))
+     [(icon-btn "Back" (fn [] (.pop navigator) nil) m.Icons/arrow_back_ios_new)
       (m/Row
        .children
-       [(m/IconButton
-         .padding (m.EdgeInsets/all 10.0)
-         .constraints (m/BoxConstraints.)
-         .tooltip "Search"
-         .onPressed (fn []
-                      (.pushNamed navigator "/search")
-                      nil)
-         .icon (m/Icon m.Icons/search))
-        (m/IconButton
-         .padding (m.EdgeInsets/all 10.0)
-         .constraints (m/BoxConstraints.)
-         .tooltip "Compose"
-         .onPressed (fn []
-                      (store/clear-compose-draft!)
-                      (.pushNamed navigator "/compose")
-                      nil)
-         .icon (m/Icon m.Icons/edit))])]))))
+       [(icon-btn "Search"
+                  (fn [] (.pushNamed navigator "/search") nil)
+                  m.Icons/search)
+        (m/SizedBox .width 4.0)
+        (compose-btn
+         (fn []
+           (store/clear-compose-draft!)
+           (.pushNamed navigator "/compose")
+           nil))])]))))
 
 (defn mail-detail
   [& {:keys [on-reply on-reply-all on-forward on-archive on-unarchive
@@ -277,114 +241,32 @@
              archived? junked? draft? starred? read?]}]
   (f/widget
    :get [m/Navigator]
-   (m/SafeArea
-    .bottom false
-    .child
+   (chrome
     (m/Row
      .mainAxisAlignment m.MainAxisAlignment/spaceBetween
      .children
-     [(m/IconButton
-       .padding (m.EdgeInsets/all 10.0)
-       .constraints (m/BoxConstraints.)
-       .tooltip "Back"
-       .onPressed (fn []
-                    (store/clear-message-detail!)
-                    (.pop navigator)
-                    nil)
-       .icon (m/Icon m.Icons/arrow_back_ios_new))
-      (m/Row
-       .children
-       (cond-> []
-         on-edit-draft
-         (conj (m/IconButton
-                .padding (m.EdgeInsets/all 10.0)
-                .constraints (m/BoxConstraints.)
-                .tooltip "Edit draft"
-                .onPressed on-edit-draft
-                .icon (m/Icon m.Icons/edit_note)))
-
-         on-reply
-         (conj (m/IconButton
-                .padding (m.EdgeInsets/all 10.0)
-                .constraints (m/BoxConstraints.)
-                .tooltip "Reply"
-                .onPressed on-reply
-                .icon (m/Icon m.Icons/reply)))
-
-         on-reply-all
-         (conj (m/IconButton
-                .padding (m.EdgeInsets/all 10.0)
-                .constraints (m/BoxConstraints.)
-                .tooltip "Reply All"
-                .onPressed on-reply-all
-                .icon (m/Icon m.Icons/reply_all)))
-
-         on-forward
-         (conj (m/IconButton
-                .padding (m.EdgeInsets/all 10.0)
-                .constraints (m/BoxConstraints.)
-                .tooltip "Forward"
-                .onPressed on-forward
-                .icon (m/Icon m.Icons/forward)))
-
-         on-star
-         (conj (m/IconButton
-                .padding (m.EdgeInsets/all 10.0)
-                .constraints (m/BoxConstraints.)
-                .tooltip (if starred? "Unstar" "Star")
-                .onPressed on-star
-                .icon (m/Icon (if starred? m.Icons/star m.Icons/star_border)
-                              .color (when starred? theme/gold))))
-
-         on-toggle-read
-         (conj (m/IconButton
-                .padding (m.EdgeInsets/all 10.0)
-                .constraints (m/BoxConstraints.)
-                .tooltip (if read? "Mark unread" "Mark read")
-                .onPressed on-toggle-read
-                .icon (m/Icon (if read?
-                                m.Icons/mark_email_unread_outlined
-                                m.Icons/mark_email_read_outlined))))
-
-         (and (not draft?) (not archived?) on-archive)
-         (conj (m/IconButton
-                .padding (m.EdgeInsets/all 10.0)
-                .constraints (m/BoxConstraints.)
-                .tooltip "Archive"
-                .onPressed on-archive
-                .icon (m/Icon m.Icons/archive_outlined)))
-
-         (and archived? on-unarchive)
-         (conj (m/IconButton
-                .padding (m.EdgeInsets/all 10.0)
-                .constraints (m/BoxConstraints.)
-                .tooltip "Move to Inbox"
-                .onPressed on-unarchive
-                .icon (m/Icon m.Icons/unarchive_outlined)))
-
-         (and (not draft?) (not junked?) on-junk)
-         (conj (m/IconButton
-                .padding (m.EdgeInsets/all 10.0)
-                .constraints (m/BoxConstraints.)
-                .tooltip "Mark as Junk"
-                .onPressed on-junk
-                .icon (m/Icon m.Icons/report_outlined)))
-
-         (and junked? on-not-junk)
-         (conj (m/IconButton
-                .padding (m.EdgeInsets/all 10.0)
-                .constraints (m/BoxConstraints.)
-                .tooltip "Not Junk"
-                .onPressed on-not-junk
-                .icon (m/Icon m.Icons/report_off_outlined)))
-
-         on-delete
-         (conj (m/IconButton
-                .padding (m.EdgeInsets/all 10.0)
-                .constraints (m/BoxConstraints.)
-                .tooltip "Delete"
-                .onPressed on-delete
-                .icon (m/Icon m.Icons/delete_outline)))))]))))
+     [(icon-btn "Back"
+                (fn []
+                  (store/clear-message-detail!)
+                  (.pop navigator)
+                  nil)
+                m.Icons/arrow_back_ios_new)
+      (mail-actions {:on-reply on-reply
+                     :on-reply-all on-reply-all
+                     :on-forward on-forward
+                     :on-archive on-archive
+                     :on-unarchive on-unarchive
+                     :on-junk on-junk
+                     :on-not-junk on-not-junk
+                     :on-delete on-delete
+                     :on-star on-star
+                     :on-toggle-read on-toggle-read
+                     :on-edit-draft on-edit-draft
+                     :archived? archived?
+                     :junked? junked?
+                     :draft? draft?
+                     :starred? starred?
+                     :read? read?})]))))
 
 (defn bulk-action-bar
   "Shown in place of mail-list topbar when messages are selected."
@@ -392,57 +274,44 @@
   (f/widget
    :watch [{:keys [selected-message-ids]} store/app-state]
    (let [cnt (count selected-message-ids)]
-     (m/SafeArea
-      .bottom false
+     (m/Container
+      .height theme/chrome-height
+      .padding (m.EdgeInsets/symmetric .horizontal 10.0)
+      .alignment m.Alignment/center
+      .decoration (m/BoxDecoration
+                   .color theme/sky-light
+                   .boxShadow (theme/hair-shadow))
       .child
-      (m/Container
-       .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 8.0)
-       .color theme/sky-light
-       .child
-       (m/Row
-        .mainAxisAlignment m.MainAxisAlignment/spaceBetween
-        .children
-        [(m/Row
-          .children
-          [(m/IconButton
-            .padding (m.EdgeInsets/all 10.0)
-            .constraints (m/BoxConstraints.)
-            .tooltip "Cancel selection"
-            .onPressed (fn [] (store/clear-message-selection!) nil)
-            .icon (m/Icon m.Icons/close .color theme/sky))
-           (m/SizedBox .width 8.0)
+      (m/Row
+       .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+       .children
+       [(m/Row
+         .children
+         [(icon-btn "Cancel selection"
+                    (fn [] (store/clear-message-selection!) nil)
+                    m.Icons/close
+                    :color theme/sky)
+          (m/SizedBox .width 6.0)
+          (m/Container
+           .padding (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 4.0)
+           .decoration (m/BoxDecoration
+                        .color theme/surface
+                        .borderRadius (m/BorderRadius.circular 12.0))
+           .child
            (m/Text (str cnt " selected")
-                   .style (m/TextStyle .fontWeight m/FontWeight.bold
-                                       .color theme/sky))])
-         (m/Row
-          .children
-          [(m/IconButton
-            .padding (m.EdgeInsets/all 10.0)
-            .constraints (m/BoxConstraints.)
-            .tooltip "Mark Read"
-            .onPressed (fn [] (mail/bulk-set-read! true) nil)
-            .icon (m/Icon m.Icons/mark_email_read))
-           (m/IconButton
-            .padding (m.EdgeInsets/all 10.0)
-            .constraints (m/BoxConstraints.)
-            .tooltip "Mark Unread"
-            .onPressed (fn [] (mail/bulk-set-read! false) nil)
-            .icon (m/Icon m.Icons/mark_email_unread))
-           (m/IconButton
-            .padding (m.EdgeInsets/all 10.0)
-            .constraints (m/BoxConstraints.)
-            .tooltip "Archive"
-            .onPressed (fn [] (mail/bulk-archive!) nil)
-            .icon (m/Icon m.Icons/archive))
-           (m/IconButton
-            .padding (m.EdgeInsets/all 10.0)
-            .constraints (m/BoxConstraints.)
-            .tooltip "Mark as Junk"
-            .onPressed (fn [] (mail/bulk-move-to-junk!) nil)
-            .icon (m/Icon m.Icons/report_outlined))
-           (m/IconButton
-            .padding (m.EdgeInsets/all 10.0)
-            .constraints (m/BoxConstraints.)
-            .tooltip "Delete"
-            .onPressed (fn [] (mail/bulk-delete!) nil)
-            .icon (m/Icon m.Icons/delete .color theme/danger))])]))))))
+                   .style (m/TextStyle .fontWeight m/FontWeight.w600
+                                       .fontSize 13.0
+                                       .color theme/sky)))])
+        (m/Row
+         .children
+         [(icon-btn "Mark Read" (fn [] (mail/bulk-set-read! true) nil)
+                    m.Icons/mark_email_read_outlined)
+          (icon-btn "Mark Unread" (fn [] (mail/bulk-set-read! false) nil)
+                    m.Icons/mark_email_unread_outlined)
+          (icon-btn "Archive" (fn [] (mail/bulk-archive!) nil)
+                    m.Icons/archive_outlined)
+          (icon-btn "Mark as Junk" (fn [] (mail/bulk-move-to-junk!) nil)
+                    m.Icons/report_outlined)
+          (icon-btn "Delete" (fn [] (mail/bulk-delete!) nil)
+                    m.Icons/delete_outline
+                    :color theme/danger)])])))))

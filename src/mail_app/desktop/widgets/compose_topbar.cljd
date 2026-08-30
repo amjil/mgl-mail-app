@@ -6,7 +6,8 @@
             [mail-app.desktop.toast :as toast]
             [mail-app.services.compose-export :as export]
             [mail-app.services.mail-core :as mail]
-            [mail-app.state.store :as store]))
+            [mail-app.state.store :as store]
+            [mail-app.theme :as theme]))
 
 (declare compose-body)
 
@@ -170,75 +171,97 @@
            show-cc? !show-cc?
            show-bcc? !show-bcc?
            attachment-paths !attachment-paths]
-   (m/SafeArea
-    .bottom false
+   (m/Container
+    .decoration (m/BoxDecoration
+                 .color theme/surface
+                 .boxShadow (theme/hair-shadow))
     .child
     (m/Column
      .mainAxisSize m.MainAxisSize/min
      .children
      (cond->
-       [(m/Row
-         .mainAxisAlignment m.MainAxisAlignment/spaceBetween
-         .children
-         [(m/IconButton
-           .padding (m.EdgeInsets/all 10.0)
-           .constraints (m/BoxConstraints.)
-           .tooltip "Back"
-           .onPressed (fn [] (.pop navigator) nil)
-           .icon (m/Icon m.Icons/arrow_back_ios_new))
+       [(m/SizedBox
+         .height theme/chrome-height
+         .child
+         (m/Padding
+          .padding (m.EdgeInsets/symmetric .horizontal 10.0)
+          .child
           (m/Row
+           .mainAxisAlignment m.MainAxisAlignment/spaceBetween
            .children
            [(m/IconButton
-             .padding (m.EdgeInsets/all 10.0)
-             .constraints (m/BoxConstraints.)
-             .tooltip (if show-cc? "Hide Cc" "Show Cc")
-             .onPressed (fn [] (swap! !show-cc? not) nil)
-             .icon (m/Icon (if show-cc? m.Icons/unfold_less m.Icons/unfold_more)))
-            (m/IconButton
-             .padding (m.EdgeInsets/all 10.0)
-             .constraints (m/BoxConstraints.)
-             .tooltip (if show-bcc? "Hide Bcc" "Show Bcc")
-             .onPressed (fn [] (swap! !show-bcc? not) nil)
-             .icon (m/Icon (if show-bcc?
-                             m.Icons/visibility_off
-                             m.Icons/visibility)))
-            (m/IconButton
-             .padding (m.EdgeInsets/all 10.0)
-             .constraints (m/BoxConstraints.)
-             .tooltip "Attach"
-             .onPressed (fn [] (pick-attachments! !attachment-paths) nil)
-             .icon (m/Icon m.Icons/attach_file))
-            (m/IconButton
-             .padding (m.EdgeInsets/all 10.0)
-             .constraints (m/BoxConstraints.)
-             .tooltip "Save Draft"
-             .onPressed (fn []
-                          (save-draft-pressed! ctx navigator !doc-state !quote-state
-                                               to-ctrl cc-ctrl bcc-ctrl subject-ctrl
-                                               show-cc? show-bcc? sending?
-                                               current-account-id
-                                               attachment-paths @!draft-meta))
-             .icon (m/Icon m.Icons/drafts))
-            (m/IconButton
-             .padding (m.EdgeInsets/all 10.0)
-             .constraints (m/BoxConstraints.)
-             .tooltip "Send"
-             .onPressed (fn []
-                          (send-pressed! ctx navigator !doc-state !quote-state
-                                         to-ctrl cc-ctrl bcc-ctrl subject-ctrl
-                                         show-cc? show-bcc? sending?
-                                         current-account-id
-                                         attachment-paths @!draft-meta))
-             .icon (if sending?
-                     (m/SizedBox
-                      .width 20.0
-                      .height 20.0
-                      .child (m/CircularProgressIndicator. .strokeWidth 2.0))
-                     (m/Icon m.Icons/send)))])])]
+             .padding (m.EdgeInsets/all 8.0)
+             .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+             .tooltip "Back"
+             .onPressed (fn [] (.pop navigator) nil)
+             .icon (m/Icon m.Icons/arrow_back_ios_new .size 20.0 .color theme/ink-muted))
+            (m/Row
+             .children
+             [(m/TextButton
+               .onPressed (fn [] (swap! !show-cc? not) nil)
+               .style (m/TextButton.styleFrom
+                       .foregroundColor (if show-cc? theme/sky theme/ink-muted)
+                       .padding (m.EdgeInsets/symmetric .horizontal 10.0))
+               .child (m/Text "Cc"
+                              .style (m/TextStyle
+                                      .fontWeight (if show-cc?
+                                                    m/FontWeight.w600
+                                                    m/FontWeight.normal))))
+              (m/TextButton
+               .onPressed (fn [] (swap! !show-bcc? not) nil)
+               .style (m/TextButton.styleFrom
+                       .foregroundColor (if show-bcc? theme/sky theme/ink-muted)
+                       .padding (m.EdgeInsets/symmetric .horizontal 10.0))
+               .child (m/Text "Bcc"
+                              .style (m/TextStyle
+                                      .fontWeight (if show-bcc?
+                                                    m/FontWeight.w600
+                                                    m/FontWeight.normal))))
+              (m/IconButton
+               .padding (m.EdgeInsets/all 8.0)
+               .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+               .tooltip "Attach"
+               .onPressed (fn [] (pick-attachments! !attachment-paths) nil)
+               .icon (m/Icon m.Icons/attach_file .size 20.0 .color theme/ink-muted))
+              (m/IconButton
+               .padding (m.EdgeInsets/all 8.0)
+               .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+               .tooltip "Save Draft"
+               .onPressed (fn []
+                            (save-draft-pressed! ctx navigator !doc-state !quote-state
+                                                 to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                                                 show-cc? show-bcc? sending?
+                                                 current-account-id
+                                                 attachment-paths @!draft-meta))
+               .icon (m/Icon m.Icons/drafts_outlined .size 20.0 .color theme/ink-muted))
+              (m/SizedBox .width 4.0)
+              (m/FilledButton.icon
+               .onPressed (fn []
+                            (send-pressed! ctx navigator !doc-state !quote-state
+                                           to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                                           show-cc? show-bcc? sending?
+                                           current-account-id
+                                           attachment-paths @!draft-meta))
+               .style (m/FilledButton.styleFrom
+                       .backgroundColor theme/sky
+                       .foregroundColor m.Colors/white
+                       .elevation 0.0
+                       .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 10.0)
+                       .shape (m/RoundedRectangleBorder
+                               .borderRadius (m/BorderRadius.circular theme/radius-md)))
+               .icon (if sending?
+                       (m/SizedBox
+                        .width 16.0
+                        .height 16.0
+                        .child (m/CircularProgressIndicator.
+                                .strokeWidth 2.0
+                                .color m.Colors/white))
+                       (m/Icon m.Icons/send .size 16.0))
+               .label (m/Text "Send"))])])))]
        (seq attachment-paths)
        (conj
         (m/Padding
-         .padding (m.EdgeInsets/only .left 8.0 .right 8.0 .bottom 8.0)
+         .padding (m.EdgeInsets/only .left 12.0 .right 12.0 .bottom 10.0)
          .child
          (m/Wrap
           .spacing 6.0
@@ -247,7 +270,9 @@
           (mapv (fn [path]
                   (m/InputChip
                    .label (m/Text (basename path)
-                                  .style (m/TextStyle .fontSize 12.0))
+                                  .style (m/TextStyle .fontSize 12.0 .color theme/ink))
+                   .backgroundColor theme/sky-light
+                   .side (m/BorderSide .color theme/sky-soft)
                    .onDeleted (fn []
                                 (swap! !attachment-paths
                                        #(vec (remove #{path} %)))

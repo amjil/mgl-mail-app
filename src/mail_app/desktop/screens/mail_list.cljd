@@ -30,6 +30,7 @@
        nil)}
 
     (m/Scaffold
+     .backgroundColor theme/paper
      .body
      (m/SafeArea
       .child
@@ -40,5 +41,4 @@
           (topbar/bulk-action-bar)
           (topbar/mail-list))
         (err/banner)
-        (m/Divider .thickness 1.0 .height 1.0 .color theme/divider)
         (m/Expanded .child (maillist/list-view))]))))))

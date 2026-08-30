@@ -48,10 +48,18 @@
       .message "Drag to resize"
       .waitDuration (dart:core/Duration. .milliseconds 800)
       .child
-      (m/VerticalDivider
+      (m/SizedBox
        .width split-handle-width
-       .thickness (if active? 3.0 1.0)
-       .color (if active? theme/sky theme/divider)))))))
+       .child
+       (m/Center
+        .child
+        (m/AnimatedContainer
+         .duration theme/pane-anim
+         .width (if active? 3.0 1.0)
+         .height (if active? 56.0 28.0)
+         .decoration (m/BoxDecoration
+                      .color (if active? theme/sky theme/divider)
+                      .borderRadius (m/BorderRadius.circular 2.0))))))))))
 
 (defn- folder-mail-split []
   (f/widget
@@ -69,8 +77,11 @@
          [(m/SizedBox
            .width folder-w
            .child
-           (m/ColoredBox
-            .color theme/sky-light
+           (m/DecoratedBox
+            .decoration (m/BoxDecoration
+                         .color theme/sky-light
+                         .border (m/Border
+                                  .right (m/BorderSide .color theme/divider)))
             .child (mailbox/mailbox-list)))
           (folder-split-handle max-folder)
           (m/Expanded
@@ -187,7 +198,6 @@
                :on-delete (when message-detail
                             #(detail/confirm-delete! ctx navigator message-detail)))
               (err/banner)
-              (m/Divider .thickness 1.0 .height 1.0 .color theme/divider)
               (m/Expanded
                .child
                (if reading-mail?

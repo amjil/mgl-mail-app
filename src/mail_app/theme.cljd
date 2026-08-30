@@ -6,23 +6,48 @@
 
 ;; --- Color tokens ---
 (def sky (m/Color 0xFF1A6FA8))
+(def sky-deep (m/Color 0xFF145A8A))
 (def sky-light (m/Color 0xFFE7F1F7))
+(def sky-soft (m/Color 0xFFD4E6F2))
 (def paper (m/Color 0xFFF6F3EC))
+(def paper-deep (m/Color 0xFFEDE8DC))
 (def surface (m/Color 0xFFFFFFFF))
 (def ink (m/Color 0xFF1A2332))
 (def ink-muted (m/Color 0xFF6B7380))
 (def gold (m/Color 0xFFC4A035))
 (def danger (m/Color 0xFFC62828))
+(def danger-soft (m/Color 0xFFFDECEA))
 (def divider (m/Color 0xFFD5DEE6))
+(def hover (m/Color 0xFFF0F5F8))
 
 ;; --- Layout ---
 (def folder-pane-width 320.0)
 (def folder-pane-min-width 160.0)
 (def folder-pane-max-width 720.0)
 (def mail-list-min-width 200.0)
-(def folder-col-width 60.0)
-(def mail-col-width 100.0)
+(def folder-col-width 64.0)
+(def mail-col-width 108.0)
+(def chrome-height 56.0)
+(def radius-sm 6.0)
+(def radius-md 10.0)
+(def radius-lg 16.0)
 (def pane-anim (dart:core/Duration. .milliseconds 200))
+
+(defn card-shadow
+  "Soft elevation for dialogs / signup card."
+  []
+  [(m/BoxShadow
+    .color (.withOpacity ink 0.07)
+    .blurRadius 24.0
+    .offset (m/Offset. 0.0 8.0))])
+
+(defn hair-shadow
+  "1px-feel drop under chrome."
+  []
+  [(m/BoxShadow
+    .color (.withOpacity ink 0.04)
+    .blurRadius 8.0
+    .offset (m/Offset. 0.0 1.0))])
 
 (defn sky-theme
   "Material 3 ThemeData seeded from sky blue."
@@ -32,7 +57,41 @@
    .fontFamily font-family
    .colorScheme (m.ColorScheme/fromSeed
                  .seedColor sky
-                 .brightness m.Brightness/light)
+                 .brightness m.Brightness/light
+                 .primary sky
+                 .onPrimary m.Colors/white
+                 .surface surface)
    .scaffoldBackgroundColor paper
    .dividerColor divider
-   .iconTheme (m/IconThemeData .color ink .size 22.0)))
+   .iconTheme (m/IconThemeData .color ink-muted .size 20.0)
+   .appBarTheme (m/AppBarTheme
+                 .elevation 0.0
+                 .scrolledUnderElevation 0.0
+                 .backgroundColor surface
+                 .foregroundColor ink
+                 .titleTextStyle (m/TextStyle
+                                  .fontFamily font-family
+                                  .fontSize 18.0
+                                  .fontWeight m/FontWeight.w600
+                                  .color ink))
+   .dividerTheme (m/DividerThemeData
+                  .color divider
+                  .space 1.0
+                  .thickness 1.0)
+   .tooltipTheme (m/TooltipThemeData
+                  .waitDuration (dart:core/Duration. .milliseconds 600))
+   .inputDecorationTheme
+   (m/InputDecorationTheme
+    .filled true
+    .fillColor paper
+    .contentPadding (m.EdgeInsets/symmetric .horizontal 14.0 .vertical 14.0)
+    .hintStyle (m/TextStyle .color ink-muted .fontSize 14.0)
+    .border (m/OutlineInputBorder
+             .borderRadius (m/BorderRadius.circular radius-md)
+             .borderSide (m/BorderSide .color divider))
+    .enabledBorder (m/OutlineInputBorder
+                    .borderRadius (m/BorderRadius.circular radius-md)
+                    .borderSide (m/BorderSide .color divider))
+    .focusedBorder (m/OutlineInputBorder
+                    .borderRadius (m/BorderRadius.circular radius-md)
+                    .borderSide (m/BorderSide .color sky .width 1.5)))))
