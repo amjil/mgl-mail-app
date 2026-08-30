@@ -102,7 +102,7 @@
       .onTap handle-tap
       .onLongPress on-long-press))))
 
-(defn result-item [^mc/MailMessageDto msg]
+(defn result-item [^mc/MailSearchResultDto hit]
   (f/widget
    :get [m/Navigator]
    (m/Container
@@ -113,7 +113,32 @@
                  .borderRadius (m/BorderRadius.circular theme/radius-md)
                  .border (m/Border.all .color theme/divider .width 0.5)
                  .boxShadow (theme/hair-shadow))
-    .child (mail-tile navigator msg))))
+    .child
+    (mgl/MongolListTile
+     .title (m/Padding
+             .padding (m.EdgeInsets/only .top 8.0)
+             .child
+             (mgl/MongolText
+              (let [s (.-subject hit)]
+                (if (or (nil? s) (empty? s)) "No Subject" s))
+              .style (m/TextStyle .fontFamily font-family
+                                  .fontSize 18.0
+                                  .height 1.4
+                                  .fontWeight m/FontWeight.w700
+                                  .color theme/ink)))
+     .subtitle (m/Padding
+                .padding (m.EdgeInsets/only .top 8.0)
+                .child
+                (mgl/MongolText
+                 (or (.-snippet hit) "")
+                 .style (m/TextStyle .fontFamily font-family
+                                     .fontSize 14.0
+                                     .height 1.35
+                                     .color theme/ink-muted)))
+     .onTap (fn []
+              (mail/open-message! (.-messageId hit))
+              (.pushNamed navigator "/mail_detail")
+              nil)))))
 
 ;; ==========================================
 ;; Single mail item (vertical swipe + long-press multi-select)
