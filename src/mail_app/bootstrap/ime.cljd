@@ -1,0 +1,13 @@
+(ns mail-app.bootstrap.ime
+  "Shared FST / next-word dictionary load for desktop and mobile IME."
+  (:require ["package:flutter/foundation.dart" :as foundation :refer [kIsWeb]]
+            [ime-core.fst-engine :as fst]
+            [ime-core.next-word :as next-word]))
+
+(defn init!
+  "Load IME dictionaries. `label` is printed in the ready log (e.g. desktop / mobile)."
+  [label]
+  (when-not kIsWeb
+    (await (fst/ensure-loaded))
+    (await (next-word/ensure-loaded)))
+  (dart:core/print (str "bootstrap." label ": ready")))

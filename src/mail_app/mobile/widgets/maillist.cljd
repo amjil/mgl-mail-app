@@ -143,14 +143,14 @@
 ;; ==========================================
 ;; Single mail item (vertical swipe + long-press multi-select)
 ;; ==========================================
-(defn- mail-item [ctx navigator msg !selected-ids]
+(defn- mail-item [ctx navigator msg]
   (f/widget
-   :watch [selected-ids !selected-ids]
+   :watch [{:keys [selected-message-ids]} store/app-state]
    (let [^mc/MailMessageDto msg msg
          mid (.-id msg)
          unread? (not (.-isRead msg))
-         in-selection-mode? (seq selected-ids)
-         selected? (contains? selected-ids mid)]
+         in-selection-mode? (seq selected-message-ids)
+         selected? (contains? selected-message-ids mid)]
      (slide/item
       {:id mid
        :top-actions
@@ -180,15 +180,14 @@
                    navigator msg
                    (fn []
                      (if in-selection-mode?
-                       (if selected?
-                         (swap! !selected-ids disj mid)
-                         (swap! !selected-ids conj mid))
+                       (store/toggle-message-selection! mid)
                        (do
                          (mail/open-message! mid)
                          (.pushNamed navigator "/mail_detail")
                          nil)))
                    (fn []
-                     (swap! !selected-ids conj mid)
+                     (when-not (contains? selected-message-ids mid)
+                       (store/toggle-message-selection! mid))
                      nil))]
          (m/Container
           .width 148.0
@@ -230,7 +229,7 @@
 ;; ==========================================
 ;; Horizontally scrolling mail list
 ;; ==========================================
-(defn list-view [!selected-ids]
+(defn list-view []
   (f/widget
    :context ctx
    :get [m/Navigator]
@@ -243,4 +242,4 @@
       .itemCount (count mail-list)
       .separatorBuilder (fn [_ _] (m/SizedBox .width 2.0))
       .itemBuilder (fn [_ idx]
-                     (mail-item ctx navigator (nth mail-list idx) !selected-ids))))))
+                     (mail-item ctx navigator (nth mail-list idx)))))))

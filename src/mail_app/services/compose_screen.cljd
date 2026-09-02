@@ -1,0 +1,187 @@
+(ns mail-app.services.compose-screen
+  "Shared compose screen state, editor config, and auto-save helpers."
+  (:require ["package:flutter/material.dart" :as m]
+            ["dart:async" :as async]
+            [cljd.flutter :as f]
+            [clojure.string :as str]
+            [block-editor.widgets.toolbar :as toolbar]
+            [mail-app.desktop.widgets.compose-topbar :as topbar]
+            [mail-app.services.compose-export :as export]
+            [mail-app.state.store :as store]
+            [mail-app.theme :as theme :refer [font-family]]))
+
+(def text-block-types
+  #{:paragraph :heading-1 :heading-2 :heading-3
+    :blockquote :list-item :ordered-list-item :toggle})
+
+(def ^:private draft-meta-keys
+  [:draft-message-id :in-reply-to :references :account-id])
+
+(def ^:private heading-sizes
+  {:desktop {:h1 28.0 :h2 22.0 :h3 18.0 :body 16.0 :line-height 1.4}
+   :mobile  {:h1 24.0 :h2 20.0 :h3 18.0 :body 16.0 :line-height nil}})
+
+(defn editor-config
+  "Block editor config for `:desktop` or `:mobile` (heading sizes differ)."
+  [platform]
+  (let [{:keys [h1 h2 h3 body line-height]}
+        (get heading-sizes platform (:mobile heading-sizes))
+        body-style (if line-height
+                     (m/TextStyle .fontSize body .color theme/ink
+                                  .fontFamily font-family .height line-height)
+                     (m/TextStyle .fontSize body .color theme/ink
+                                  .fontFamily font-family))]
+    {:text-block-types text-block-types
+     :block-style
+     (fn [b-type]
+       (case b-type
+         :heading-1 (m/TextStyle .fontSize h1 .fontWeight m/FontWeight.bold
+                                 .color theme/ink .fontFamily font-family)
+         :heading-2 (m/TextStyle .fontSize h2 .fontWeight m/FontWeight.bold
+                                 .color theme/ink .fontFamily font-family)
+         :heading-3 (m/TextStyle .fontSize h3 .fontWeight m/FontWeight.w600
+                                 .color theme/ink .fontFamily font-family)
+         body-style))}))
+
+(defn apply-fields!
+  [draft to-ctrl cc-ctrl bcc-ctrl subject-ctrl !show-cc? !show-bcc?]
+  (when draft
+    (when-let [to (:to draft)]
+      (set! (.-text to-ctrl) (str to)))
+    (when-let [cc (:cc draft)]
+      (when (seq (str/trim (str cc)))
+        (reset! !show-cc? true)
+        (set! (.-text cc-ctrl) (str cc))))
+    (when-let [bcc (:bcc draft)]
+      (when (seq (str/trim (str bcc)))
+        (reset! !show-bcc? true)
+        (set! (.-text bcc-ctrl) (str bcc))))
+    (when-let [subject (:subject draft)]
+      (set! (.-text subject-ctrl) (str subject)))))
+
+(defn initial-doc-state
+  [draft signature]
+  (cond
+    (:body-state draft) (:body-state draft)
+    (:body-plain draft) (export/state-from-plain-text (:body-plain draft))
+    :else
+    (let [text (if (seq signature) (str "\n\n-- \n" signature) "")]
+      (export/state-from-plain-text text))))
+
+(defn prepare-state!
+  "Consume :compose-draft from store; return atoms for a compose screen."
+  []
+  (let [draft (:compose-draft @store/app-state)
+        _ (when draft (store/clear-compose-draft!))
+        aid (or (:account-id draft) (:current-account-id @store/app-state))
+        signature (store/get-signature aid)]
+    {:draft draft
+     :has-quote? (some? (:quote-state draft))
+     :!doc-state (atom (initial-doc-state draft signature))
+     :!quote-state (atom (:quote-state draft))
+     :!show-cc? (atom false)
+     :!show-bcc? (atom false)
+     :!attachment-paths (atom (vec (or (:attachment-paths draft) [])))
+     :!fields-draft (atom draft)
+     :!draft-meta (atom (select-keys (or draft {}) draft-meta-keys))
+     :!auto-save-gate (atom {:inflight? false :pending? false})}))
+
+(defn apply-pending-fields!
+  [!fields-draft to-ctrl cc-ctrl bcc-ctrl subject-ctrl !show-cc? !show-bcc?]
+  (when-let [d @!fields-draft]
+    (reset! !fields-draft nil)
+    (apply-fields! d to-ctrl cc-ctrl bcc-ctrl subject-ctrl !show-cc? !show-bcc?))
+  nil)
+
+(defn basename [path]
+  (or (last (str/split (or path "") #"[\\/]")) path))
+
+(defn compose-snapshot
+  [to-ctrl cc-ctrl bcc-ctrl subject-ctrl !doc-state !attachment-paths]
+  {:to (.-text to-ctrl)
+   :cc (.-text cc-ctrl)
+   :bcc (.-text bcc-ctrl)
+   :sub (.-text subject-ctrl)
+   :blocks (:blocks @!doc-state)
+   :attachments @!attachment-paths})
+
+(defn compose-has-content?
+  [{:keys [to sub attachments blocks]}]
+  (or (seq (str/trim (or to "")))
+      (seq (str/trim (or sub "")))
+      (seq attachments)
+      (> (count blocks) 1)))
+
+(defn bottom-toolbar
+  "Page-level toolbar; own watch avoids setState-during-build when editor swap!s."
+  [!doc-state editor-config]
+  (f/widget
+   :watch [doc-state !doc-state]
+   :let [editor-body-focused? (and (:cursor-visible doc-state)
+                                   (not (:external-keyboard-delegate doc-state)))]
+   (if editor-body-focused?
+     (toolbar/editor-toolbar !doc-state editor-config)
+     (m/SizedBox.shrink))))
+
+(defn- silent-save!
+  [!doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+   !show-cc? !show-bcc? !attachment-paths !draft-meta !auto-save-gate]
+  (topbar/silent-save-draft!
+   !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+   @!show-cc? @!show-bcc? (:current-account-id @store/app-state)
+   @!attachment-paths !draft-meta !auto-save-gate))
+
+(defn setup-debounced-auto-save!
+  "Desktop: debounced auto-save on field / block changes."
+  [{:keys [!auto-save-timer !doc-state !quote-state !show-cc? !show-bcc?
+           !attachment-paths !draft-meta !auto-save-gate
+           to-ctrl cc-ctrl bcc-ctrl subject-ctrl]}]
+  (let [trigger!
+        (fn []
+          (when-let [t @!auto-save-timer] (.cancel ^async/Timer t))
+          (reset! !auto-save-timer
+                  (async/Timer.
+                   (dart:core/Duration. .seconds 5)
+                   #(silent-save! !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl
+                                  subject-ctrl !show-cc? !show-bcc?
+                                  !attachment-paths !draft-meta !auto-save-gate))))]
+    (.addListener ^m/TextEditingController to-ctrl trigger!)
+    (.addListener ^m/TextEditingController cc-ctrl trigger!)
+    (.addListener ^m/TextEditingController bcc-ctrl trigger!)
+    (.addListener ^m/TextEditingController subject-ctrl trigger!)
+    (add-watch !doc-state :auto-save
+               (fn [_ _ old new]
+                 (when (not= (:blocks old) (:blocks new))
+                   (trigger!))))
+    {:!auto-save-timer !auto-save-timer
+     :to-ctrl to-ctrl
+     :cc-ctrl cc-ctrl
+     :bcc-ctrl bcc-ctrl
+     :subject-ctrl subject-ctrl
+     :!doc-state !doc-state
+     :trigger! trigger!}))
+
+(defn dispose-debounced-auto-save!
+  [{:keys [!auto-save-timer to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+           !doc-state trigger!]}]
+  (when-let [t @!auto-save-timer] (.cancel ^async/Timer t))
+  (.removeListener ^m/TextEditingController to-ctrl trigger!)
+  (.removeListener ^m/TextEditingController cc-ctrl trigger!)
+  (.removeListener ^m/TextEditingController bcc-ctrl trigger!)
+  (.removeListener ^m/TextEditingController subject-ctrl trigger!)
+  (remove-watch !doc-state :auto-save)
+  nil)
+
+(defn periodic-auto-save-callback
+  "Mobile: Timer.periodic tick — save when snapshot changed and has content."
+  [to-ctrl cc-ctrl bcc-ctrl subject-ctrl !doc-state !attachment-paths
+   !last-snapshot !show-cc? !show-bcc? !quote-state !draft-meta !auto-save-gate]
+  (fn [_]
+    (let [curr (compose-snapshot to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                                 !doc-state !attachment-paths)]
+      (when (and (not= curr @!last-snapshot)
+                 (compose-has-content? curr))
+        (reset! !last-snapshot curr)
+        (silent-save! !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                        !show-cc? !show-bcc? !attachment-paths !draft-meta
+                        !auto-save-gate)))))

@@ -11,104 +11,110 @@
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]))
 
+(defn- bulk-then! [ctx f success-msg]
+  (when-let [result (f)]
+    (-> result
+        (.then (fn [ok]
+                 (when ok
+                   (toast/success! (toast/safe-ctx ctx) success-msg))
+                 nil))
+        (.catchError (fn [_] nil))))
+  nil)
+
 (defn screen []
-  (let [!selected-ids (atom #{})]
-    (f/widget
-     :context ctx
-     :get [m/Navigator]
-     :watch [{:keys [accounts selected-mailbox syncing? current-account-id]} store/app-state
-             selected-ids !selected-ids]
-     (if (empty? accounts)
-       (signup/screen)
-       (do
-         (when (and (or current-account-id (seq accounts))
-                    (nil? selected-mailbox))
-           (async/Future.microtask
-            #(mail/select-mailbox! :inbox)))
-         (let [title (case selected-mailbox
-                       :inbox "Inbox"
-                       :sent "Sent"
-                       :draft "Drafts"
-                       :outbox "Outbox"
-                       :archive "Archive"
-                       :junk "Junk"
-                       :trash "Trash"
-                       "MGL Mail")
-               in-selection-mode? (seq selected-ids)
-               sync-action
-               (if syncing?
-                 (m/Padding
-                  .padding (m.EdgeInsets/all 16.0)
-                  .child
-                  (m/SizedBox
-                   .width 22.0
-                   .height 22.0
-                   .child (m/CircularProgressIndicator
-                           .strokeWidth 2.0
-                           .color theme/sky)))
-                 (m/IconButton
-                  .icon (m/Icon m.Icons/sync)
-                  .tooltip "Sync"
-                  .onPressed #(mail/sync!)))]
-           (m/Scaffold
-            .backgroundColor theme/paper
-            .drawer (when-not in-selection-mode? (drawer/drawer ctx))
-            .appBar
-            (if in-selection-mode?
-              (m/AppBar
-               .backgroundColor theme/sky-light
-               .foregroundColor theme/sky-deep
-               .elevation 0.0
-               .scrolledUnderElevation 0.0
-               .leading (m/IconButton
-                         .icon (m/Icon m.Icons/close .color theme/sky-deep)
-                         .onPressed (fn []
-                                      (reset! !selected-ids #{})
-                                      nil))
-               .title (m/Text (str (count selected-ids) " сонгосон")
-                              .style (m/TextStyle .fontFamily font-family
-                                                  .fontWeight m/FontWeight.w600
-                                                  .color theme/sky-deep))
-               .actions
-               [(m/IconButton
-                 .icon (m/Icon m.Icons/archive_outlined .color theme/sky-deep)
-                 .tooltip "Archive All"
-                 .onPressed (fn []
-                              (doseq [id selected-ids] (mail/archive-message! id))
-                              (reset! !selected-ids #{})
-                              (toast/success! (toast/safe-ctx ctx) "Бүгдийг архивлалаа")
-                              nil))
-                (m/IconButton
-                 .icon (m/Icon m.Icons/delete_outline .color theme/danger)
-                 .tooltip "Delete All"
-                 .onPressed (fn []
-                              (doseq [id selected-ids] (mail/delete-message! id))
-                              (reset! !selected-ids #{})
-                              (toast/success! (toast/safe-ctx ctx) "Бүгдийг устгалаа")
-                              nil))])
-              (m/AppBar
-               .title (m/Text title .style (m/TextStyle .fontFamily font-family
-                                                       .fontWeight m/FontWeight.w600
-                                                       .color theme/ink))
-               .actions
-               [(m/IconButton
-                 .icon (m/Icon m.Icons/search)
-                 .tooltip "Search"
-                 .onPressed (fn []
-                              (.pushNamed (m/Navigator.of ctx) "/search")
-                              nil))
-                sync-action]))
-            .body (m/Column
-                   .crossAxisAlignment m.CrossAxisAlignment/stretch
-                   .children
-                   [(err/banner)
-                    (m/Expanded .child (mobile-list/list-view !selected-ids))])
-            .floatingActionButton
-            (when-not in-selection-mode?
-              (m/FloatingActionButton
-               .tooltip "Compose"
-               .child (m/Icon m.Icons/edit_outlined)
+  (f/widget
+   :context ctx
+   :get [m/Navigator]
+   :watch [{:keys [accounts selected-mailbox syncing? current-account-id
+                   selected-message-ids]}
+           store/app-state]
+   (if (empty? accounts)
+     (signup/screen)
+     (do
+       (when (and (or current-account-id (seq accounts))
+                  (nil? selected-mailbox))
+         (async/Future.microtask
+          #(mail/select-mailbox! :inbox)))
+       (let [title (case selected-mailbox
+                     :inbox "Inbox"
+                     :sent "Sent"
+                     :draft "Drafts"
+                     :outbox "Outbox"
+                     :archive "Archive"
+                     :junk "Junk"
+                     :trash "Trash"
+                     "MGL Mail")
+             in-selection-mode? (seq selected-message-ids)
+             sync-action
+             (if syncing?
+               (m/Padding
+                .padding (m.EdgeInsets/all 16.0)
+                .child
+                (m/SizedBox
+                 .width 22.0
+                 .height 22.0
+                 .child (m/CircularProgressIndicator
+                         .strokeWidth 2.0
+                         .color theme/sky)))
+               (m/IconButton
+                .icon (m/Icon m.Icons/sync)
+                .tooltip "Sync"
+                .onPressed #(mail/sync!)))]
+         (m/Scaffold
+          .backgroundColor theme/paper
+          .drawer (when-not in-selection-mode? (drawer/drawer ctx))
+          .appBar
+          (if in-selection-mode?
+            (m/AppBar
+             .backgroundColor theme/sky-light
+             .foregroundColor theme/sky-deep
+             .elevation 0.0
+             .scrolledUnderElevation 0.0
+             .leading (m/IconButton
+                       .icon (m/Icon m.Icons/close .color theme/sky-deep)
+                       .onPressed (fn []
+                                    (store/clear-message-selection!)
+                                    nil))
+             .title (m/Text (str (count selected-message-ids) " сонгосон")
+                            .style (m/TextStyle .fontFamily font-family
+                                                .fontWeight m/FontWeight.w600
+                                                .color theme/sky-deep))
+             .actions
+             [(m/IconButton
+               .icon (m/Icon m.Icons/archive_outlined .color theme/sky-deep)
+               .tooltip "Archive All"
                .onPressed (fn []
-                            (store/clear-compose-draft!)
-                            (.pushNamed navigator "/compose")
-                            nil))))))))))
+                            (bulk-then! ctx mail/bulk-archive! "Бүгдийг архивлалаа")
+                            nil))
+              (m/IconButton
+               .icon (m/Icon m.Icons/delete_outline .color theme/danger)
+               .tooltip "Delete All"
+               .onPressed (fn []
+                            (bulk-then! ctx mail/bulk-delete! "Бүгдийг устгалаа")
+                            nil))])
+            (m/AppBar
+             .title (m/Text title .style (m/TextStyle .fontFamily font-family
+                                                     .fontWeight m/FontWeight.w600
+                                                     .color theme/ink))
+             .actions
+             [(m/IconButton
+               .icon (m/Icon m.Icons/search)
+               .tooltip "Search"
+               .onPressed (fn []
+                            (.pushNamed (m/Navigator.of ctx) "/search")
+                            nil))
+              sync-action]))
+          .body (m/Column
+                 .crossAxisAlignment m.CrossAxisAlignment/stretch
+                 .children
+                 [(err/banner)
+                  (m/Expanded .child (mobile-list/list-view))])
+          .floatingActionButton
+          (when-not in-selection-mode?
+            (m/FloatingActionButton
+             .tooltip "Compose"
+             .child (m/Icon m.Icons/edit_outlined)
+             .onPressed (fn []
+                          (store/clear-compose-draft!)
+                          (.pushNamed navigator "/compose")
+                          nil)))))))))

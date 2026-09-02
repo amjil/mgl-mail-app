@@ -1,5 +1,5 @@
-(ns mail-app.desktop.lifecycle
-  "Desktop app lifecycle → MailBridge onAppBackground / dispose."
+(ns mail-app.lifecycle
+  "App lifecycle → MailBridge onAppBackground / dispose (desktop + mobile)."
   (:require ["package:flutter/material.dart" :as m]
             [cljd.flutter :as f]
             [mail-app.services.mail-core :as mail]))

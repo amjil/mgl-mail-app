@@ -447,7 +447,7 @@
 (defn- split-addrs [s]
   (->> (str/split (or s "") #"[,\s;]+")
        (map str/trim)
-       (remove empty?)
+       (remove str/blank?)
        vec))
 
 (defn html->plain
@@ -801,12 +801,6 @@
                            (throw (Exception. msg)))))))))
 
 ;; --- Reply All recipients ---
-
-(defn- split-addrs [s]
-  (->> (str/split (or s "") #"[,\s;]+")
-       (map str/trim)
-       (remove str/blank?)
-       vec))
 
 (defn- norm-email [s]
   (str/lower-case (str/trim (or s ""))))

@@ -3,7 +3,7 @@
             ["package:flutter/services.dart" :as s]
             ["package:flutter_styled_toast/flutter_styled_toast.dart" :as st]
             [cljd.flutter :as f]
-            [mail-app.desktop.lifecycle :as life]
+            [mail-app.lifecycle :as life]
             [mail-app.desktop.shortcuts :as shortcuts]
             [mail-app.desktop.toast :as toast]
             [mail-app.desktop.screens.home :as home]

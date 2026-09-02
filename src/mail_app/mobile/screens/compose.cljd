@@ -5,56 +5,16 @@
             ["package:file_selector/file_selector.dart" :as fs]
             ["dart:async" :as async]
             [cljd.flutter :as f]
-            [clojure.string :as str]
             [block-editor.widgets.editor :as editor]
-            [block-editor.widgets.toolbar :as toolbar]
-            [mail-app.desktop.toast :as toast]
             [mail-app.desktop.widgets.compose-fields :as fields]
             [mail-app.desktop.widgets.compose-quote :as quote]
-            [mail-app.desktop.widgets.compose-topbar :as topbar-logic]
+            [mail-app.desktop.widgets.compose-topbar :as topbar]
             [mail-app.mobile.widgets.keyboard :as kb]
-            [mail-app.services.compose-export :as export]
+            [mail-app.services.compose-screen :as compose]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]))
 
-(def compose-editor-config
-  {:text-block-types #{:paragraph :heading-1 :heading-2 :heading-3
-                       :blockquote :list-item :ordered-list-item :toggle}
-   :block-style
-   (fn [b-type]
-     (case b-type
-       :heading-1 (m/TextStyle .fontSize 24.0 .fontWeight m/FontWeight.bold
-                               .color theme/ink .fontFamily font-family)
-       :heading-2 (m/TextStyle .fontSize 20.0 .fontWeight m/FontWeight.bold
-                               .color theme/ink .fontFamily font-family)
-       :heading-3 (m/TextStyle .fontSize 18.0 .fontWeight m/FontWeight.w600
-                               .color theme/ink .fontFamily font-family)
-       (m/TextStyle .fontSize 16.0 .color theme/ink
-                    .fontFamily font-family)))})
-
-(defn- apply-fields!
-  [draft to-ctrl cc-ctrl bcc-ctrl subject-ctrl !show-cc? !show-bcc?]
-  (when draft
-    (when-let [to (:to draft)] (set! (.-text to-ctrl) (str to)))
-    (when-let [cc (:cc draft)]
-      (when (seq (str/trim (str cc)))
-        (reset! !show-cc? true)
-        (set! (.-text cc-ctrl) (str cc))))
-    (when-let [bcc (:bcc draft)]
-      (when (seq (str/trim (str bcc)))
-        (reset! !show-bcc? true)
-        (set! (.-text bcc-ctrl) (str bcc))))
-    (when-let [subject (:subject draft)]
-      (set! (.-text subject-ctrl) (str subject)))))
-
-(defn- initial-doc-state [draft signature]
-  (cond
-    (:body-state draft) (:body-state draft)
-    (:body-plain draft) (export/state-from-plain-text (:body-plain draft))
-    :else (let [text (if (seq signature) (str "\n\n-- \n" signature) "")]
-            (export/state-from-plain-text text))))
-
-(defn- pick-attachments-mobile! [!paths]
+(defn- pick-attachments! [!paths]
   (-> (fs/openFiles)
       (.then (fn [files]
                (let [new-paths (->> (or files [])
@@ -66,40 +26,16 @@
                nil))
       (.catchError (fn [_] nil))))
 
-(defn- basename [path]
-  (or (last (str/split (or path "") #"[\\/]")) path))
-
 (defn- cancel-timer! [^async/Timer t]
   (when t (.cancel t))
   nil)
 
-(defn- bottom-toolbar
-  "Page-level toolbar; own watch avoids setState-during-build when editor swap!s."
-  [!doc-state editor-config]
-  (f/widget
-   :watch [doc-state !doc-state]
-   :let [editor-body-focused? (and (:cursor-visible doc-state)
-                                   (not (:external-keyboard-delegate doc-state)))]
-   (if editor-body-focused?
-     (toolbar/editor-toolbar !doc-state editor-config)
-     (m/SizedBox.shrink))))
-
 (defn screen []
-  (let [draft (:compose-draft @store/app-state)
-        _ (when draft (store/clear-compose-draft!))
-        aid (or (:account-id draft) (:current-account-id @store/app-state))
-        signature (store/get-signature aid)
-        !doc-state (atom (initial-doc-state draft signature))
-        !quote-state (atom (:quote-state draft))
-        !show-cc? (atom false)
-        !show-bcc? (atom false)
-        !attachment-paths (atom (vec (or (:attachment-paths draft) [])))
-        !fields-draft (atom draft)
-        !draft-meta (atom (select-keys (or draft {})
-                                       [:draft-message-id :in-reply-to :references :account-id]))
-        has-quote? (some? (:quote-state draft))
-        !auto-save-gate (atom {:inflight? false :pending? false})
-        !last-snapshot (atom nil)]
+  (let [{:keys [has-quote? !doc-state !quote-state !show-cc? !show-bcc?
+                !attachment-paths !fields-draft !draft-meta !auto-save-gate]}
+        (compose/prepare-state!)
+        !last-snapshot (atom nil)
+        editor-config (compose/editor-config :mobile)]
     (f/widget
      :managed [scaffold-key (m/GlobalKey)
                :dispose nil
@@ -116,23 +52,10 @@
                auto-save-timer
                (async/Timer.periodic
                 (dart:core/Duration. .seconds 5)
-                (fn [_]
-                  (let [curr {:to (.-text to-ctrl)
-                              :cc (.-text cc-ctrl)
-                              :bcc (.-text bcc-ctrl)
-                              :sub (.-text subject-ctrl)
-                              :blocks (:blocks @!doc-state)
-                              :attachments @!attachment-paths}]
-                    (when (and (not= curr @!last-snapshot)
-                               (or (seq (:to curr))
-                                   (seq (:sub curr))
-                                   (seq (:attachments curr))
-                                   (> (count (:blocks curr)) 1)))
-                      (reset! !last-snapshot curr)
-                      (topbar-logic/silent-save-draft!
-                       !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
-                       @!show-cc? @!show-bcc? (:current-account-id @store/app-state)
-                       @!attachment-paths !draft-meta !auto-save-gate)))))
+                (compose/periodic-auto-save-callback
+                 to-ctrl cc-ctrl bcc-ctrl subject-ctrl !doc-state !attachment-paths
+                 !last-snapshot !show-cc? !show-bcc? !quote-state !draft-meta
+                 !auto-save-gate))
                :dispose cancel-timer!]
      :let [vk-info kb/info]
      :bind {:info vk-info}
@@ -143,12 +66,10 @@
              {:keys [sending? current-account-id]} store/app-state
              attachment-paths !attachment-paths]
 
-     ;; Get exact screen width for container sizing
      (let [screen-w (.-width (.-size (m/MediaQuery.of ctx)))]
        (do
-         (when-let [d @!fields-draft]
-           (reset! !fields-draft nil)
-           (apply-fields! d to-ctrl cc-ctrl bcc-ctrl subject-ctrl !show-cc? !show-bcc?))
+         (compose/apply-pending-fields! !fields-draft to-ctrl cc-ctrl bcc-ctrl
+                                        subject-ctrl !show-cc? !show-bcc?)
 
          (m/Scaffold
           .key scaffold-key
@@ -173,34 +94,25 @@
                             .icon (m/Icon m.Icons/format_quote)
                             .tooltip "Original Email"
                             .onPressed (fn [] (-> scaffold-key .-currentState .openEndDrawer) nil)))
-                     
-                     ;; Manual "Save draft" button
+
                      true
                      (conj (m/IconButton
                             .icon (m/Icon m.Icons/save_outlined)
                             .tooltip "Save Draft"
                             .onPressed (fn []
-                                         (let [curr {:to (.-text to-ctrl)
-                                                     :cc (.-text cc-ctrl)
-                                                     :bcc (.-text bcc-ctrl)
-                                                     :sub (.-text subject-ctrl)
-                                                     :blocks (:blocks @!doc-state)
-                                                     :attachments @!attachment-paths}]
-                                           ;; Update the snapshot and trigger a manual save
-                                           (reset! !last-snapshot curr)
-                                           (topbar-logic/silent-save-draft!
-                                            !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
-                                            @!show-cc? @!show-bcc? (:current-account-id @store/app-state)
-                                            @!attachment-paths !draft-meta !auto-save-gate)
-                                           (toast/success! (toast/safe-ctx ctx) "Draft saved")
-                                           (.pop navigator) ;; Pop back after saving
-                                           nil))))
+                                         (topbar/save-draft-pressed!
+                                          ctx navigator !doc-state !quote-state
+                                          to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                                          show-cc? show-bcc? sending?
+                                          current-account-id attachment-paths
+                                          @!draft-meta)
+                                         nil)))
 
                      true
                      (conj (m/IconButton
                             .icon (m/Icon m.Icons/attach_file)
                             .tooltip "Attach"
-                            .onPressed #(pick-attachments-mobile! !attachment-paths)))
+                            .onPressed #(pick-attachments! !attachment-paths)))
 
                      true
                      (conj (m/IconButton
@@ -222,11 +134,11 @@
                             .icon (m/Icon m.Icons/send .color theme/sky)
                             .tooltip "Send"
                             .onPressed (fn []
-                                         (topbar-logic/send-pressed! ctx navigator !doc-state !quote-state
-                                                                     to-ctrl cc-ctrl bcc-ctrl subject-ctrl
-                                                                     show-cc? show-bcc? sending?
-                                                                     current-account-id attachment-paths
-                                                                     @!draft-meta)
+                                         (topbar/send-pressed! ctx navigator !doc-state !quote-state
+                                                               to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                                                               show-cc? show-bcc? sending?
+                                                               current-account-id attachment-paths
+                                                               @!draft-meta)
                                          nil)))))
           .body
           (m/SafeArea
@@ -247,7 +159,7 @@
                          (m/InputChip
                           .backgroundColor theme/sky-light
                           .side (m/BorderSide .color theme/sky-soft)
-                          .label (m/Text (basename path)
+                          .label (m/Text (compose/basename path)
                                          .style (m/TextStyle .fontSize 12.0 .color theme/ink))
                           .onDeleted (fn [] (swap! !attachment-paths #(vec (remove #{path} %))) nil)))
                        attachment-paths))))
@@ -258,8 +170,7 @@
                 .child
                 (m/Stack
                  .children
-                 [;; Wrap in SingleChildScrollView for global scrolling
-                  (m/SingleChildScrollView
+                 [(m/SingleChildScrollView
                    .scrollDirection m.Axis/horizontal
                    .child
                    (m/Row
@@ -274,22 +185,18 @@
                        :show-cc? show-cc?
                        :show-bcc? show-bcc?})
                      (m/VerticalDivider .width 1.0 .thickness 1.0 .color theme/divider)
-
-                     ;; Use Container with full screen width instead of Expanded
-                     ;; so it fills the viewport after header fields scroll out
                      (m/Container
                       .width screen-w
                       .child
                       (editor/mongol-block-editor
                        !doc-state
-                       :editor-config compose-editor-config
+                       :editor-config editor-config
                        :background-color theme/surface
                        :show-block-handles? false
                        :wrap-ime? false
                        :padding (m.EdgeInsets/all 16.0)))]))
-
                   (kb/candidates)])))
               true
-              (conj (bottom-toolbar !doc-state compose-editor-config))
+              (conj (compose/bottom-toolbar !doc-state editor-config))
               true
               (conj (kb/bar)))))))))))

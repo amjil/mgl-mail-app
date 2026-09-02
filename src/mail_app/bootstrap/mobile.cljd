@@ -2,14 +2,9 @@
   "Mobile startup: FST / next-word dictionaries for the in-app virtual keyboard.
    `TextInput.setInputControl` is installed per-screen (compose) so signup
    and other Material fields keep the platform IME."
-  (:require ["package:flutter/foundation.dart" :as foundation :refer [kIsWeb]]
-            [ime-core.fst-engine :as fst]
-            [ime-core.next-word :as next-word]))
+  (:require [mail-app.bootstrap.ime :as ime]))
 
 (defn init!
   "Load IME dictionaries used by mgl-block-editor's mobile virtual keyboard."
   []
-  (when-not kIsWeb
-    (await (fst/ensure-loaded))
-    (await (next-word/ensure-loaded)))
-  (dart:core/print "bootstrap.mobile: ready"))
+  (ime/init! "mobile"))

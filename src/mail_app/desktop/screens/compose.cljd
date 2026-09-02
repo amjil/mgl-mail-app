@@ -3,104 +3,23 @@
    Reply/forward shows original mail in a toggle panel (toggle.cljd)."
   (:require ["package:flutter/material.dart" :as m]
             ["package:flutter/services.dart" :as s]
-            ["dart:async" :as async]
             [cljd.flutter :as f]
-            [clojure.string :as str]
             [block-editor.widgets.editor :as editor]
-            [block-editor.widgets.toolbar :as toolbar]
             [shared-ime.overlay-view :as overlay]
             [mail-app.desktop.shortcuts :as shortcuts]
             [mail-app.desktop.widgets.compose-fields :as fields]
             [mail-app.desktop.widgets.compose-quote :as quote]
             [mail-app.desktop.widgets.compose-topbar :as topbar]
-            [mail-app.services.compose-export :as export]
+            [mail-app.services.compose-screen :as compose]
             [mail-app.state.store :as store]
-            [mail-app.theme :as theme :refer [font-family]]))
-
-(def compose-editor-config
-  {:text-block-types #{:paragraph :heading-1 :heading-2 :heading-3
-                       :blockquote :list-item :ordered-list-item :toggle}
-   :block-style
-   (fn [b-type]
-     (case b-type
-       :heading-1 (m/TextStyle .fontSize 28.0 .fontWeight m/FontWeight.bold
-                               .color theme/ink .fontFamily font-family)
-       :heading-2 (m/TextStyle .fontSize 22.0 .fontWeight m/FontWeight.bold
-                               .color theme/ink .fontFamily font-family)
-       :heading-3 (m/TextStyle .fontSize 18.0 .fontWeight m/FontWeight.w600
-                               .color theme/ink .fontFamily font-family)
-       (m/TextStyle .fontSize 16.0 .color theme/ink
-                    .fontFamily font-family .height 1.4)))})
-
-(defn- apply-fields!
-  [draft to-ctrl cc-ctrl bcc-ctrl subject-ctrl !show-cc? !show-bcc?]
-  (when draft
-    (when-let [to (:to draft)]
-      (set! (.-text to-ctrl) (str to)))
-    (when-let [cc (:cc draft)]
-      (when (seq (str/trim (str cc)))
-        (reset! !show-cc? true)
-        (set! (.-text cc-ctrl) (str cc))))
-    (when-let [bcc (:bcc draft)]
-      (when (seq (str/trim (str bcc)))
-        (reset! !show-bcc? true)
-        (set! (.-text bcc-ctrl) (str bcc))))
-    (when-let [subject (:subject draft)]
-      (set! (.-text subject-ctrl) (str subject)))))
-
-(defn- initial-doc-state [draft signature]
-  (cond
-    ;; Reopen from drafts: restore saved editor state as-is.
-    (:body-state draft) (:body-state draft)
-    ;; Plain-text draft restore (also skip re-injecting signature).
-    (:body-plain draft) (export/state-from-plain-text (:body-plain draft))
-    ;; New / reply / forward: seed signature with two blank lines above.
-    :else
-    (let [text (if (seq signature) (str "\n\n-- \n" signature) "")]
-      (export/state-from-plain-text text))))
-
-(defn- dispose-auto-save!
-  "Cancel pending timer and detach listeners registered by auto-save setup."
-  [{:keys [!auto-save-timer to-ctrl cc-ctrl bcc-ctrl subject-ctrl
-           !doc-state trigger!]}]
-  (when-let [t @!auto-save-timer] (.cancel ^async/Timer t))
-  (.removeListener ^m/TextEditingController to-ctrl trigger!)
-  (.removeListener ^m/TextEditingController cc-ctrl trigger!)
-  (.removeListener ^m/TextEditingController bcc-ctrl trigger!)
-  (.removeListener ^m/TextEditingController subject-ctrl trigger!)
-  (remove-watch !doc-state :auto-save)
-  nil)
-
-(defn- bottom-toolbar
-  "Page-level toolbar; watches !doc-state in its own widget so mongol-block-editor's
-   build-time swap! does not trigger setState on the compose screen ancestor."
-  [!doc-state editor-config]
-  (f/widget
-   :watch [doc-state !doc-state]
-   :let [editor-body-focused? (and (:cursor-visible doc-state)
-                                   (not (:external-keyboard-delegate doc-state)))]
-   (if editor-body-focused?
-     (toolbar/editor-toolbar !doc-state editor-config)
-     (m/SizedBox.shrink))))
+            [mail-app.theme :as theme]))
 
 (defn screen []
-  (let [draft (:compose-draft @store/app-state)
-        _ (when draft (store/clear-compose-draft!))
-        aid (or (:account-id draft) (:current-account-id @store/app-state))
-        signature (store/get-signature aid)
-        !doc-state (atom (initial-doc-state draft signature))
-        !quote-state (atom (:quote-state draft))
-        !show-cc? (atom false)
-        !show-bcc? (atom false)
-        !attachment-paths (atom (vec (or (:attachment-paths draft) [])))
-        !fields-draft (atom draft)
-        ;; Atom so silent auto-save can record the returned draft-message-id.
-        !draft-meta (atom (select-keys (or draft {})
-                                       [:draft-message-id :in-reply-to :references
-                                        :account-id]))
-        has-quote? (some? (:quote-state draft))
+  (let [{:keys [has-quote? !doc-state !quote-state !show-cc? !show-bcc?
+                !attachment-paths !fields-draft !draft-meta !auto-save-gate]}
+        (compose/prepare-state!)
         !auto-save-timer (atom nil)
-        !auto-save-gate (atom {:inflight? false :pending? false})]
+        editor-config (compose/editor-config :desktop)]
     (f/widget
      :managed [to-ctrl (m/TextEditingController.)
                to-focus (m/FocusNode.)
@@ -111,34 +30,20 @@
                subject-ctrl (m/TextEditingController.)
                subject-focus (m/FocusNode.)
                auto-save
-               (let [trigger!
-                     (fn []
-                       (when-let [t @!auto-save-timer] (.cancel ^async/Timer t))
-                       (reset! !auto-save-timer
-                               (async/Timer.
-                                (dart:core/Duration. .seconds 5)
-                                #(topbar/silent-save-draft!
-                                  !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl
-                                  subject-ctrl @!show-cc? @!show-bcc?
-                                  (:current-account-id @store/app-state)
-                                  @!attachment-paths !draft-meta !auto-save-gate))))]
-                 (.addListener ^m/TextEditingController to-ctrl trigger!)
-                 (.addListener ^m/TextEditingController cc-ctrl trigger!)
-                 (.addListener ^m/TextEditingController bcc-ctrl trigger!)
-                 (.addListener ^m/TextEditingController subject-ctrl trigger!)
-                 (add-watch !doc-state :auto-save
-                            (fn [_ _ old new]
-                              ;; Ignore selection-only updates (cursor moves).
-                              (when (not= (:blocks old) (:blocks new))
-                                (trigger!))))
-                 {:!auto-save-timer !auto-save-timer
-                  :to-ctrl to-ctrl
-                  :cc-ctrl cc-ctrl
-                  :bcc-ctrl bcc-ctrl
-                  :subject-ctrl subject-ctrl
-                  :!doc-state !doc-state
-                  :trigger! trigger!})
-               :dispose dispose-auto-save!
+               (compose/setup-debounced-auto-save!
+                {:!auto-save-timer !auto-save-timer
+                 :!doc-state !doc-state
+                 :!quote-state !quote-state
+                 :!show-cc? !show-cc?
+                 :!show-bcc? !show-bcc?
+                 :!attachment-paths !attachment-paths
+                 :!draft-meta !draft-meta
+                 :!auto-save-gate !auto-save-gate
+                 :to-ctrl to-ctrl
+                 :cc-ctrl cc-ctrl
+                 :bcc-ctrl bcc-ctrl
+                 :subject-ctrl subject-ctrl})
+               :dispose compose/dispose-debounced-auto-save!
                :refresh-on nil]
      :context ctx
      :get [m/Navigator]
@@ -147,10 +52,8 @@
              {:keys [sending? current-account-id]} store/app-state
              attachment-paths !attachment-paths]
      (do
-       (when-let [d @!fields-draft]
-         (reset! !fields-draft nil)
-         (apply-fields! d to-ctrl cc-ctrl bcc-ctrl subject-ctrl
-                        !show-cc? !show-bcc?))
+       (compose/apply-pending-fields! !fields-draft to-ctrl cc-ctrl bcc-ctrl
+                                      subject-ctrl !show-cc? !show-bcc?)
        (shortcuts/with-shortcuts
         {;; Send
          (shortcuts/cmd-key s/LogicalKeyboardKey.enter)
@@ -175,9 +78,6 @@
         (m/Scaffold
          .backgroundColor theme/paper
          .body
-         ;; One page-level IME overlay (like rich-editor desktop). Header fields
-         ;; share !doc-state; editor uses :wrap-ime? false to avoid nested
-         ;; candidates overlays.
          (overlay/ime-global-wrapper
           (m/SafeArea
            .child
@@ -219,7 +119,7 @@
                    .child
                    (editor/mongol-block-editor
                     !doc-state
-                    :editor-config compose-editor-config
+                    :editor-config editor-config
                     :background-color theme/surface
                     :show-block-handles? false
                     :wrap-ime? false
@@ -228,4 +128,4 @@
                  (conj (m/Expanded
                         .flex 1
                         .child (quote/panel !quote-state))))))
-             (bottom-toolbar !doc-state compose-editor-config)])))))))))
+             (compose/bottom-toolbar !doc-state editor-config)])))))))))

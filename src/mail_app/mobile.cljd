@@ -3,6 +3,7 @@
             ["package:flutter_styled_toast/flutter_styled_toast.dart" :as st]
             [cljd.flutter :as f]
             [mail-app.desktop.toast :as toast]
+            [mail-app.lifecycle :as life]
             [mail-app.mobile.screens.home :as home]
             [mail-app.mobile.screens.compose :as compose]
             [mail-app.mobile.screens.mail-detail :as mail-detail]
@@ -12,9 +13,10 @@
             [mail-app.theme :as theme]))
 
 (defn app []
-  (f/widget
-   :managed [nav-key (#/(m/GlobalKey m/NavigatorState))]
-   (m/MaterialApp
+  (life/wrap
+   (f/widget
+    :managed [nav-key (#/(m/GlobalKey m/NavigatorState))]
+    (m/MaterialApp
     .navigatorKey nav-key
     .title "MGL Mail"
     .debugShowCheckedModeBanner false
@@ -34,4 +36,4 @@
              "/mail_detail" (fn ^m/Widget [_] (mail-detail/screen))
              "/search" (fn ^m/Widget [_] (search/screen))
              "/settings" (fn ^m/Widget [_] (settings/screen))
-             "/signup" (fn ^m/Widget [_] (signup/screen))})))
+             "/signup" (fn ^m/Widget [_] (signup/screen))}))))
