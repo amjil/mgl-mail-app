@@ -48,6 +48,12 @@
   (when d
     (str (pad2 (.month d)) "/" (pad2 (.day d)))))
 
+(defn- sender-initial [^mc/MailMessageDto msg]
+  (let [s (or (.-fromName msg) (.-from msg) "")]
+    (if (pos? (.-length s))
+      (.substring s 0 1)
+      "?")))
+
 (defn- is-modifier-pressed? [^s/HardwareKeyboard kb key1 key2]
   (or (.isLogicalKeyPressed kb key1)
       (.isLogicalKeyPressed kb key2)))
@@ -58,6 +64,20 @@
 
 (defn- shift-pressed? [^s/HardwareKeyboard kb]
   (is-modifier-pressed? kb s.LogicalKeyboardKey/shiftLeft s.LogicalKeyboardKey/shiftRight))
+
+(defn- mail-card [bg selected? child]
+  (m/Container
+   .width theme/mail-col-width
+   .margin (m.EdgeInsets/symmetric .horizontal 5.0 .vertical 2.0)
+   .clipBehavior m.Clip/antiAlias
+   .decoration (m/BoxDecoration
+                .color bg
+                .borderRadius (m/BorderRadius.circular theme/radius-md)
+                .border (m/Border.all
+                         .color (if selected? theme/sky-soft theme/divider)
+                         .width (if selected? 1.5 0.5))
+                .boxShadow (when selected? (theme/hair-shadow)))
+   .child child))
 
 (defn- message-item [idx ^mc/MailMessageDto msg & {:keys [thread-count thread-key is-child? header?]}]
   (f/widget
@@ -70,6 +90,7 @@
                     (= (.-folderRole msg) "draft"))
          multi-selected? (contains? selected-message-ids (.-id msg))
          open-selected? (= selected-message-id (.-id msg))
+         selected? (or multi-selected? open-selected?)
          unread? (not (.-isRead msg))
          title-color (if unread? theme/ink theme/ink-muted)
          subtitle-color (if unread? theme/ink-muted (.withOpacity theme/ink-muted 0.8))
@@ -81,7 +102,7 @@
               multi-selected? theme/sky-soft
               open-selected? theme/sky-light
               is-child? theme/paper
-              :else m.Colors/transparent)
+              :else theme/surface)
          open-or-edit!
          (fn []
            (store/set-last-clicked-index! idx)
@@ -93,61 +114,62 @@
                                 nil)))
              (mail/open-message! (.-id msg)))
            nil)]
-     (m/DecoratedBox
-      .decoration (m/BoxDecoration
-                   .border (m/Border
-                            .right (m/BorderSide .color theme/divider .width 0.5)))
-      .child
+     (mail-card
+      bg selected?
       (m/Material
        .color bg
        .child
        (m/InkWell
         .hoverColor theme/hover
-       .onTap (fn []
-                (let [kb (.-instance s/HardwareKeyboard)
-                      cmd? (cmd-or-ctrl-pressed? kb)
-                      shift? (shift-pressed? kb)
-                      has-selection? (seq selected-message-ids)]
-                  (cond
-                    shift?
-                    (let [last-idx (or last-clicked-index 0)
-                          start (min last-idx idx)
-                          end (max last-idx idx)
-                          target-msgs (->> mail-list (drop start) (take (inc (- end start))))
-                          ids (set (map #(.-id ^mc/MailMessageDto %) target-msgs))]
-                      (store/set-selected-message-ids! (into selected-message-ids ids))
-                      (store/set-last-clicked-index! idx))
+        .onTap (fn []
+                 (let [kb (.-instance s/HardwareKeyboard)
+                       cmd? (cmd-or-ctrl-pressed? kb)
+                       shift? (shift-pressed? kb)
+                       has-selection? (seq selected-message-ids)]
+                   (cond
+                     shift?
+                     (let [last-idx (or last-clicked-index 0)
+                           start (min last-idx idx)
+                           end (max last-idx idx)
+                           target-msgs (->> mail-list (drop start) (take (inc (- end start))))
+                           ids (set (map #(.-id ^mc/MailMessageDto %) target-msgs))]
+                       (store/set-selected-message-ids! (into selected-message-ids ids))
+                       (store/set-last-clicked-index! idx))
 
-                    cmd?
-                    (do
-                      (store/toggle-message-selection! (.-id msg))
-                      (store/set-last-clicked-index! idx))
+                     cmd?
+                     (do
+                       (store/toggle-message-selection! (.-id msg))
+                       (store/set-last-clicked-index! idx))
 
-                    has-selection?
-                    (do
-                      (store/clear-message-selection!)
-                      (mail/open-message! (.-id msg)))
+                     has-selection?
+                     (do
+                       (store/clear-message-selection!)
+                       (mail/open-message! (.-id msg)))
 
-                    :else
-                    (open-or-edit!)))
-                nil)
-       .child
-       (m/SizedBox
-        .width theme/mail-col-width
+                     :else
+                     (open-or-edit!)))
+                 nil)
         .child
         (m/Padding
          .padding (if is-child?
-                    (m.EdgeInsets/only .top 32.0 .left 4.0 .right 4.0)
-                    m.EdgeInsets/zero)
+                    (m.EdgeInsets/only .top 28.0 .left 6.0 .right 6.0)
+                    (m.EdgeInsets/symmetric .horizontal 2.0))
          .child
          (mgl/MongolListTile
-          .leading (when unread?
-                     (m/Container
-                      .width 8.0
-                      .height 8.0
-                      .decoration (m/BoxDecoration
-                                   .color theme/sky
-                                   .shape m.BoxShape/circle)))
+          .leading (m/Container
+                    .width 26.0
+                    .height 26.0
+                    .alignment m.Alignment/center
+                    .decoration (m/BoxDecoration
+                                 .color (if unread? theme/sky-soft theme/paper-deep)
+                                 .shape m.BoxShape/circle)
+                    .child
+                    (m/Text (sender-initial msg)
+                            .style (m/TextStyle
+                                    .fontSize 12.0
+                                    .fontWeight m/FontWeight.w600
+                                    .color (if unread? theme/sky-deep theme/ink-muted)
+                                    .fontFamily font-family)))
           .title (m/Padding
                   .padding (m.EdgeInsets/only .top 8.0)
                   .child
@@ -159,7 +181,7 @@
                            .color title-color
                            .height 1.4
                            .fontWeight (if unread?
-                                         m/FontWeight.bold
+                                         m/FontWeight.w700
                                          m/FontWeight.normal))))
           .subtitle (m/Column
                      .crossAxisAlignment m.CrossAxisAlignment/start
@@ -171,7 +193,7 @@
                                            .fontFamily font-family
                                            .color subtitle-color
                                            .height 1.4))
-                      (m/SizedBox .height 4.0)
+                      (m/SizedBox .height 6.0)
                       (mgl/MongolText (or (format-date (.-date msg)) "")
                                       .style (m/TextStyle .fontSize 11.0
                                                           .color theme/ink-muted))])
@@ -179,6 +201,14 @@
                      .mainAxisSize m.MainAxisSize/min
                      .children
                      (cond-> []
+                       unread?
+                       (conj (m/Container
+                              .width 7.0
+                              .height 7.0
+                              .margin (m.EdgeInsets/only .right 4.0)
+                              .decoration (m/BoxDecoration
+                                           .color theme/sky
+                                           .shape m.BoxShape/circle)))
                        (and header? (> thread-count 1))
                        (conj (m/GestureDetector
                               .behavior m.HitTestBehavior/opaque
@@ -198,12 +228,12 @@
                        (conj (m/Icon m.Icons/star .size 14.0 .color theme/gold))
                        (.-hasAttachment msg)
                        (conj (m/Icon m.Icons/attach_file .size 16.0
-                                     .color theme/ink-muted)))))))))))))
+                                     .color theme/ink-muted))))))))))))
+
 (defn- outbox-item [^mc/MailOutboxDto row]
   (f/widget
-   (m/SizedBox
-    .width theme/mail-col-width
-    .child
+   (mail-card
+    theme/surface false
     (mgl/MongolListTile
      .title (m/Padding
              .padding (m.EdgeInsets/only .top 8.0)
@@ -221,7 +251,7 @@
      .trailing (when (or (= (.-status row) "failed")
                          (= (.-status row) "pending"))
                  (m/IconButton
-                  .icon (m/Icon m.Icons/refresh)
+                  .icon (m/Icon m.Icons/refresh .color theme/sky)
                   .tooltip "Retry"
                   .onPressed (fn []
                                (mail/retry-outbox! (.-id row))
@@ -238,15 +268,12 @@
    (let [outbox? (= selected-mailbox :outbox)
          items (if outbox? outbox-list mail-list)]
      (if (empty? items)
-       (m/Center
-        .child (mgl/MongolText
-                "ᠬᠣᠭᠣᠰᠣᠨ"
-                .style (m/TextStyle .fontFamily font-family
-                                    .color theme/ink-muted
-                                    .height 1.4)))
+       (theme/empty-state
+        (if outbox? m.Icons/outbox m.Icons/inbox_outlined)
+        "ᠬᠣᠭᠣᠰᠣᠨ")
        (m/ListView
         .scrollDirection m.Axis/horizontal
-        .padding (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 14.0)
+        .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
         .children
         (if outbox?
           (mapv outbox-item items)

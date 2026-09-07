@@ -177,8 +177,13 @@
        .width width
        .child
        (m/Container
-        .padding (m.EdgeInsets/symmetric .horizontal 4.0 .vertical 8.0)
+        .margin (m.EdgeInsets/symmetric .vertical 12.0 .horizontal 4.0)
+        .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
         .alignment m.Alignment/topCenter
+        .decoration (m/BoxDecoration
+                     .color theme/surface
+                     .borderRadius (m/BorderRadius.circular theme/radius-sm)
+                     .border (m/Border.all .color theme/divider .width 0.5))
         .child (mongol-field !ime controller focus-node hint))))))))
 
 (defn- field-column
@@ -191,11 +196,16 @@
      .behavior m.HitTestBehavior/opaque
      .onTap (fn [] (.requestFocus ^m/FocusNode focus-node) nil)
      .child
-     (m/Container
-      .width width
-      .padding (m.EdgeInsets/symmetric .horizontal 4.0 .vertical 8.0)
-      .alignment m.Alignment/topCenter
-      .child (mongol-field !ime controller focus-node hint)))))
+    (m/Container
+     .width width
+     .margin (m.EdgeInsets/symmetric .vertical 12.0 .horizontal 4.0)
+     .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
+     .alignment m.Alignment/topCenter
+     .decoration (m/BoxDecoration
+                  .color theme/surface
+                  .borderRadius (m/BorderRadius.circular theme/radius-sm)
+                  .border (m/Border.all .color theme/divider .width 0.5))
+     .child (mongol-field !ime controller focus-node hint)))))
 
 (defn header-row
   "Row of To / optional Cc / Bcc / Subject fields.

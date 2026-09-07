@@ -81,13 +81,13 @@
             .decoration (m/BoxDecoration
                          .color theme/sky-light
                          .border (m/Border
-                                  .right (m/BorderSide .color theme/divider)))
+                                  .right (m/BorderSide .color theme/divider .width 0.5)))
             .child (mailbox/mailbox-list)))
           (folder-split-handle max-folder)
           (m/Expanded
            .child
            (m/ColoredBox
-            .color theme/surface
+            .color theme/paper
             .child (maillist/list-view)))]))))))
 
 (defn screen []

@@ -192,6 +192,11 @@
            [(m/IconButton
              .padding (m.EdgeInsets/all 8.0)
              .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+             .style (m/IconButton.styleFrom
+                     .hoverColor theme/sky-light
+                     .highlightColor theme/sky-soft
+                     .shape (m/RoundedRectangleBorder
+                             .borderRadius (m/BorderRadius.circular theme/radius-sm)))
              .tooltip "Back"
              .onPressed (fn [] (.pop navigator) nil)
              .icon (m/Icon m.Icons/arrow_back_ios_new .size 20.0 .color theme/ink-muted))
@@ -220,12 +225,22 @@
               (m/IconButton
                .padding (m.EdgeInsets/all 8.0)
                .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+               .style (m/IconButton.styleFrom
+                       .hoverColor theme/sky-light
+                       .highlightColor theme/sky-soft
+                       .shape (m/RoundedRectangleBorder
+                               .borderRadius (m/BorderRadius.circular theme/radius-sm)))
                .tooltip "Attach"
                .onPressed (fn [] (pick-attachments! !attachment-paths) nil)
                .icon (m/Icon m.Icons/attach_file .size 20.0 .color theme/ink-muted))
               (m/IconButton
                .padding (m.EdgeInsets/all 8.0)
                .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+               .style (m/IconButton.styleFrom
+                       .hoverColor theme/sky-light
+                       .highlightColor theme/sky-soft
+                       .shape (m/RoundedRectangleBorder
+                               .borderRadius (m/BorderRadius.circular theme/radius-sm)))
                .tooltip "Save Draft"
                .onPressed (fn []
                             (save-draft-pressed! ctx navigator !doc-state !quote-state
@@ -234,7 +249,7 @@
                                                  current-account-id
                                                  attachment-paths @!draft-meta))
                .icon (m/Icon m.Icons/drafts_outlined .size 20.0 .color theme/ink-muted))
-              (m/SizedBox .width 4.0)
+              (m/SizedBox .width 8.0)
               (m/FilledButton.icon
                .onPressed (fn []
                             (send-pressed! ctx navigator !doc-state !quote-state

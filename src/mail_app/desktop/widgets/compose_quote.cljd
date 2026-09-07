@@ -65,7 +65,7 @@
       .decoration (m/BoxDecoration
                    .color theme/paper
                    .border (m/Border
-                            .left (m/BorderSide .color theme/divider)))
+                            .left (m/BorderSide .color theme/sky-soft .width 3.0)))
       .padding (m.EdgeInsets/only .left 8.0 .top 16.0 .bottom 16.0 .right 8.0)
       .child
       (m/SingleChildScrollView

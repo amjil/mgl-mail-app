@@ -88,9 +88,21 @@
   (m/IconButton
    .padding (m.EdgeInsets/all 8.0)
    .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+   .style (m/IconButton.styleFrom
+           .hoverColor theme/sky-light
+           .highlightColor theme/sky-soft
+           .shape (m/RoundedRectangleBorder
+                   .borderRadius (m/BorderRadius.circular theme/radius-sm)))
    .tooltip tooltip
    .onPressed on-pressed
    .icon (m/Icon icon .size 20.0 .color (or color theme/ink-muted))))
+
+(defn- v-rule []
+  (m/Container
+   .width 1.0
+   .height 22.0
+   .margin (m.EdgeInsets/symmetric .horizontal 6.0)
+   .color theme/divider))
 
 (defn- compose-btn [on-pressed]
   (m/Tooltip
@@ -104,7 +116,8 @@
             .minimumSize (m/Size. 40.0 40.0)
             .padding (m.EdgeInsets/all 8.0)
             .shape (m/CircleBorder.)
-            .elevation 0.0)
+            .elevation 0.0
+            .shadowColor (.withOpacity theme/sky 0.4))
     .child (m/Icon m.Icons/edit_outlined .size 18.0))))
 
 (defn- chrome-actions [navigator ctx syncing?]
@@ -115,9 +128,15 @@
     (icon-btn "Search"
               (fn [] (.pushNamed navigator "/search") nil)
               m.Icons/search)
+    (v-rule)
     (m/IconButton
      .padding (m.EdgeInsets/all 8.0)
      .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+     .style (m/IconButton.styleFrom
+             .hoverColor theme/sky-light
+             .highlightColor theme/sky-soft
+             .shape (m/RoundedRectangleBorder
+                     .borderRadius (m/BorderRadius.circular theme/radius-sm)))
      .tooltip "Sync"
      .onPressed (fn [] (mail/sync!) nil)
      .icon (if syncing?
@@ -128,7 +147,7 @@
     (icon-btn "Settings"
               (fn [] (.pushNamed navigator "/settings") nil)
               m.Icons/settings_outlined)
-    (m/SizedBox .width 4.0)
+    (m/SizedBox .width 8.0)
     (compose-btn
      (fn []
        (store/clear-compose-draft!)
@@ -144,13 +163,15 @@
    .children
    (cond-> []
      on-edit-draft
-     (conj (icon-btn "Edit draft" on-edit-draft m.Icons/edit_note))
+     (conj (icon-btn "Edit draft" on-edit-draft m.Icons/edit_note)
+           (v-rule))
      on-reply
      (conj (icon-btn "Reply" on-reply m.Icons/reply))
      on-reply-all
      (conj (icon-btn "Reply All" on-reply-all m.Icons/reply_all))
      on-forward
-     (conj (icon-btn "Forward" on-forward m.Icons/forward))
+     (conj (icon-btn "Forward" on-forward m.Icons/forward)
+           (v-rule))
      on-star
      (conj (icon-btn (if starred? "Unstar" "Star") on-star
                      (if starred? m.Icons/star m.Icons/star_border)
@@ -159,7 +180,8 @@
      (conj (icon-btn (if read? "Mark unread" "Mark read") on-toggle-read
                      (if read?
                        m.Icons/mark_email_unread_outlined
-                       m.Icons/mark_email_read_outlined)))
+                       m.Icons/mark_email_read_outlined))
+           (v-rule))
      (and (not draft?) (not archived?) on-archive)
      (conj (icon-btn "Archive" on-archive m.Icons/archive_outlined))
      (and archived? on-unarchive)
@@ -280,6 +302,8 @@
       .alignment m.Alignment/center
       .decoration (m/BoxDecoration
                    .color theme/sky-light
+                   .border (m/Border
+                            .bottom (m/BorderSide .color theme/sky-soft .width 0.5))
                    .boxShadow (theme/hair-shadow))
       .child
       (m/Row
@@ -293,15 +317,16 @@
                     :color theme/sky)
           (m/SizedBox .width 6.0)
           (m/Container
-           .padding (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 4.0)
+           .padding (m.EdgeInsets/symmetric .horizontal 12.0 .vertical 5.0)
            .decoration (m/BoxDecoration
                         .color theme/surface
-                        .borderRadius (m/BorderRadius.circular 12.0))
+                        .borderRadius (m/BorderRadius.circular 14.0)
+                        .border (m/Border.all .color theme/sky-soft))
            .child
            (m/Text (str cnt " selected")
                    .style (m/TextStyle .fontWeight m/FontWeight.w600
                                        .fontSize 13.0
-                                       .color theme/sky)))])
+                                       .color theme/sky-deep)))])
         (m/Row
          .children
          [(icon-btn "Mark Read" (fn [] (mail/bulk-set-read! true) nil)

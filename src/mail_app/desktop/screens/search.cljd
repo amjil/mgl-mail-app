@@ -79,18 +79,11 @@
     (m/Center .child (m/CircularProgressIndicator. .color theme/sky))
 
     (empty? search-results)
-    (m/Center
-     .child
-     (m/Row
-      .mainAxisSize m.MainAxisSize/min
-      .children
-      [(m/Icon m.Icons/search .size 48.0 .color theme/divider)
-       (m/SizedBox .width 16.0)
-       (mgl/MongolText
-        (if (seq search-query)
-          "Илэрц олдсонгүй" ;; No results
-          "Хайх утгаа оруулна уу") ;; Please enter search text
-        .style (m/TextStyle .fontFamily font-family .color theme/ink-muted .fontSize 18.0 .height 1.4))]))
+    (theme/empty-state
+     m.Icons/search
+     (if (seq search-query)
+       "Илэрц олдсонгүй"
+       "Хайх утгаа оруулна уу"))
 
     :else
     (m/ListView.separated
@@ -102,9 +95,11 @@
                     (m/Container
                      .width 260.0
                      .decoration (m/BoxDecoration
-                                  .border (m/Border.all .color theme/divider)
+                                  .color theme/surface
+                                  .border (m/Border.all .color theme/divider .width 0.5)
                                   .borderRadius (m/BorderRadius.circular theme/radius-md)
                                   .boxShadow (theme/hair-shadow))
+                     .clipBehavior m.Clip/antiAlias
                      .child (result-item (nth search-results idx) navigator))))))
 
 ;; ==========================================
@@ -186,8 +181,13 @@
               .onTap (fn [] (.requestFocus query-focus) nil)
               .child
               (m/Container
+               .margin (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 4.0)
                .padding (m.EdgeInsets/symmetric .horizontal 4.0 .vertical 8.0)
                .alignment m.Alignment/topCenter
+               .decoration (m/BoxDecoration
+                            .color theme/surface
+                            .borderRadius (m/BorderRadius.circular theme/radius-sm)
+                            .border (m/Border.all .color theme/divider .width 0.5))
                .child
                (mongol-field !ime query-ctrl query-focus "Search..."))))
             

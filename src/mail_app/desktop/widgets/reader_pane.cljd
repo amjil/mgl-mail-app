@@ -116,6 +116,18 @@
            (pad2 (.hour dt)) ":"
            (pad2 (.minute dt))))))
 
+(defn- format-size [n]
+  (cond
+    (nil? n) nil
+    (< n 1024) (str n " B")
+    (< n 1048576) (str (int (/ n 1024)) " KB")
+    :else (str (int (/ n 1048576)) " MB")))
+
+(defn- sender-initial [s]
+  (if (and s (pos? (.-length s)))
+    (.substring s 0 1)
+    "?"))
+
 (defn- open-local-path! [ctx path]
   (when (seq path)
     (-> (ul/launchUrl (dart:core/Uri.file path))
@@ -126,43 +138,59 @@
 (defn- attachment-row
   [ctx ^mc/MailAttachmentDto att downloading?]
   (let [name (or (.-filename att) "file")
-        ready? (and (.-isDownloaded att) (seq (.-localPath att)))]
-    (m/ListTile
-     .dense true
-     .leading (m/Icon m.Icons/attach_file .color theme/ink-muted)
-     .title (m/Text name .style (m/TextStyle .fontSize 13.0 .color theme/ink))
-     .subtitle (when (.-size att)
-                 (m/Text (str (.-size att) " bytes")
-                         .style (m/TextStyle .fontSize 11.0 .color theme/ink-muted)))
-     .trailing
-     (cond
-       downloading?
-       (m/SizedBox
-        .width 20.0 .height 20.0
-        .child (m/CircularProgressIndicator. .strokeWidth 2.0 .color theme/sky))
+        ready? (and (.-isDownloaded att) (seq (.-localPath att)))
+        size-label (format-size (.-size att))]
+    (m/Container
+     .margin (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 4.0)
+     .decoration (m/BoxDecoration
+                  .color theme/surface
+                  .borderRadius (m/BorderRadius.circular theme/radius-sm)
+                  .border (m/Border.all .color theme/divider .width 0.5))
+     .child
+     (m/ListTile
+      .dense true
+      .leading (m/Container
+                .width 32.0
+                .height 32.0
+                .decoration (m/BoxDecoration
+                             .color theme/sky-light
+                             .borderRadius (m/BorderRadius.circular 8.0))
+                .child (m/Icon m.Icons/attach_file .size 16.0 .color theme/sky))
+      .title (m/Text name
+                     .overflow m.TextOverflow/ellipsis
+                     .style (m/TextStyle .fontSize 13.0 .color theme/ink))
+      .subtitle (when size-label
+                  (m/Text size-label
+                          .style (m/TextStyle .fontSize 11.0 .color theme/ink-muted)))
+      .trailing
+      (cond
+        downloading?
+        (m/SizedBox
+         .width 20.0 .height 20.0
+         .child (m/CircularProgressIndicator. .strokeWidth 2.0 .color theme/sky))
 
-       ready?
-       (m/IconButton
-        .tooltip "Open"
-        .icon (m/Icon m.Icons/open_in_new)
-        .onPressed (fn [] (open-local-path! ctx (.-localPath att)) nil))
+        ready?
+        (m/IconButton
+         .tooltip "Open"
+         .icon (m/Icon m.Icons/open_in_new .size 18.0 .color theme/sky)
+         .onPressed (fn [] (open-local-path! ctx (.-localPath att)) nil))
 
-       :else
-       (m/IconButton
-        .tooltip "Download"
-        .icon (m/Icon m.Icons/download)
-        .onPressed
-        (fn []
-          (-> (mail/download-attachment! (.-id att))
-              (.then (fn [dto]
-                       (toast/success! ctx "Downloaded")
-                       (when (and dto (.-localPath dto))
-                         (open-local-path! ctx (.-localPath dto)))
-                       nil))
-              (.catchError (fn [e]
-                             (toast/error! ctx (str e))
-                             nil)))
-          nil))))))
+        :else
+        (m/IconButton
+         .tooltip "Download"
+         .icon (m/Icon m.Icons/download .size 18.0 .color theme/ink-muted)
+         .onPressed
+         (fn []
+           (-> (mail/download-attachment! (.-id att))
+               (.then (fn [dto]
+                        (toast/success! ctx "Downloaded")
+                        (when (and dto (.-localPath dto))
+                          (open-local-path! ctx (.-localPath dto)))
+                        nil))
+               (.catchError (fn [e]
+                              (toast/error! ctx (str e))
+                              nil)))
+           nil)))))))
 
 (defn- attachments-panel [ctx detail downloading-ids]
   (let [atts (vec (or (.-attachments ^mc/MailMessageWithBody detail) []))]
@@ -172,7 +200,7 @@
        .decoration (m/BoxDecoration
                     .color theme/paper
                     .border (m/Border
-                             .left (m/BorderSide .color theme/divider)))
+                             .left (m/BorderSide .color theme/divider .width 0.5)))
        .child
        (m/Column
         .crossAxisAlignment m.CrossAxisAlignment/stretch
@@ -207,13 +235,25 @@
      .decoration (m/BoxDecoration
                   .color theme/paper
                   .border (m/Border
-                           .right (m/BorderSide .color theme/divider)))
+                           .right (m/BorderSide .color theme/divider .width 0.5)))
      .child
      (m/Row
       .crossAxisAlignment m.CrossAxisAlignment/start
       .children
       (cond->
-        [(mgl/MongolText
+        [(m/Padding
+          .padding (m.EdgeInsets/only .right 12.0 .top 4.0)
+          .child
+          (m/CircleAvatar
+           .radius 16.0
+           .backgroundColor theme/sky-soft
+           .child
+           (m/Text (sender-initial from)
+                   .style (m/TextStyle .color theme/sky-deep
+                                       .fontSize 13.0
+                                       .fontWeight m/FontWeight.w600
+                                       .fontFamily font-family))))
+         (mgl/MongolText
           subject
           .style (m/TextStyle .fontSize 20.0
                               .fontFamily font-family
@@ -267,7 +307,13 @@
           (m/Text (str last-error)
                   .textAlign m.TextAlign/center
                   .style (m/TextStyle .color theme/danger .fontSize 13.0)))
-         (m/CircularProgressIndicator. .color theme/sky)))
+         (m/Column
+          .mainAxisSize m.MainAxisSize/min
+          .children
+          [(m/CircularProgressIndicator. .color theme/sky)
+           (m/SizedBox .height 12.0)
+           (m/Text "Loading..."
+                   .style (m/TextStyle .color theme/ink-muted .fontSize 12.0))])))
 
       :else
       (let [^mc/MailMessageWithBody detail message-detail

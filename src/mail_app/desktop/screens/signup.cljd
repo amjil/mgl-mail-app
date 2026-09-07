@@ -102,19 +102,33 @@
                true
                (conj (m/Expanded
                       .child
-                      (m/Column
-                       .crossAxisAlignment m.CrossAxisAlignment/start
+                      (m/Row
                        .children
-                       [(m/Text "Add account"
-                                .style (m/TextStyle .fontSize 22.0
-                                                    .fontWeight m/FontWeight.w700
-                                                    .color theme/ink))
-                        (m/SizedBox .height 4.0)
-                        (m/Text
-                         "Email + password (IMAP/SMTP auto from domain)"
-                         .style (m/TextStyle .fontSize 13.0
-                                             .fontFamily font-family
-                                             .color theme/ink-muted))])))))
+                       [(m/Container
+                         .width 44.0
+                         .height 44.0
+                         .decoration (m/BoxDecoration
+                                      .color theme/sky-light
+                                      .shape m.BoxShape/circle)
+                         .child (m/Icon m.Icons/mail_outline
+                                        .size 22.0
+                                        .color theme/sky))
+                        (m/SizedBox .width 14.0)
+                        (m/Expanded
+                         .child
+                         (m/Column
+                          .crossAxisAlignment m.CrossAxisAlignment/start
+                          .children
+                          [(m/Text "Add account"
+                                   .style (m/TextStyle .fontSize 22.0
+                                                       .fontWeight m/FontWeight.w700
+                                                       .color theme/ink))
+                           (m/SizedBox .height 4.0)
+                           (m/Text
+                            "Email + password (IMAP/SMTP auto from domain)"
+                            .style (m/TextStyle .fontSize 13.0
+                                                .fontFamily font-family
+                                                .color theme/ink-muted))]))])))))
             (m/SizedBox .height 28.0)
             (m/OutlinedButton.icon
              .onPressed (if busy?

@@ -1,6 +1,7 @@
 (ns mail-app.theme
   "Shared UI constants — Eternal Sky palette for mobile and desktop."
-  (:require ["package:flutter/material.dart" :as m]))
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]))
 
 (def font-family "OyunQaganTig")
 
@@ -25,13 +26,37 @@
 (def folder-pane-min-width 160.0)
 (def folder-pane-max-width 720.0)
 (def mail-list-min-width 200.0)
-(def folder-col-width 64.0)
-(def mail-col-width 108.0)
+(def folder-col-width 72.0)
+(def mail-col-width 116.0)
 (def chrome-height 56.0)
 (def radius-sm 6.0)
 (def radius-md 10.0)
 (def radius-lg 16.0)
 (def pane-anim (dart:core/Duration. .milliseconds 200))
+
+(defn empty-state
+  "Centered sky-circle icon + vertical Mongol label."
+  [icon label]
+  (m/Center
+   .child
+   (m/Row
+    .mainAxisSize m.MainAxisSize/min
+    .children
+    [(m/Container
+      .width 80.0
+      .height 80.0
+      .decoration (m/BoxDecoration
+                   .color sky-light
+                   .shape m.BoxShape/circle)
+      .child (m/Center
+              .child (m/Icon icon .size 36.0 .color sky)))
+     (m/SizedBox .width 16.0)
+     (mgl/MongolText
+      label
+      .style (m/TextStyle .fontFamily font-family
+                          .color ink-muted
+                          .fontSize 18.0
+                          .height 1.4))])))
 
 (defn card-shadow
   "Soft elevation for dialogs / signup card."
