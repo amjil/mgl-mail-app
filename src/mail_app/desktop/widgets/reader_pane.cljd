@@ -16,7 +16,8 @@
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]
-            [mail-app.widgets.html-webview :as html-wv]))
+            [mail-app.widgets.html-webview :as html-wv]
+            [mail-app.widgets.mail-identity :as ident]))
 
 (def ^:private reader-plugins
   "File-aware image plugin first so local `<img src>` paths render in the reader."
@@ -109,6 +110,24 @@
       (if (seq text)
         (body-with-quote text)
         (body-reader "")))))
+
+(defn- html-of [^mc/MailMessageWithBody detail]
+  (when-let [body (.-body detail)]
+    (.-html body)))
+
+(defn- external-html?
+  "Ordinary HTML that should use the WebView engine."
+  [html]
+  (and (seq html)
+       (not (export/mgl-mail-html? html))
+       (html-wv/supported?)))
+
+(defn- external-reader [html ^mc/MailMessageDto msg]
+  (m/Column
+   .crossAxisAlignment m.CrossAxisAlignment/stretch
+   .children
+   [(ident/bar msg)
+    (m/Expanded .child (html-wv/view html))]))
 
 (defn- body-view
   "Dual-Engine Router:
@@ -244,12 +263,30 @@
                    (attachment-row ctx a (contains? downloading-ids (.-id a))))
                  atts)))])))))
 
+(defn- mongol-meta
+  [text size color & {:keys [weight]}]
+  (m/Padding
+   .padding (m.EdgeInsets/only .left 10.0)
+   .child
+   (mgl/MongolText
+    text
+    .style (m/TextStyle .fontSize size
+                        .fontFamily font-family
+                        .fontWeight (or weight m/FontWeight.normal)
+                        .color color
+                        .height 1.4))))
+
 (defn- header-columns [^mc/MailMessageDto msg]
   (let [subject (let [s (.-subject msg)]
                   (if (or (nil? s) (empty? s)) "No Subject" s))
-        from (or (.-fromName msg) (.-from msg) "")
+        name (ident/from-name msg)
+        addr (ident/from-addr msg)
+        from-label (if (seq name)
+                     (str "From: " name)
+                     (if (seq addr) (str "From: " addr) "From:"))
         to (or (.-to msg) "")
-        date (format-date (.-date msg))]
+        date (format-date (.-date msg))
+        avatar-src (if (seq name) name addr)]
     (m/Container
      .padding (m.EdgeInsets/fromLTRB 16.0 20.0 12.0 20.0)
      .decoration (m/BoxDecoration
@@ -268,7 +305,7 @@
            .radius 16.0
            .backgroundColor theme/sky-soft
            .child
-           (m/Text (sender-initial from)
+           (m/Text (sender-initial avatar-src)
                    .style (m/TextStyle .color theme/sky-deep
                                        .fontSize 13.0
                                        .fontWeight m/FontWeight.w600
@@ -280,31 +317,13 @@
                               .fontWeight m/FontWeight.bold
                               .color theme/ink
                               .height 1.4))
-         (m/SizedBox .width 14.0)
-         (mgl/MongolText
-          from
-          .style (m/TextStyle .fontSize 14.0
-                              .fontFamily font-family
-                              .color theme/ink-muted
-                              .height 1.4))]
+         (mongol-meta from-label 15.0 theme/ink :weight m/FontWeight.w600)]
+        (ident/name-and-addr-differ? name addr)
+        (conj (mongol-meta addr 12.0 theme/ink-muted))
         (seq to)
-        (conj
-         (m/Padding
-          .padding (m.EdgeInsets/only .left 10.0)
-          .child
-          (mgl/MongolText
-           (str "To: " to)
-           .style (m/TextStyle .fontSize 12.0
-                               .fontFamily font-family
-                               .color theme/ink-muted))))
+        (conj (mongol-meta (str "To: " to) 12.0 theme/ink-muted))
         date
-        (conj
-         (m/Padding
-          .padding (m.EdgeInsets/only .left 10.0)
-          .child
-          (mgl/MongolText date
-                          .style (m/TextStyle .fontSize 11.0
-                                              .color theme/ink-muted)))))))))
+        (conj (mongol-meta date 11.0 theme/ink-muted)))))))
 
 (defn pane
   "Reading body: subject columns + mail body + attachments. No chrome."
@@ -339,34 +358,46 @@
       (let [^mc/MailMessageWithBody detail message-detail
             ^mc/MailMessageDto msg (.-message detail)
             loading-body? (not (.-hasBody msg))
+            html (html-of detail)
+            webview? (and (not loading-body?) (external-html? html))
             att-panel (attachments-panel ctx detail downloading-attachment-ids)]
         (m/Row
          .crossAxisAlignment m.CrossAxisAlignment/stretch
          .children
-         [(header-columns msg)
-          (m/Expanded
-           .child
-           (cond
-             loading-body?
-             (m/Center
-              .child
-              (if (seq last-error)
-                (m/Padding
-                 .padding (m.EdgeInsets/all 24.0)
-                 .child
-                 (m/Text (str "Failed to load body:\n" last-error)
-                         .textAlign m.TextAlign/center
-                         .style (m/TextStyle .color theme/danger
-                                             .fontSize 13.0)))
-                (m/Column
-                 .mainAxisSize m.MainAxisSize/min
-                 .children
-                 [(m/CircularProgressIndicator. .color theme/sky)
-                  (m/SizedBox .height 12.0)
-                  (m/Text "Loading body..."
-                          .style (m/TextStyle .color theme/ink-muted
-                                              .fontSize 12.0))])))
+         (cond-> []
+           (not webview?)
+           (conj (header-columns msg))
 
-             :else
-             (body-view detail)))
-          (if att-panel att-panel (m/SizedBox.shrink))]))))))
+           true
+           (conj
+            (m/Expanded
+             .child
+             (cond
+               loading-body?
+               (m/Center
+                .child
+                (if (seq last-error)
+                  (m/Padding
+                   .padding (m.EdgeInsets/all 24.0)
+                   .child
+                   (m/Text (str "Failed to load body:\n" last-error)
+                           .textAlign m.TextAlign/center
+                           .style (m/TextStyle .color theme/danger
+                                               .fontSize 13.0)))
+                  (m/Column
+                   .mainAxisSize m.MainAxisSize/min
+                   .children
+                   [(m/CircularProgressIndicator. .color theme/sky)
+                    (m/SizedBox .height 12.0)
+                    (m/Text "Loading body..."
+                            .style (m/TextStyle .color theme/ink-muted
+                                                .fontSize 12.0))])))
+
+               webview?
+               (external-reader html msg)
+
+               :else
+               (body-view detail))))
+
+           true
+           (conj (if att-panel att-panel (m/SizedBox.shrink))))))))))

@@ -48,6 +48,16 @@
   (when d
     (str (pad2 (.month d)) "/" (pad2 (.day d)))))
 
+(defn- sender-subtitle [^mc/MailMessageDto msg]
+  (let [name (or (.-fromName msg) "")
+        addr (or (.-from msg) "")]
+    (cond
+      (and (seq name) (seq addr)
+           (not= name addr))
+      (str name "\n" addr)
+      (seq name) name
+      :else addr)))
+
 (defn- sender-initial [^mc/MailMessageDto msg]
   (let [s (or (.-fromName msg) (.-from msg) "")]
     (if (pos? (.-length s))
@@ -187,7 +197,7 @@
                      .mainAxisSize m.MainAxisSize/min
                      .children
                      [(mgl/MongolText
-                       (or (.-fromName msg) (.-from msg) "")
+                       (sender-subtitle msg)
                        .style (m/TextStyle .fontSize 13.0
                                            .fontFamily font-family
                                            .color subtitle-color

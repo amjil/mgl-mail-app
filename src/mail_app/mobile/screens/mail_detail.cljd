@@ -243,16 +243,12 @@
    (let [msg (when message-detail (.-message ^mc/MailMessageWithBody message-detail))
          draft? (when msg (or (= (.-state ^mc/MailMessageDto msg) "draft")
                               (= (.-folderRole ^mc/MailMessageDto msg) "draft")))
-         subject (if (or (nil? msg) (empty? (.-subject msg))) "No Subject" (.-subject msg))
-         from (if msg (or (.-fromName msg) (.-from msg) "") "")
-         to (if msg (or (.-to msg) "") "")
-         date (if msg (format-date (.-date msg)) "")
          loading-body? (if msg (not (.-hasBody msg)) true)
          atts (when message-detail
                 (vec (or (.-attachments ^mc/MailMessageWithBody message-detail) [])))
          meta-colors {:on-surface theme/ink
                       :on-surface-variant theme/ink-muted}
-         leading (mail-body/meta-leading subject from to date meta-colors)]
+         leading (when msg (mail-body/meta-leading msg meta-colors))]
      (m/Scaffold
       .backgroundColor theme/paper
       .appBar (m/AppBar

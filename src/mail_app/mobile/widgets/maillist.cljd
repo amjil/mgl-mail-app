@@ -19,6 +19,16 @@
   (let [s (.-subject msg)]
     (if (or (nil? s) (empty? s)) "No Subject" s)))
 
+(defn- sender-subtitle [^mc/MailMessageDto msg]
+  (let [name (or (.-fromName msg) "")
+        addr (or (.-from msg) "")]
+    (cond
+      (and (seq name) (seq addr)
+           (not= name addr))
+      (str name "\n" addr)
+      (seq name) name
+      :else addr)))
+
 (defn- sender-initial [^mc/MailMessageDto msg]
   (let [s (or (.-fromName msg) (.-from msg) "")]
     (if (pos? (.-length s))
@@ -85,7 +95,7 @@
                  .mainAxisSize m.MainAxisSize/min
                  .children
                  (cond->
-                   [(mgl/MongolText (or (.-fromName msg) (.-from msg) "")
+                   [(mgl/MongolText (sender-subtitle msg)
                                     .style (m/TextStyle .fontFamily font-family
                                                         .fontSize 14.0
                                                         .height 1.35

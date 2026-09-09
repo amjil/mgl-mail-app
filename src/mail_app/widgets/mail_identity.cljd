@@ -1,0 +1,151 @@
+(ns mail-app.widgets.mail-identity
+  "From / To / Date identity for the reader.
+   LTR bar sits above external HTML; helpers feed Mongol meta columns."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            [clojure.string :as str]
+            [mail-app.theme :as theme]))
+
+(defn from-name [^mc/MailMessageDto msg]
+  (str/trim (or (.-fromName msg) "")))
+
+(defn from-addr [^mc/MailMessageDto msg]
+  (str/trim (or (.-from msg) "")))
+
+(defn name-and-addr-differ?
+  [name addr]
+  (and (seq name)
+       (seq addr)
+       (not= (str/lower-case name) (str/lower-case addr))))
+
+(defn from-display
+  "Name <addr> when both exist and differ; otherwise whichever is present."
+  [^mc/MailMessageDto msg]
+  (let [name (from-name msg)
+        addr (from-addr msg)]
+    (cond
+      (name-and-addr-differ? name addr) (str name " <" addr ">")
+      (seq name) name
+      :else addr)))
+
+(defn- pad2 [n]
+  (.padLeft (.toString n) 2 "0"))
+
+(defn- format-date [d]
+  (when d
+    (let [^DateTime dt d]
+      (str (.year dt) "-"
+           (pad2 (.month dt)) "-"
+           (pad2 (.day dt)) " "
+           (pad2 (.hour dt)) ":"
+           (pad2 (.minute dt))))))
+
+(defn- label-style []
+  (m/TextStyle .fontSize 12.0
+               .fontWeight m/FontWeight.w600
+               .color theme/ink-muted
+               .height 1.3))
+
+(defn- value-style
+  ([] (value-style 14.0 m/FontWeight.w500 theme/ink))
+  ([size weight color]
+   (m/TextStyle .fontSize size
+                .fontWeight weight
+                .color color
+                .height 1.35)))
+
+(defn- kv [label child]
+  (when child
+    (m/Padding
+     .padding (m.EdgeInsets/only .bottom 8.0)
+     .child
+     (m/Row
+      .crossAxisAlignment m.CrossAxisAlignment/start
+      .children
+      [(m/SizedBox
+        .width 72.0
+        .child (m/Text label .style (label-style)))
+       (m/Expanded .child child)]))))
+
+(defn- from-block [^mc/MailMessageDto msg]
+  (let [name (from-name msg)
+        addr (from-addr msg)]
+    (cond
+      (name-and-addr-differ? name addr)
+      (m/Column
+       .crossAxisAlignment m.CrossAxisAlignment/start
+       .children
+       [(m/Text name
+                .maxLines 2
+                .overflow m.TextOverflow/ellipsis
+                .style (value-style 15.0 m/FontWeight.w700 theme/ink))
+        (m/Text addr
+                .maxLines 2
+                .overflow m.TextOverflow/ellipsis
+                .style (value-style 13.0 m/FontWeight.w400 theme/ink-muted))])
+
+      (or (seq name) (seq addr))
+      (m/Text (if (seq name) name addr)
+              .maxLines 2
+              .overflow m.TextOverflow/ellipsis
+              .style (value-style 15.0 m/FontWeight.w700 theme/ink))
+
+      :else nil)))
+
+(defn- sender-initial [^mc/MailMessageDto msg]
+  (let [s (let [n (from-name msg)]
+            (if (seq n) n (from-addr msg)))]
+    (if (and s (pos? (.-length s)))
+      (.substring s 0 1)
+      "?")))
+
+(defn bar
+  "Horizontal From / To / Date / Subject strip above a WebView body."
+  [^mc/MailMessageDto msg]
+  (let [subject (let [s (.-subject msg)]
+                  (if (or (nil? s) (empty? s)) "No Subject" s))
+        to (str/trim (or (.-to msg) ""))
+        cc (str/trim (or (.-cc msg) ""))
+        date (format-date (.-date msg))]
+    (m/Container
+     .padding (m.EdgeInsets/fromLTRB 20.0 16.0 20.0 12.0)
+     .decoration (m/BoxDecoration
+                  .color theme/paper
+                  .border (m/Border
+                           .bottom (m/BorderSide .color theme/divider .width 0.5)))
+     .child
+     (m/Row
+      .crossAxisAlignment m.CrossAxisAlignment/start
+      .children
+      [(m/CircleAvatar
+        .radius 18.0
+        .backgroundColor theme/sky-soft
+        .child
+        (m/Text (sender-initial msg)
+                .style (m/TextStyle .color theme/sky-deep
+                                    .fontSize 14.0
+                                    .fontWeight m/FontWeight.w700)))
+       (m/SizedBox .width 14.0)
+       (m/Expanded
+        .child
+        (m/Column
+         .crossAxisAlignment m.CrossAxisAlignment/start
+         .children
+         (filterv some?
+                  [(kv "From" (from-block msg))
+                   (when (seq to)
+                     (kv "To" (m/Text to
+                                      .maxLines 2
+                                      .overflow m.TextOverflow/ellipsis
+                                      .style (value-style))))
+                   (when (seq cc)
+                     (kv "Cc" (m/Text cc
+                                      .maxLines 2
+                                      .overflow m.TextOverflow/ellipsis
+                                      .style (value-style))))
+                   (when date
+                     (kv "Date" (m/Text date .style (value-style 13.0 m/FontWeight.w400 theme/ink-muted))))
+                   (kv "Subject" (m/Text subject
+                                         .maxLines 3
+                                         .overflow m.TextOverflow/ellipsis
+                                         .style (value-style 14.0 m/FontWeight.w600 theme/ink)))])))]))))
