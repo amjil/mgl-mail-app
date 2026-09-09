@@ -84,7 +84,18 @@ lib/mail_core/                Dart mail engine
   oauth/                      Outlook OAuth
   db/                         Drift schema and DAOs
   secure/                     Credential store
-assets/                       Mongolian fonts and IME dictionaries
+assets/                       Mongolian fonts, IME dictionaries, and app icon
+```
+
+## App icon
+
+Master artwork is the square `assets/icon/app_icon.png` (vector: `assets/icon/app_icon.svg`). iOS, Android, and Web keep that square so the OS can apply its own mask. macOS, Windows, and Linux need the shape baked into the PNG.
+
+After changing the master, regenerate platform-shaped variants, then launcher icons:
+
+```bash
+python3 tool/render_platform_icons.py
+dart run flutter_launcher_icons
 ```
 
 `mail-app.main` picks the shell from the platform: Android/iOS use the mobile app; macOS/Windows/Linux (and web) use the desktop app.
