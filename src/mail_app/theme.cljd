@@ -8,17 +8,17 @@
 ;; --- Color tokens ---
 (def sky (m/Color 0xFF1A6FA8))
 (def sky-deep (m/Color 0xFF145A8A))
-(def sky-light (m/Color 0xFFF0F6FA)) ;; 调得更清透
+(def sky-light (m/Color 0xFFF0F6FA)) ;; more translucent
 (def sky-soft (m/Color 0xFFDCEAF5))
-(def paper (m/Color 0xFFF8F9FA)) ;; 更偏向现代 Mac 的纯净灰白
-(def paper-deep (m/Color 0xFFF0F2F5)) ;; 侧边栏专属柔和底色
+(def paper (m/Color 0xFFF8F9FA)) ;; closer to modern Mac clean gray-white
+(def paper-deep (m/Color 0xFFF0F2F5)) ;; soft sidebar background
 (def surface (m/Color 0xFFFFFFFF))
-(def ink (m/Color 0xFF1C222B)) ;; 字体颜色加深，提升对比度
+(def ink (m/Color 0xFF1C222B)) ;; darker text for stronger contrast
 (def ink-muted (m/Color 0xFF7A8494))
 (def gold (m/Color 0xFFD4AF37))
 (def danger (m/Color 0xFFD32F2F))
 (def danger-soft (m/Color 0xFFFDECEA))
-(def divider (m/Color 0xFFE4E7EB)) ;; 分割线变得极度柔和
+(def divider (m/Color 0xFFE4E7EB)) ;; extremely soft dividers
 (def hover (m/Color 0xFFF4F6F8))
 
 ;; --- Layout ---
@@ -26,11 +26,11 @@
 (def folder-pane-min-width 160.0)
 (def folder-pane-max-width 720.0)
 (def mail-list-min-width 200.0)
-(def folder-col-width 76.0)  ;; 加宽一点让文件夹更舒展
-(def mail-col-width 130.0)   ;; 加宽一点让邮件标题和摘要更大气
-(def chrome-height 64.0)     ;; 顶栏加高，增加呼吸感
+(def folder-col-width 76.0)  ;; slightly wider so folders feel more spacious
+(def mail-col-width 130.0)   ;; slightly wider so mail titles and snippets breathe
+(def chrome-height 64.0)     ;; taller top bar for more breathing room
 (def radius-sm 8.0)
-(def radius-md 12.0)         ;; 更圆润的现代卡片倒角
+(def radius-md 12.0)         ;; rounder modern card corners
 (def radius-lg 20.0)
 (def pane-anim (dart:core/Duration. .milliseconds 250))
 
@@ -73,7 +73,7 @@
   [(m/BoxShadow
     .color (.withOpacity ink 0.04)
     .blurRadius 12.0
-    .offset (m/Offset. 6.0 0.0))]) ;; 阴影主要向右投射！横向画卷专属！
+    .offset (m/Offset. 6.0 0.0))]) ;; shadow projects right — for the horizontal scroll layout
 
 (defn sky-theme []
   (m/ThemeData
