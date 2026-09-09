@@ -10,6 +10,7 @@
             [mail-app.desktop.widgets.compose-quote :as quote]
             [mail-app.services.compose-export :as export]
             [mail-app.services.compose-screen :as compose]
+            [mail-app.services.mail-core :as mail]
             [mail-app.theme :as theme :refer [font-family]]))
 
 (def ^:private reader-plugins
@@ -86,10 +87,17 @@
                      .child (quote/panel !quote-state))]))))
 
 (defn- body-from-html [html plain leading]
-  (let [state (be-html/import-from-html html)]
-    (if (seq (:root state))
-      (state-reader state leading nil)
-      (if (seq plain) (body-with-quote plain leading) (body-reader "" leading nil)))))
+  (if (export/mgl-mail-html? html)
+    (let [state (be-html/import-from-html html)]
+      (if (seq (:root state))
+        (state-reader state leading nil)
+        (if (seq plain)
+          (body-with-quote plain leading)
+          (body-reader "" leading nil))))
+    (let [text (if (seq plain) plain (mail/html->plain html))]
+      (if (seq text)
+        (body-with-quote text leading)
+        (body-reader "" leading nil)))))
 
 (defn meta-leading [subject from to date {:keys [on-surface on-surface-variant]}]
   (cond->

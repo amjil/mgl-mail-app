@@ -85,13 +85,18 @@
          .child (quote/panel !quote-state))]))))
 
 (defn- body-from-html
-  "Prefer HTML → block-editor import; fall back to plain if parse is empty."
+  "Native MGL mail → block-editor. Ordinary HTML → plain-text fallback."
   [html plain]
-  (let [state (be-html/import-from-html html)]
-    (if (seq (:root state))
-      (state-reader state)
-      (if (seq plain)
-        (body-with-quote plain)
+  (if (export/mgl-mail-html? html)
+    (let [state (be-html/import-from-html html)]
+      (if (seq (:root state))
+        (state-reader state)
+        (if (seq plain)
+          (body-with-quote plain)
+          (body-reader ""))))
+    (let [text (if (seq plain) plain (mail/html->plain html))]
+      (if (seq text)
+        (body-with-quote text)
         (body-reader "")))))
 
 (defn- body-view

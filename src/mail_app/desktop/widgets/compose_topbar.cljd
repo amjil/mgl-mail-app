@@ -40,11 +40,10 @@
         plain (if (seq quote-plain)
                 (str reply-plain (when (seq reply-plain) "\n\n") quote-plain)
                 reply-plain)
+        ;; Always keep reply-html: even an empty native wrapper stamps
+        ;; data-mgl-mail so replies that are quote-only still identify as ours.
         html (if (seq quote-html)
-               (str (if (or (str/blank? reply-html) (= reply-html "<p></p>"))
-                      ""
-                      reply-html)
-                    quote-html)
+               (str reply-html quote-html)
                reply-html)]
     (merge
      {:to (.-text to-ctrl)

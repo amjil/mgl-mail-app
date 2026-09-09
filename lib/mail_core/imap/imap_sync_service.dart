@@ -7,6 +7,7 @@ import 'package:enough_mail/src/private/imap/noop_parser.dart';
 
 import '../db/app_database.dart';
 import '../search/fts_indexer.dart';
+import '../smtp/mgl_mail_identity.dart';
 import '../threading/message_threading.dart';
 
 class ImapSyncService {
@@ -1079,7 +1080,10 @@ class ImapSyncService {
         if (result == null || result.messages.isEmpty) return;
         final mime = result.messages.first;
         final plain = mime.decodeTextPlainPart();
-        final html = mime.decodeTextHtmlPart();
+        final html = MglMailIdentity.stampHtmlIfNative(
+          mime.decodeTextHtmlPart(),
+          mime,
+        );
         await db.messageBodyDao.upsert(
           MessageBodiesCompanion.insert(
             messageId: Value(messageId),

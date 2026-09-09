@@ -1,10 +1,41 @@
 (ns mail-app.services.compose-export
   "Export block-editor document state to plain text / HTML for sendMail.
    HTML uses block-editor.utils.html (headings, lists, inline styles, …).
+   Native MGL mail is wrapped with identity markers so the reader can
+   distinguish it from ordinary HTML mail.
    Also parse quoted originals out of received plain bodies."
   (:require [clojure.string :as str]
             [block-editor.utils.html :as html]
             [block-editor.utils.persistence :as persist]))
+
+(def editor-version
+  "Block-editor / identity version stamped into native HTML mail."
+  "1.0")
+
+(defn- wrap-native-html
+  "Wrap an HTML fragment with MGL Mail fingerprints:
+   HTML comment, container class + data attributes, and a meta tag.
+   The comment is the most forwarding-resilient of the three HTML markers."
+  [content]
+  (str "<!-- mgl-mail:" editor-version " -->"
+       "<div class=\"mgl-mail-container\" data-mgl-mail=\"true\" data-version=\""
+       editor-version "\">"
+       "<meta name=\"mgl-mail\" content=\"" editor-version "\">"
+       content
+       "</div>"))
+
+(defn mgl-mail-html?
+  "True if HTML was produced by this app (comment, data attr, class, or meta).
+   Markers may sit inside Gmail/Outlook wrappers after forwarding, so this
+   searches the whole string rather than only the outermost node."
+  [html]
+  (let [s (str/lower-case (or html ""))]
+    (boolean
+     (or (str/includes? s "data-mgl-mail")
+         (str/includes? s "mgl-mail-container")
+         (str/includes? s "<!-- mgl-mail:")
+         (str/includes? s "name=\"mgl-mail\"")
+         (str/includes? s "name='mgl-mail'")))))
 
 (defn- walk-contents
   "Depth-first collect non-empty :content strings from root blocks."
@@ -34,14 +65,13 @@
   (clojure.string/join "\n" (walk-contents state)))
 
 (defn to-html
-  "Export editor state to an HTML fragment via block-editor.utils.html.
+  "Export editor state to an HTML fragment wrapped with MGL Mail identifiers.
    Image blocks become `<img src=\"local-path\">` (CID rewrite happens at send).
    Empty documents become an empty paragraph so MIME still has a text/html part."
   [state]
-  (let [fragment (html/export-to-html state)]
-    (if (str/blank? fragment)
-      "<p></p>"
-      fragment)))
+  (let [fragment (html/export-to-html state)
+        content (if (str/blank? fragment) "<p></p>" fragment)]
+    (wrap-native-html content)))
 
 (defn state-from-html
   "Build editor state from an HTML fragment (including `<img>` blocks)."

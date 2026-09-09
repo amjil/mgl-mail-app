@@ -5,6 +5,7 @@ import 'package:enough_mail_html/enough_mail_html.dart';
 import 'package:uuid/uuid.dart';
 
 import '../db/app_database.dart';
+import 'mgl_mail_identity.dart';
 
 class _InlineImage {
   const _InlineImage({
@@ -62,6 +63,7 @@ class OutgoingMime {
       ..subject = subject;
 
     builder.addHeader('X-Client-Message-Id', clientMessageId);
+    MglMailIdentity.applyHeaders(builder);
     if (messageIdHeader != null && messageIdHeader.isNotEmpty) {
       builder.setHeader(MailConventions.headerMessageId, messageIdHeader);
     }
