@@ -8,31 +8,31 @@
 ;; --- Color tokens ---
 (def sky (m/Color 0xFF1A6FA8))
 (def sky-deep (m/Color 0xFF145A8A))
-(def sky-light (m/Color 0xFFE7F1F7))
-(def sky-soft (m/Color 0xFFD4E6F2))
-(def paper (m/Color 0xFFF6F3EC))
-(def paper-deep (m/Color 0xFFEDE8DC))
+(def sky-light (m/Color 0xFFF0F6FA)) ;; 调得更清透
+(def sky-soft (m/Color 0xFFDCEAF5))
+(def paper (m/Color 0xFFF8F9FA)) ;; 更偏向现代 Mac 的纯净灰白
+(def paper-deep (m/Color 0xFFF0F2F5)) ;; 侧边栏专属柔和底色
 (def surface (m/Color 0xFFFFFFFF))
-(def ink (m/Color 0xFF1A2332))
-(def ink-muted (m/Color 0xFF6B7380))
-(def gold (m/Color 0xFFC4A035))
-(def danger (m/Color 0xFFC62828))
+(def ink (m/Color 0xFF1C222B)) ;; 字体颜色加深，提升对比度
+(def ink-muted (m/Color 0xFF7A8494))
+(def gold (m/Color 0xFFD4AF37))
+(def danger (m/Color 0xFFD32F2F))
 (def danger-soft (m/Color 0xFFFDECEA))
-(def divider (m/Color 0xFFD5DEE6))
-(def hover (m/Color 0xFFF0F5F8))
+(def divider (m/Color 0xFFE4E7EB)) ;; 分割线变得极度柔和
+(def hover (m/Color 0xFFF4F6F8))
 
 ;; --- Layout ---
 (def folder-pane-width 320.0)
 (def folder-pane-min-width 160.0)
 (def folder-pane-max-width 720.0)
 (def mail-list-min-width 200.0)
-(def folder-col-width 72.0)
-(def mail-col-width 116.0)
-(def chrome-height 56.0)
-(def radius-sm 6.0)
-(def radius-md 10.0)
-(def radius-lg 16.0)
-(def pane-anim (dart:core/Duration. .milliseconds 200))
+(def folder-col-width 76.0)  ;; 加宽一点让文件夹更舒展
+(def mail-col-width 130.0)   ;; 加宽一点让邮件标题和摘要更大气
+(def chrome-height 64.0)     ;; 顶栏加高，增加呼吸感
+(def radius-sm 8.0)
+(def radius-md 12.0)         ;; 更圆润的现代卡片倒角
+(def radius-lg 20.0)
+(def pane-anim (dart:core/Duration. .milliseconds 250))
 
 (defn empty-state
   "Centered sky-circle icon + vertical Mongol label."
@@ -50,33 +50,32 @@
                    .shape m.BoxShape/circle)
       .child (m/Center
               .child (m/Icon icon .size 36.0 .color sky)))
-     (m/SizedBox .width 16.0)
+     (m/SizedBox .width 24.0)
      (mgl/MongolText
       label
       .style (m/TextStyle .fontFamily font-family
                           .color ink-muted
-                          .fontSize 18.0
+                          .fontSize 20.0
+                          .fontWeight m/FontWeight.w500
                           .height 1.4))])))
 
 (defn card-shadow
-  "Soft elevation for dialogs / signup card."
+  "Soft elevation for dialogs / signup card. Projecting slightly right."
   []
   [(m/BoxShadow
-    .color (.withOpacity ink 0.07)
-    .blurRadius 24.0
-    .offset (m/Offset. 0.0 8.0))])
+    .color (.withOpacity ink 0.08)
+    .blurRadius 32.0
+    .offset (m/Offset. 4.0 12.0))])
 
 (defn hair-shadow
-  "1px-feel drop under chrome."
+  "1px-feel drop under chrome, tailored for HORIZONTAL layout."
   []
   [(m/BoxShadow
     .color (.withOpacity ink 0.04)
-    .blurRadius 8.0
-    .offset (m/Offset. 0.0 1.0))])
+    .blurRadius 12.0
+    .offset (m/Offset. 6.0 0.0))]) ;; 阴影主要向右投射！横向画卷专属！
 
-(defn sky-theme
-  "Material 3 ThemeData seeded from sky blue."
-  []
+(defn sky-theme []
   (m/ThemeData
    .useMaterial3 true
    .fontFamily font-family
@@ -105,12 +104,13 @@
    (m/FloatingActionButtonThemeData
     .backgroundColor sky
     .foregroundColor m.Colors/white
-    .elevation 3.0
+    .elevation 4.0
     .shape (m/RoundedRectangleBorder
             .borderRadius (m/BorderRadius.circular radius-lg)))
    .dialogTheme
    (m/DialogThemeData
     .backgroundColor surface
+    .elevation 24.0
     .shape (m/RoundedRectangleBorder
             .borderRadius (m/BorderRadius.circular radius-lg)))
    .bottomSheetTheme
@@ -129,14 +129,14 @@
    (m/InputDecorationTheme
     .filled true
     .fillColor paper
-    .contentPadding (m.EdgeInsets/symmetric .horizontal 14.0 .vertical 14.0)
+    .contentPadding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 16.0)
     .hintStyle (m/TextStyle .color ink-muted .fontSize 14.0)
     .border (m/OutlineInputBorder
              .borderRadius (m/BorderRadius.circular radius-md)
-             .borderSide (m/BorderSide .color divider))
+             .borderSide m.BorderSide/none)
     .enabledBorder (m/OutlineInputBorder
                     .borderRadius (m/BorderRadius.circular radius-md)
-                    .borderSide (m/BorderSide .color divider))
+                    .borderSide m.BorderSide/none)
     .focusedBorder (m/OutlineInputBorder
                     .borderRadius (m/BorderRadius.circular radius-md)
-                    .borderSide (m/BorderSide .color sky .width 1.5)))))
+                    .borderSide (m/BorderSide .color sky .width 2.0)))))

@@ -5,7 +5,6 @@
             [clojure.string :as str]
             [components.dialog :as dialog]
             [mail-app.desktop.toast :as toast]
-            [mail-app.desktop.widgets.account-menu :as accounts]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
             [shared-ime.overlay-view :as overlay]
@@ -72,27 +71,27 @@
 (declare bulk-action-bar)
 
 (defn- chrome
-  "Fixed-height desktop chrome strip."
+  "Airy modern desktop chrome strip."
   [child]
   (m/Container
    .height theme/chrome-height
-   .padding (m.EdgeInsets/symmetric .horizontal 10.0)
+   .padding (m.EdgeInsets/symmetric .horizontal 16.0)
    .alignment m.Alignment/center
    .decoration (m/BoxDecoration
                 .color theme/surface
-                .boxShadow (theme/hair-shadow))
+                .border (m/Border .bottom (m/BorderSide .color theme/divider .width 0.5)))
    .child child))
 
 (defn- icon-btn
   [tooltip on-pressed icon & {:keys [color]}]
   (m/IconButton
-   .padding (m.EdgeInsets/all 8.0)
-   .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+   .padding (m.EdgeInsets/all 10.0)
+   .constraints (m/BoxConstraints. .minWidth 44.0 .minHeight 44.0)
    .style (m/IconButton.styleFrom
            .hoverColor theme/sky-light
            .highlightColor theme/sky-soft
            .shape (m/RoundedRectangleBorder
-                   .borderRadius (m/BorderRadius.circular theme/radius-sm)))
+                   .borderRadius (m/BorderRadius.circular theme/radius-md)))
    .tooltip tooltip
    .onPressed on-pressed
    .icon (m/Icon icon .size 20.0 .color (or color theme/ink-muted))))
@@ -130,13 +129,13 @@
               m.Icons/search)
     (v-rule)
     (m/IconButton
-     .padding (m.EdgeInsets/all 8.0)
-     .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+     .padding (m.EdgeInsets/all 10.0)
+     .constraints (m/BoxConstraints. .minWidth 44.0 .minHeight 44.0)
      .style (m/IconButton.styleFrom
              .hoverColor theme/sky-light
              .highlightColor theme/sky-soft
              .shape (m/RoundedRectangleBorder
-                     .borderRadius (m/BorderRadius.circular theme/radius-sm)))
+                     .borderRadius (m/BorderRadius.circular theme/radius-md)))
      .tooltip "Sync"
      .onPressed (fn [] (mail/sync!) nil)
      .icon (if syncing?
@@ -219,7 +218,19 @@
         (m/Row
          .mainAxisAlignment m.MainAxisAlignment/spaceBetween
          .children
-         [(accounts/account-chip)
+         [(m/Row
+           .children
+           [(m/Container
+             .padding (m.EdgeInsets/all 8.0)
+             .decoration (m/BoxDecoration .color theme/sky-light .shape m.BoxShape/circle)
+             .child (m/Icon m.Icons/mail_outline .color theme/sky .size 20.0))
+            (m/SizedBox .width 12.0)
+            (m/Text "MGL Mail"
+                    .style (m/TextStyle .fontWeight m/FontWeight.w800
+                                        .fontSize 18.0
+                                        .letterSpacing 0.5
+                                        .fontFamily "Roboto"
+                                        .color theme/ink))])
           (chrome-actions navigator ctx syncing?)]))))))
 
 (defn mail-box
@@ -232,7 +243,7 @@
     (m/Row
      .mainAxisAlignment m.MainAxisAlignment/spaceBetween
      .children
-     [(accounts/account-chip)
+     [(m/SizedBox.shrink)
       (chrome-actions navigator ctx syncing?)]))))
 
 (defn mail-list

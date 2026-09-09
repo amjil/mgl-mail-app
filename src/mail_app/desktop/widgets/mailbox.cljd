@@ -8,6 +8,7 @@
             [components.dialog :as dialog]
             [components.menu :as menu]
             [mail-app.desktop.toast :as toast]
+            [mail-app.desktop.widgets.account-menu :as accounts]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
             [shared-ime.overlay-view :as overlay]
@@ -358,13 +359,20 @@
     (into (into head mid) tail)))
 
 (defn mailbox-list
-  "Horizontal Mongol folder columns."
+  "Sidebar pane: Account switcher header + Horizontal Mongol folder columns."
   []
   (f/widget
    :watch [{:keys [selected-mailbox accounts folder-list]} store/app-state]
    (if (empty? accounts)
      (theme/empty-state m.Icons/folder_off_outlined "ᠬᠠᠶᠢᠭᠤᠯᠤᠭᠰᠠᠨ ᠦᠭᠡᠢ")
-     (m/ListView
-      .scrollDirection m.Axis/horizontal
-      .padding (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 14.0)
-      .children (build-items folder-list selected-mailbox)))))
+     (m/Column
+      .crossAxisAlignment m.CrossAxisAlignment/stretch
+      .children
+      [(accounts/account-chip)
+       (m/Divider .height 1.0 .thickness 1.0 .color theme/divider)
+       (m/Expanded
+        .child
+        (m/ListView
+         .scrollDirection m.Axis/horizontal
+         .padding (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 14.0)
+         .children (build-items folder-list selected-mailbox)))]))))

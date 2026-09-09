@@ -65,19 +65,18 @@
 (defn- shift-pressed? [^s/HardwareKeyboard kb]
   (is-modifier-pressed? kb s.LogicalKeyboardKey/shiftLeft s.LogicalKeyboardKey/shiftRight))
 
-(defn- mail-card [bg selected? child]
+(defn- mail-card [_bg selected? child]
   (m/Container
    .width theme/mail-col-width
-   .margin (m.EdgeInsets/symmetric .horizontal 5.0 .vertical 2.0)
-   .clipBehavior m.Clip/antiAlias
+   .margin (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
    .decoration (m/BoxDecoration
-                .color bg
+                .color (if selected? theme/sky-soft theme/surface)
                 .borderRadius (m/BorderRadius.circular theme/radius-md)
-                .border (m/Border.all
-                         .color (if selected? theme/sky-soft theme/divider)
-                         .width (if selected? 1.5 0.5))
-                .boxShadow (when selected? (theme/hair-shadow)))
-   .child child))
+                .boxShadow (if selected? (theme/card-shadow) (theme/hair-shadow)))
+   .child
+   (m/ClipRRect
+    .borderRadius (m/BorderRadius.circular theme/radius-md)
+    .child child)))
 
 (defn- message-item [idx ^mc/MailMessageDto msg & {:keys [thread-count thread-key is-child? header?]}]
   (f/widget
@@ -271,24 +270,29 @@
        (theme/empty-state
         (if outbox? m.Icons/outbox m.Icons/inbox_outlined)
         "ᠬᠣᠭᠣᠰᠣᠨ")
-       (m/ListView
-        .scrollDirection m.Axis/horizontal
-        .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
-        .children
-        (if outbox?
-          (mapv outbox-item items)
-          (let [threads (thread-messages items)
-                visual-items
-                (mapcat (fn [{:keys [thread-key latest messages count]}]
-                          (if (and (> count 1) (contains? expanded-threads thread-key))
-                            (into [{:msg latest :thread-count count :thread-key thread-key :header? true}]
-                                  (map #(hash-map :msg % :is-child? true) (rest messages)))
-                            [{:msg latest :thread-count count :thread-key thread-key :header? true}]))
-                        threads)]
-            (map-indexed (fn [idx {:keys [msg thread-count thread-key is-child? header?]}]
-                           (message-item idx msg
-                                         :thread-count thread-count
-                                         :thread-key thread-key
-                                         :is-child? is-child?
-                                         :header? header?))
-                         visual-items))))))))
+       (let [visual-items
+             (if outbox?
+               (vec items)
+               (let [threads (thread-messages items)]
+                 (vec
+                  (mapcat (fn [{:keys [thread-key latest messages count]}]
+                            (if (and (> count 1) (contains? expanded-threads thread-key))
+                              (into [{:msg latest :thread-count count :thread-key thread-key :header? true}]
+                                    (map #(hash-map :msg % :is-child? true) (rest messages)))
+                              [{:msg latest :thread-count count :thread-key thread-key :header? true}]))
+                          threads))))]
+         (m/ListView.separated
+          .scrollDirection m.Axis/horizontal
+          .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 16.0)
+          .itemCount (count visual-items)
+          .separatorBuilder (fn [_ _] (m/SizedBox .width 12.0))
+          .itemBuilder (fn [_ idx]
+                         (if outbox?
+                           (outbox-item (nth visual-items idx))
+                           (let [{:keys [msg thread-count thread-key is-child? header?]}
+                                 (nth visual-items idx)]
+                             (message-item idx msg
+                                           :thread-count thread-count
+                                           :thread-key thread-key
+                                           :is-child? is-child?
+                                           :header? header?))))))))))

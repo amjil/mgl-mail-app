@@ -6,6 +6,7 @@
             [cljd.flutter :as f]
             [clojure.string :as str]
             [components.dialog :as dialog]
+            [components.menu :as menu]
             [mail-app.desktop.toast :as toast]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
@@ -158,111 +159,128 @@
          "signature-dialog-ime"))))
     nil))
 
+(defn- account-menu-items [ctx navigator accounts current current-account-id]
+  (let [muted (m/TextStyle .color theme/ink-muted)
+        selected-style (m/TextStyle .color theme/sky .fontWeight m/FontWeight.w600)
+        all? (nil? current-account-id)
+        account-entries
+        (mapv (fn [^mc/MailAccountDto a]
+                (let [selected? (= (.-id a) current-account-id)]
+                  {:type :item
+                   :title (or (.-displayName a) (.-email a))
+                   :leading (when selected? m.Icons/check)
+                   :leading-color theme/sky
+                   :title-style (when selected? selected-style)
+                   :on-tap (fn [] (mail/set-current-account! (.-id a)) nil)}))
+              accounts)]
+    (into [{:type :item
+            :title "All accounts"
+            :leading (when all? m.Icons/check)
+            :leading-color theme/sky
+            :title-style (when all? selected-style)
+            :on-tap (fn [] (mail/set-current-account! nil) nil)}]
+          (concat
+           account-entries
+           [{:type :divider}
+            {:type :item
+             :title "Add account"
+             :on-tap (fn [] (.pushNamed navigator "/signup") nil)}
+            {:type :item
+             :title "Edit current"
+             :title-style (when-not current muted)
+             :on-tap (when current
+                       (fn [] (edit-account-dialog! ctx current) nil))}
+            {:type :item
+             :title "Signature"
+             :title-style (when-not current muted)
+             :on-tap (when current
+                       (fn []
+                         (signature-dialog! ctx
+                                            (.-id ^mc/MailAccountDto current)
+                                            (.-email ^mc/MailAccountDto current))
+                         nil))}
+            {:type :item
+             :title "Remove current"
+             :title-style (m/TextStyle .color theme/danger)
+             :on-tap (when current-account-id
+                       (fn []
+                         (-> (mail/remove-account! current-account-id)
+                             (.then (fn [_] (toast/success! ctx "Account removed") nil))
+                             (.catchError (fn [e]
+                                            (dart:core/print (str "remove account failed: " e))
+                                            (toast/error! ctx (str e))
+                                            nil)))
+                         nil))}]))))
+
 (defn account-chip
+  "Modern workspace/account header designed for the top of the sidebar."
   []
   (f/widget
    :context ctx
    :get [m/Navigator]
-   :watch [{:keys [accounts current-account-id]} store/app-state]
+   :managed [!hover? (atom false) :dispose nil]
+   :watch [hover? !hover?
+           {:keys [accounts current-account-id]} store/app-state]
    (let [current (some #(when (= (.-id ^mc/MailAccountDto %) current-account-id) %)
                        accounts)
          label (cond
                  (nil? current-account-id) "All accounts"
                  current (or (.-displayName ^mc/MailAccountDto current)
                              (.-email ^mc/MailAccountDto current))
-                 :else "Account")]
-     (m/PopupMenuButton
-      .tooltip "Accounts"
-      .onSelected
-      (fn [value]
-        (cond
-          (= value :add)
-          (do
-            (.pushNamed navigator "/signup")
-            nil)
-
-          (= value :all)
-          (do (mail/set-current-account! nil) nil)
-
-          (= value :edit)
-          (when current
-            (edit-account-dialog! ctx current)
-            nil)
-
-          (= value :signature)
-          (when current
-            (signature-dialog! ctx (.-id ^mc/MailAccountDto current)
-                               (.-email ^mc/MailAccountDto current))
-            nil)
-
-          (= value :remove)
-          (when current-account-id
-            (-> (mail/remove-account! current-account-id)
-                (.then (fn [_] (toast/success! ctx "Account removed") nil))
-                (.catchError (fn [e]
-                               (dart:core/print (str "remove account failed: " e))
-                               (toast/error! ctx (str e))
-                               nil)))
-            nil)
-
-          (string? value)
-          (do (mail/set-current-account! value) nil))
-        nil)
-      .itemBuilder
-      (fn [_]
-        ;; itemBuilder return type needs an explicit List cast (no magicast).
-        (.cast
-         (vec
-          (concat
-           [(m/CheckedPopupMenuItem
-             .value :all
-             .checked (nil? current-account-id)
-             .child (m/Text "All accounts"))]
-           (mapv (fn [^mc/MailAccountDto a]
-                   (m/CheckedPopupMenuItem
-                    .value (.-id a)
-                    .checked (= (.-id a) current-account-id)
-                    .child (m/Text (or (.-displayName a) (.-email a)))))
-                 accounts)
-           [(m/PopupMenuDivider.)
-            (m/PopupMenuItem .value :add .child (m/Text "Add account"))
-            (m/PopupMenuItem .value :edit
-                             .enabled (some? current)
-                             .child (m/Text "Edit current"))
-            (m/PopupMenuItem .value :signature
-                             .enabled (some? current)
-                             .child (m/Text "Signature"))
-            (m/PopupMenuItem .value :remove .child (m/Text "Remove current"))]))))
-      .child
-      (m/MouseRegion
-       .cursor m.SystemMouseCursors/click
-       .child
-       (m/Container
-        .padding (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 6.0)
-        .decoration (m/BoxDecoration
-                     .color theme/sky-light
-                     .borderRadius (m/BorderRadius.circular 20.0)
-                     .border (m/Border.all .color theme/sky-soft))
-        .child
-        (m/Row
-         .mainAxisSize m.MainAxisSize/min
-         .children
-         [(m/CircleAvatar
-           .radius 12.0
-           .backgroundColor theme/sky
+                 :else "Account")
+         sub-label (if current (.-email ^mc/MailAccountDto current) "Unified Inbox")]
+     (menu/custom-popup-menu
+      {:offset-y 8.0
+       :menu-width 280.0
+       :bg-color theme/surface
+       :items (account-menu-items ctx navigator accounts current current-account-id)
+       :trigger-builder
+       (fn [show-menu]
+         (m/Tooltip
+          .message "Switch Account"
+          .child
+          (m/MouseRegion
+           .onEnter (fn [_] (reset! !hover? true) nil)
+           .onExit (fn [_] (reset! !hover? false) nil)
+           .cursor m.SystemMouseCursors/click
            .child
-           (m/Text (if (seq label) (str (first label)) "?")
-                   .style (m/TextStyle .color m.Colors/white
-                                       .fontSize 11.0
-                                       .fontWeight m/FontWeight.w600)))
-          (m/SizedBox .width 8.0)
-          (m/ConstrainedBox
-           .constraints (m/BoxConstraints .maxWidth 160.0)
-           .child
-           (m/Text label
-                   .overflow m.TextOverflow/ellipsis
-                   .style (m/TextStyle .fontSize 13.0
-                                       .color theme/ink
-                                       .fontWeight m/FontWeight.w500)))
-          (m/SizedBox .width 2.0)
-          (m/Icon m.Icons/expand_more .size 16.0 .color theme/ink-muted)])))))))
+           (m/GestureDetector
+            .behavior m.HitTestBehavior/opaque
+            .onTap show-menu
+            .child
+            (m/AnimatedContainer
+             .duration (dart:core/Duration. .milliseconds 150)
+             .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 16.0)
+             .decoration (m/BoxDecoration
+                          .color (if hover? (.withOpacity theme/ink 0.04) m.Colors/transparent))
+             .child
+             (m/Row
+              .children
+              [(m/CircleAvatar
+                .radius 18.0
+                .backgroundColor theme/sky
+                .child
+                (m/Text (if (seq label) (str (first label)) "?")
+                        .style (m/TextStyle .color m.Colors/white
+                                            .fontSize 16.0
+                                            .fontWeight m/FontWeight.w600)))
+               (m/SizedBox .width 12.0)
+               (m/Expanded
+                .child
+                (m/Column
+                 .crossAxisAlignment m.CrossAxisAlignment/start
+                 .mainAxisSize m.MainAxisSize/min
+                 .children
+                 [(m/Text label
+                          .maxLines 1
+                          .overflow m.TextOverflow/ellipsis
+                          .style (m/TextStyle .fontSize 14.0
+                                              .color theme/ink
+                                              .fontWeight m/FontWeight.w600))
+                  (m/SizedBox .height 2.0)
+                  (m/Text sub-label
+                          .maxLines 1
+                          .overflow m.TextOverflow/ellipsis
+                          .style (m/TextStyle .fontSize 12.0
+                                              .color theme/ink-muted))]))
+               (m/Icon m.Icons/unfold_more .size 20.0 .color theme/ink-muted)]))))))}))))
