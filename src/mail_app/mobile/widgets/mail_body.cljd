@@ -9,9 +9,11 @@
             [block-editor.widgets.reader :as reader]
             [mail-app.desktop.widgets.compose-quote :as quote]
             [mail-app.services.compose-export :as export]
+            [mail-app.services.compose-screen :as compose]
             [mail-app.theme :as theme :refer [font-family]]))
 
-(def ^:private reader-plugins (be-plugins/default-plugins))
+(def ^:private reader-plugins
+  (vec (cons (compose/image-plugin) (be-plugins/default-plugins))))
 
 (defn- reader-cfg [on-surface]
   {:block-style

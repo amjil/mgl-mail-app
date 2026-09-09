@@ -17,6 +17,8 @@
                 (when-let [b (get blocks id)]
                   (let [t (:type b :paragraph)
                         content (or (:content b) "")]
+                    (when (= t :image)
+                      (swap! out conj "[image]"))
                     (when (and (not= t :divider)
                                (not= t :image)
                                (seq content))
@@ -33,12 +35,18 @@
 
 (defn to-html
   "Export editor state to an HTML fragment via block-editor.utils.html.
+   Image blocks become `<img src=\"local-path\">` (CID rewrite happens at send).
    Empty documents become an empty paragraph so MIME still has a text/html part."
   [state]
   (let [fragment (html/export-to-html state)]
     (if (str/blank? fragment)
       "<p></p>"
       fragment)))
+
+(defn state-from-html
+  "Build editor state from an HTML fragment (including `<img>` blocks)."
+  [html-str]
+  (html/import-from-html html-str))
 
 (defn state-from-plain-text
   "Build editor state from plain text (one paragraph per line)."

@@ -629,6 +629,7 @@
                      :in-reply-to (.-inReplyTo msg)
                      :references (.-referencesHeader msg)
                      :body-plain text
+                     :body-html html
                      :attachment-paths paths})
                    detail)))
         (.catchError (fn [e]

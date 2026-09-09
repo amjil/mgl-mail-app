@@ -11,13 +11,14 @@
             [mail-app.desktop.toast :as toast]
             [mail-app.desktop.widgets.compose-quote :as quote]
             [mail-app.services.compose-export :as export]
+            [mail-app.services.compose-screen :as compose]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]))
 
 (def ^:private reader-plugins
-  "Built-in plugins so list/blockquote/etc. :render-read markers show in mail body."
-  (be-plugins/default-plugins))
+  "File-aware image plugin first so local `<img src>` paths render in the reader."
+  (vec (cons (compose/image-plugin) (be-plugins/default-plugins))))
 
 (def ^:private reader-cfg
   {:block-style

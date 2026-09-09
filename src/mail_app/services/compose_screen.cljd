@@ -1,9 +1,12 @@
 (ns mail-app.services.compose-screen
   "Shared compose screen state, editor config, and auto-save helpers."
   (:require ["package:flutter/material.dart" :as m]
+            ["package:file_selector/file_selector.dart" :as fs]
             ["dart:async" :as async]
+            ["dart:io" :as io]
             [cljd.flutter :as f]
             [clojure.string :as str]
+            [block-editor.utils.history :as history]
             [block-editor.widgets.toolbar :as toolbar]
             [mail-app.desktop.widgets.compose-topbar :as topbar]
             [mail-app.services.compose-export :as export]
@@ -21,6 +24,120 @@
   {:desktop {:h1 28.0 :h2 22.0 :h3 18.0 :body 16.0 :line-height 1.4}
    :mobile  {:h1 24.0 :h2 20.0 :h3 18.0 :body 16.0 :line-height nil}})
 
+(defn- local-image-path?
+  [url]
+  (let [u (or url "")]
+    (and (seq u)
+         (not (str/starts-with? u "http://"))
+         (not (str/starts-with? u "https://"))
+         (not (str/starts-with? u "cid:"))
+         (not (str/starts-with? u "data:"))
+         (not (str/starts-with? u "//")))))
+
+(defn- file-from-url [url]
+  (if (str/starts-with? (or url "") "file://")
+    (io/File. (.toFilePath (dart:core/Uri.parse url)))
+    (io/File. url)))
+
+(defn- image-block-widget
+  "Render a compose image: local files via Image.file, otherwise Image.network.
+   maxHeight keeps Mongol horizontal columns from filling the whole screen."
+  [url]
+  (let [err (fn [_ _ _]
+              (m/Container
+               .height 80.0
+               .color theme/sky-light
+               .alignment m.Alignment/center
+               .child (m/Icon m.Icons/broken_image .color theme/ink-muted)))]
+    (m/Container
+     .padding (m.EdgeInsets/symmetric .vertical 12.0)
+     .constraints (m/BoxConstraints. .maxHeight 400.0 .maxWidth 280.0)
+     .decoration (m/BoxDecoration
+                  .borderRadius (m/BorderRadius.circular 8.0)
+                  .border (m/Border.all .color theme/divider .width 0.5))
+     .clipBehavior m.Clip/antiAlias
+     .child
+     (if (seq url)
+       (if (local-image-path? url)
+         (m/Image.file (file-from-url url)
+                       .fit m.BoxFit/contain
+                       .errorBuilder err)
+         (m/Image.network url
+                          .fit m.BoxFit/contain
+                          .errorBuilder err))
+       (m/Container
+        .height 80.0
+        .color theme/sky-light
+        .alignment m.Alignment/center
+        .child (m/Icon m.Icons/image .color theme/ink-muted))))))
+
+(defn image-plugin
+  "Overrides the default Image.network plugin so local compose/read paths render."
+  []
+  {:type :image
+   :text-block-type? false
+   :render (fn [id !state _idx _cfg]
+             (let [b (get-in @!state [:blocks id])
+                   url (or (get-in b [:data :url]) (:url b) "")]
+               (image-block-widget url)))
+   :render-read (fn [block _style _tap _!state]
+                  (image-block-widget
+                   (or (get-in block [:data :url]) (:url block) "")))})
+
+(defn insert-image-block!
+  "Insert an `:image` block after the active block (or at the end of :root)."
+  [!doc-state image-path]
+  (when (seq image-path)
+    (let [new-id (str "img-" (random-uuid))]
+      (history/record-snapshot! !doc-state)
+      (swap! !doc-state
+             (fn [s]
+               (let [active-id (:active-block-id s)
+                     parent-id (if active-id
+                                 (or (get-in s [:blocks active-id :parent]) :root)
+                                 :root)
+                     siblings (if (= parent-id :root)
+                                (vec (or (:root s) []))
+                                (vec (or (get-in s [:blocks parent-id :children]) [])))
+                     idx (if active-id (.indexOf siblings active-id) -1)
+                     insert-idx (if (>= idx 0) (inc idx) (count siblings))
+                     new-sibs (into (conj (subvec siblings 0 insert-idx) new-id)
+                                    (subvec siblings insert-idx))
+                     block {:id new-id
+                            :type :image
+                            :content ""
+                            :children []
+                            :parent parent-id
+                            :data {:url image-path :width-ratio 0.5}}]
+                 (-> s
+                     (assoc-in [:blocks new-id] block)
+                     (assoc :active-block-id new-id)
+                     (as-> s2
+                           (if (= parent-id :root)
+                             (assoc s2 :root new-sibs)
+                             (assoc-in s2 [:blocks parent-id :children] new-sibs)))))))))
+  nil)
+
+(defn pick-inline-image!
+  "Open the system image picker and insert the chosen file as an image block."
+  [!doc-state]
+  (-> (fs/openFile
+       .acceptedTypeGroups
+       [(fs/XTypeGroup.
+         .label "Images"
+         .extensions ["jpg" "jpeg" "png" "gif" "webp"]
+         .mimeTypes ["image/jpeg" "image/png" "image/gif" "image/webp"]
+         .uniformTypeIdentifiers ["public.image"])])
+      (.then (fn [file]
+               (when file
+                 (let [path (.-path ^fs/XFile file)]
+                   (when (seq path)
+                     (insert-image-block! !doc-state path))))
+               nil))
+      (.catchError (fn [e]
+                     (dart:core/print (str "Pick image failed: " e))
+                     nil))))
+
 (defn editor-config
   "Block editor config for `:desktop` or `:mobile` (heading sizes differ)."
   [platform]
@@ -32,6 +149,7 @@
                      (m/TextStyle .fontSize body .color theme/ink
                                   .fontFamily font-family))]
     {:text-block-types text-block-types
+     :block-plugins [(image-plugin)]
      :block-style
      (fn [b-type]
        (case b-type
@@ -63,6 +181,11 @@
   [draft signature]
   (cond
     (:body-state draft) (:body-state draft)
+    (seq (:body-html draft))
+    (let [st (export/state-from-html (:body-html draft))]
+      (if (seq (:root st))
+        st
+        (export/state-from-plain-text (or (:body-plain draft) ""))))
     (:body-plain draft) (export/state-from-plain-text (:body-plain draft))
     :else
     (let [text (if (seq signature) (str "\n\n-- \n" signature) "")]

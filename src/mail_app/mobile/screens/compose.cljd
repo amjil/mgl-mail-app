@@ -116,6 +116,14 @@
 
                      true
                      (conj (m/IconButton
+                            .icon (m/Icon m.Icons/insert_photo_outlined)
+                            .tooltip "Insert Image"
+                            .onPressed (fn []
+                                         (compose/pick-inline-image! !doc-state)
+                                         nil)))
+
+                     true
+                     (conj (m/IconButton
                             .icon (m/Icon m.Icons/more_vert)
                             .tooltip "Options"
                             .onPressed (fn []

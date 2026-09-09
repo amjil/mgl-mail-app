@@ -161,9 +161,10 @@
             nil))))))
 
 (defn topbar
-  "Back, Cc/Bcc toggle, attach, Save Draft, and Send."
+  "Back, Cc/Bcc toggle, attach, insert image, Save Draft, and Send."
   [{:keys [!doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
-           !show-cc? !show-bcc? !attachment-paths !draft-meta]}]
+           !show-cc? !show-bcc? !attachment-paths !draft-meta
+           on-insert-image]}]
   (f/widget
    :context ctx
    :get [m/Navigator]
@@ -233,6 +234,19 @@
                .tooltip "Attach"
                .onPressed (fn [] (pick-attachments! !attachment-paths) nil)
                .icon (m/Icon m.Icons/attach_file .size 20.0 .color theme/ink-muted))
+              (m/IconButton
+               .padding (m.EdgeInsets/all 8.0)
+               .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+               .style (m/IconButton.styleFrom
+                       .hoverColor theme/sky-light
+                       .highlightColor theme/sky-soft
+                       .shape (m/RoundedRectangleBorder
+                               .borderRadius (m/BorderRadius.circular theme/radius-sm)))
+               .tooltip "Insert Image"
+               .onPressed (fn []
+                            (when on-insert-image (on-insert-image))
+                            nil)
+               .icon (m/Icon m.Icons/insert_photo_outlined .size 20.0 .color theme/ink-muted))
               (m/IconButton
                .padding (m.EdgeInsets/all 8.0)
                .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)

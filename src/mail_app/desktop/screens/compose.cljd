@@ -93,7 +93,8 @@
                              :!show-cc? !show-cc?
                              :!show-bcc? !show-bcc?
                              :!attachment-paths !attachment-paths
-                             :!draft-meta !draft-meta})
+                             :!draft-meta !draft-meta
+                             :on-insert-image #(compose/pick-inline-image! !doc-state)})
              (m/Expanded
               .child
               (m/Row
