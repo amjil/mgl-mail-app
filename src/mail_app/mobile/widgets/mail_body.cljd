@@ -1,5 +1,6 @@
 (ns mail-app.mobile.widgets.mail-body
-  "Horizontal Mongol mail body: headers, block reader, quoted original."
+  "Horizontal Mongol mail body with Dual-Engine:
+   Native Block Editor for MGL Mail, WebView for external HTML."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
@@ -11,7 +12,8 @@
             [mail-app.services.compose-export :as export]
             [mail-app.services.compose-screen :as compose]
             [mail-app.services.mail-core :as mail]
-            [mail-app.theme :as theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]
+            [mail-app.widgets.html-webview :as html-wv]))
 
 (def ^:private reader-plugins
   (vec (cons (compose/image-plugin) (be-plugins/default-plugins))))
@@ -86,14 +88,27 @@
                      .padding (m.EdgeInsets/only .left 16.0)
                      .child (quote/panel !quote-state))]))))
 
+(defn- external-html-row [html leading]
+  (m/Row
+   .crossAxisAlignment m.CrossAxisAlignment/stretch
+   .children
+   (conj (vec leading)
+         (m/Expanded .child (html-wv/view html)))))
+
 (defn- body-from-html [html plain leading]
-  (if (export/mgl-mail-html? html)
+  (cond
+    (export/mgl-mail-html? html)
     (let [state (be-html/import-from-html html)]
       (if (seq (:root state))
         (state-reader state leading nil)
         (if (seq plain)
           (body-with-quote plain leading)
           (body-reader "" leading nil))))
+
+    (html-wv/supported?)
+    (external-html-row html leading)
+
+    :else
     (let [text (if (seq plain) plain (mail/html->plain html))]
       (if (seq text)
         (body-with-quote text leading)
@@ -130,7 +145,9 @@
       (mgl/MongolText date
                       .style (m/TextStyle .fontSize 11.0 .color on-surface-variant))))))
 
-(defn body-view [^mc/MailMessageWithBody detail leading]
+(defn body-view
+  "Dual-Engine Router: MGL Mail → native blocks; other HTML → WebView."
+  [^mc/MailMessageWithBody detail leading]
   (let [body (.-body detail)
         html (when body (.-html body))
         plain (when body (.-plainText body))]

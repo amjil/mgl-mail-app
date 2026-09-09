@@ -1,5 +1,6 @@
 (ns mail-app.desktop.widgets.reader-pane
-  "Embedded mail reader (no Scaffold / topbar) for the home shell."
+  "Embedded mail reader with Dual-Engine:
+   Native Block Editor for MGL Mail, WebView for external HTML."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
@@ -14,7 +15,8 @@
             [mail-app.services.compose-screen :as compose]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
-            [mail-app.theme :as theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]
+            [mail-app.widgets.html-webview :as html-wv]))
 
 (def ^:private reader-plugins
   "File-aware image plugin first so local `<img src>` paths render in the reader."
@@ -85,22 +87,34 @@
          .child (quote/panel !quote-state))]))))
 
 (defn- body-from-html
-  "Native MGL mail → block-editor. Ordinary HTML → plain-text fallback."
+  "Dual-engine HTML:
+   1. Native MGL mail (data-mgl-mail) → block-editor
+   2. Ordinary HTML → WebView (top-to-bottom)
+   3. Unsupported platform → plain-text fallback"
   [html plain]
-  (if (export/mgl-mail-html? html)
+  (cond
+    (export/mgl-mail-html? html)
     (let [state (be-html/import-from-html html)]
       (if (seq (:root state))
         (state-reader state)
         (if (seq plain)
           (body-with-quote plain)
           (body-reader ""))))
+
+    (html-wv/supported?)
+    (html-wv/view html)
+
+    :else
     (let [text (if (seq plain) plain (mail/html->plain html))]
       (if (seq text)
         (body-with-quote text)
         (body-reader "")))))
 
 (defn- body-view
-  "Prefer HTML body when present; otherwise plain (+ quote panel)."
+  "Dual-Engine Router:
+   1. MGL Mail (Native Block Engine)
+   2. External HTML (WebView, top-to-bottom)
+   3. Plain Text fallback."
   [^mc/MailMessageWithBody detail]
   (let [body (.-body detail)
         html (when body (.-html body))

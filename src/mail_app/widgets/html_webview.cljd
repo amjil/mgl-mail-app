@@ -1,0 +1,152 @@
+(ns mail-app.widgets.html-webview
+  "WebView engine for ordinary (non-MGL) HTML mail.
+   Renders as a normal top-to-bottom web page (WebKit / Chromium)."
+  (:require ["package:flutter/foundation.dart" :as foundation :refer [kIsWeb]]
+            ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as s]
+            ["package:url_launcher/url_launcher.dart" :as ul]
+            ["package:webview_flutter/webview_flutter.dart" :as webview]
+            ["package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart"
+             :as webview-ios]
+            ["dart:convert" :as convert]
+            ["dart:typed_data" :as td]
+            [cljd.flutter :as f]
+            [clojure.string :as str]
+            [mail-app.theme :as theme]))
+
+(def ^:private font-asset "assets/fonts/OyunQaganTig.ttf")
+
+(def ^:private reader-css
+  "html, body {
+     margin: 16px;
+     color: #1C222B;
+     line-height: 1.6;
+     background: #FFFFFF;
+     font-family: 'OyunQaganTig', sans-serif;
+   }
+   img, table, video {
+     max-width: 100%;
+     height: auto;
+   }
+   a { color: #1A6FA8; }")
+
+(defonce ^:private !font-face-css (atom nil))
+(defonce ^:private !font-loading? (atom false))
+
+(defn supported?
+  "Official webview_flutter hosts: Android, iOS, macOS."
+  []
+  (when-not kIsWeb
+    (let [p foundation/defaultTargetPlatform]
+      (or (= p foundation.TargetPlatform/android)
+          (= p foundation.TargetPlatform/iOS)
+          (= p foundation.TargetPlatform/macOS)))))
+
+(defn- index-of-ci [s needle]
+  (let [i (.indexOf (str/lower-case (or s "")) (str/lower-case needle))]
+    (when-not (neg? i) i)))
+
+(defn- inject-reader-css
+  "Insert reader CSS into an existing document, or wrap a fragment."
+  [html font-face]
+  (let [style (str "<style id=\"mgl-mail-reader\">"
+                   (or font-face "")
+                   "\n"
+                   reader-css
+                   "</style>")
+        s (or html "")]
+    (cond
+      (or (index-of-ci s "id=\"mgl-mail-reader\"")
+          (index-of-ci s "id=\"mgl-mail-vertical\"")) s
+
+      (index-of-ci s "</head>")
+      (let [i (index-of-ci s "</head>")]
+        (str (subs s 0 i) style (subs s i)))
+
+      (index-of-ci s "<body")
+      (let [i (index-of-ci s "<body")]
+        (str (subs s 0 i) style (subs s i)))
+
+      :else
+      (str "<!DOCTYPE html><html><head>"
+           "<meta charset=\"utf-8\">"
+           "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
+           style
+           "</head><body>"
+           s
+           "</body></html>"))))
+
+(defn- in-page-url? [url]
+  (or (str/blank? url)
+      (str/starts-with? url "about:")
+      (str/starts-with? url "data:")
+      (str/starts-with? url "blob:")
+      (str/starts-with? url "file:")))
+
+(defn- load-font-face!
+  "Decode the bundled Mongolian font once, then inject it as @font-face."
+  []
+  (when (and (nil? @!font-face-css) (not @!font-loading?))
+    (reset! !font-loading? true)
+    (-> (.load s/rootBundle font-asset)
+        (.then (fn [^td/ByteData bd]
+                 (let [bytes (.asUint8List (.-buffer bd)
+                                           (.-offsetInBytes bd)
+                                           (.-lengthInBytes bd))
+                       b64 (convert/base64Encode bytes)]
+                   (reset! !font-face-css
+                           (str "@font-face{font-family:'OyunQaganTig';"
+                                "src:url(data:font/ttf;base64," b64
+                                ") format('truetype');}"))
+                   (reset! !font-loading? false)
+                   nil)))
+        (.catchError (fn [_]
+                       ;; System Mongolian fonts still beat no WebView at all.
+                       (reset! !font-face-css "")
+                       (reset! !font-loading? false)
+                       nil))))
+  nil)
+
+(defn- make-controller [html font-face]
+  (let [webkit? (dart/is? webview/WebViewPlatform.instance
+                          webview-ios/WebKitWebViewPlatform)
+        params (if webkit?
+                 (webview-ios/WebKitWebViewControllerCreationParams)
+                 (webview/PlatformWebViewControllerCreationParams))]
+    (doto (webview/WebViewController.fromPlatformCreationParams params)
+      (.setJavaScriptMode webview/JavaScriptMode.unrestricted)
+      ;; macOS WKWebView throws UnimplementedError on setOpaque, which
+      ;; setBackgroundColor always calls. Skip it; ColoredBox paints the fill.
+      (.enableZoom true)
+      (.setNavigationDelegate
+       (webview/NavigationDelegate
+        .onNavigationRequest
+        (fn [{main? .-isMainFrame
+              url .-url :as ^webview/NavigationRequest _}]
+          (if (or (not main?) (in-page-url? url))
+            webview/NavigationDecision.navigate
+            (do
+              (ul/launchUrl (dart:core/Uri.parse url)
+                            .mode ul.LaunchMode/externalApplication)
+              webview/NavigationDecision.prevent)))))
+      (.loadHtmlString (inject-reader-css html font-face)))))
+
+(defn- webview-view [html font-face]
+  (f/widget
+   :managed [controller (make-controller html font-face)
+             :dispose false]
+   (m/ColoredBox
+    .color theme/surface
+    .child (webview/WebViewWidget .controller controller))))
+
+(defn view
+  "Render ordinary HTML mail in a WebView (top-to-bottom scroll)."
+  [html]
+  (f/widget
+   :watch [font-face !font-face-css]
+   (do
+     (load-font-face!)
+     (if (nil? font-face)
+       (m/Center
+        .child (m/CircularProgressIndicator. .color theme/sky))
+       (webview-view html font-face)))))
