@@ -10,9 +10,60 @@
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]))
 
+(defn- submit-password!
+  [ctx navigator !busy email-ctrl pwd-ctrl imap-ctrl smtp-ctrl]
+  (let [e (str/trim (.-text email-ctrl))
+        p (.-text pwd-ctrl)
+        i (str/trim (.-text imap-ctrl))
+        s (str/trim (.-text smtp-ctrl))]
+    (if (or (empty? e) (empty? p))
+      (toast/error! ctx "Мэдээллээ гүйцэд оруулна уу!")
+      (do
+        (reset! !busy :password)
+        (-> (mail/add-account! {:email e :password p :imap-host i :smtp-host s})
+            (.then (fn [ok]
+                     (reset! !busy nil)
+                     (if ok
+                       (do
+                         (toast/success! ctx "Амжилттай холбогдлоо!")
+                         (when (.canPop navigator) (.pop navigator))
+                         nil)
+                       (toast/error! ctx (or (:last-error @store/app-state)
+                                             "Нэвтрэхэд алдаа гарлаа")))))
+            (.catchError (fn [err]
+                           (reset! !busy nil)
+                           (toast/error! ctx (str err))
+                           nil))))))
+  nil)
+
+(defn- submit-outlook!
+  [ctx navigator !busy]
+  (reset! !busy :outlook)
+  (-> (mail/add-outlook-account!)
+      (.then (fn [_]
+               (reset! !busy nil)
+               (toast/success! ctx "Outlook холбогдлоо")
+               (when (.canPop navigator)
+                 (.pop navigator))
+               nil))
+      (.catchError (fn [e]
+                     (reset! !busy nil)
+                     (dart:core/print (str "add outlook account failed: " e))
+                     (toast/error! ctx (str e))
+                     nil)))
+  nil)
+
+(defn- busy-spinner []
+  (m/SizedBox
+   .width 24.0
+   .height 24.0
+   .child (m/CircularProgressIndicator.
+           .color theme/sky
+           .strokeWidth 2.0)))
+
 (defn screen []
   (let [!show-advanced? (atom false)
-        !loading? (atom false)]
+        !busy (atom nil)]
     (f/widget
      :context ctx
      :get [m/Navigator]
@@ -31,7 +82,8 @@
      :bind {:info vk-info}
      
      :watch [show-adv? !show-advanced?
-             loading? !loading?]
+             busy? !busy
+             {:keys [accounts]} store/app-state]
 
      (m/Scaffold
       .backgroundColor theme/paper
@@ -53,32 +105,85 @@
              (m/Row
               .crossAxisAlignment m.CrossAxisAlignment/stretch
               .children
-              [(m/Column
-                .mainAxisAlignment m.MainAxisAlignment/center
-                .children
-                [(m/Container
-                  .width 88.0
-                  .height 88.0
-                  .decoration (m/BoxDecoration
-                               .color theme/sky-light
-                               .shape m.BoxShape/circle)
-                  .child (m/Center
-                          .child (m/Icon m.Icons/mail_outline
-                                         .size 40.0
-                                         .color theme/sky)))
-                 (m/SizedBox .height 24.0)
-                 (mgl/MongolText "Тавтай морилно уу"
-                                 .style (m/TextStyle .fontFamily font-family
-                                                     .fontSize 24.0
-                                                     .fontWeight m.FontWeight/bold
-                                                     .color theme/ink))
-                 (m/SizedBox .height 8.0)
-                 (mgl/MongolText "И-мэйл хаягаа\nхолбоно уу"
-                                 .style (m/TextStyle .fontFamily font-family
-                                                     .fontSize 16.0
-                                                     .color theme/ink-muted))])
+              (into
+               (if (seq accounts)
+                 [(m/Align
+                   .alignment m.Alignment/topCenter
+                   .child
+                   (m/IconButton
+                    .icon (m/Icon m.Icons/arrow_back_ios_new
+                                  .color theme/ink-muted)
+                    .onPressed (fn []
+                                 (when (.canPop navigator)
+                                   (.pop navigator))
+                                 nil)))]
+                 [])
+               [(m/Column
+                 .mainAxisAlignment m.MainAxisAlignment/center
+                 .children
+                 [(m/Container
+                   .width 88.0
+                   .height 88.0
+                   .decoration (m/BoxDecoration
+                                .color theme/sky-light
+                                .shape m.BoxShape/circle)
+                   .child (m/Center
+                           .child (m/Icon m.Icons/mail_outline
+                                          .size 40.0
+                                          .color theme/sky)))
+                  (m/SizedBox .height 24.0)
+                  (mgl/MongolText "Тавтай морилно уу"
+                                  .style (m/TextStyle .fontFamily font-family
+                                                      .fontSize 24.0
+                                                      .fontWeight m.FontWeight/bold
+                                                      .color theme/ink))
+                  (m/SizedBox .height 8.0)
+                  (mgl/MongolText "И-мэйл хаягаа\nхолбоно уу"
+                                  .style (m/TextStyle .fontFamily font-family
+                                                      .fontSize 16.0
+                                                      .color theme/ink-muted))])
 
-               (m/VerticalDivider .width 40.0 .thickness 1.0 .color theme/divider)
+                (m/VerticalDivider .width 40.0 .thickness 1.0 .color theme/divider)
+
+                (m/Container
+                 .width 70.0
+                 .padding (m.EdgeInsets/symmetric .vertical 16.0)
+                 .child
+                 (m/OutlinedButton
+                  .style (m/OutlinedButton.styleFrom
+                          .foregroundColor theme/ink
+                          .side (m/BorderSide .color theme/sky-soft)
+                          .elevation 0.0
+                          .shape (m/RoundedRectangleBorder
+                                  .borderRadius (m.BorderRadius/circular theme/radius-md)))
+                  .onPressed (if busy?
+                               nil
+                               #(submit-outlook! ctx navigator !busy))
+                  .child
+                  (if (= busy? :outlook)
+                    (busy-spinner)
+                    (mgl/MongolText
+                     "Outlook"
+                     .style (m/TextStyle .fontFamily font-family
+                                         .fontSize 18.0
+                                         .fontWeight m.FontWeight/bold
+                                         .color theme/sky)))))
+
+                (m/SizedBox .width 12.0)
+                (m/Column
+                 .mainAxisAlignment m.MainAxisAlignment/center
+                 .children
+                 [(m/Expanded
+                   .child (m/VerticalDivider .width 1.0 .color theme/divider))
+                  (m/Padding
+                   .padding (m.EdgeInsets/symmetric .vertical 8.0)
+                   .child (mgl/MongolText "эсвэл"
+                                          .style (m/TextStyle .fontFamily font-family
+                                                              .fontSize 13.0
+                                                              .color theme/ink-muted)))
+                  (m/Expanded
+                   .child (m/VerticalDivider .width 1.0 .color theme/divider))])
+                (m/SizedBox .width 12.0)
 
                (m/Container
                 .width 70.0
@@ -161,35 +266,25 @@
                          .foregroundColor m.Colors/white
                          .elevation 0.0
                          .shape (m/RoundedRectangleBorder .borderRadius (m.BorderRadius/circular theme/radius-md)))
-                 .onPressed
-                 (if loading?
-                   nil
-                   (fn []
-                     (let [e (str/trim (.-text email-ctrl))
-                           p (.-text pwd-ctrl)
-                           i (str/trim (.-text imap-ctrl))
-                           s (str/trim (.-text smtp-ctrl))]
-                       (if (or (empty? e) (empty? p))
-                         (toast/error! ctx "Мэдээллээ гүйцэд оруулна уу!")
-                         (do
-                           (reset! !loading? true)
-                           (-> (mail/add-account! {:email e :password p :imap-host i :smtp-host s})
-                               (.then (fn [ok]
-                                        (reset! !loading? false)
-                                        (if ok
-                                          (do
-                                            (toast/success! ctx "Амжилттай холбогдлоо!")
-                                            (when (.canPop navigator) (.pop navigator))
-                                            nil)
-                                          (toast/error! ctx (or (:last-error @store/app-state) "Нэвтрэхэд алдаа гарлаа")))))
-                               (.catchError (fn [err]
-                                              (reset! !loading? false)
-                                              (toast/error! ctx (str err))
-                                              nil))))))))
+                 .onPressed (if busy?
+                              nil
+                              #(submit-password! ctx navigator !busy
+                                                 email-ctrl pwd-ctrl
+                                                 imap-ctrl smtp-ctrl))
                  .child
-                 (if loading?
-                   (m/SizedBox .width 24.0 .height 24.0 .child (m/CircularProgressIndicator .color m.Colors/white .strokeWidth 2.0))
-                   (mgl/MongolText "Нэвтрэх" .style (m/TextStyle .fontFamily font-family .fontSize 18.0 .fontWeight m.FontWeight/bold .color m.Colors/white)))))]))
+                 (if (= busy? :password)
+                   (m/SizedBox
+                    .width 24.0
+                    .height 24.0
+                    .child (m/CircularProgressIndicator.
+                            .color m.Colors/white
+                            .strokeWidth 2.0))
+                   (mgl/MongolText
+                    "Нэвтрэх"
+                    .style (m/TextStyle .fontFamily font-family
+                                        .fontSize 18.0
+                                        .fontWeight m.FontWeight/bold
+                                        .color m.Colors/white)))))])))
 
             (kb/candidates)]))
          (kb/bar)]))))))
