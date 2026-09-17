@@ -269,12 +269,33 @@
               (mail/open-message! (.-messageId row))
               nil)))))
 
+(defn- make-scroll-resource []
+  (let [ctrl (m/ScrollController.)
+        listener
+        (fn []
+          (when (.-hasClients ctrl)
+            (let [pos (.-position ctrl)]
+              (when (>= (.-pixels pos)
+                        (- (.-maxScrollExtent pos) 150.0))
+                (mail/load-more!)))))]
+    (.addListener ctrl listener)
+    {:controller ctrl :listener listener}))
+
+(defn- dispose-scroll-resource! [{:keys [controller listener]}]
+  (.removeListener ^m/ScrollController controller listener)
+  (.dispose ^m/ScrollController controller)
+  nil)
+
 (defn list-view
   "Horizontal Mongol conversation columns."
   []
   (f/widget
-   :watch [{:keys [selected-mailbox mail-list outbox-list expanded-threads]} store/app-state]
-   (let [outbox? (= selected-mailbox :outbox)
+   :managed [scroll-resource (make-scroll-resource)
+             :dispose dispose-scroll-resource!]
+   :watch [{:keys [selected-mailbox mail-list outbox-list expanded-threads
+                   loading-more?]} store/app-state]
+   (let [scroll-ctrl (:controller scroll-resource)
+         outbox? (= selected-mailbox :outbox)
          items (if outbox? outbox-list mail-list)]
      (if (empty? items)
        (theme/empty-state
@@ -292,17 +313,27 @@
                               [{:msg latest :thread-count count :thread-key thread-key :header? true}]))
                           threads))))]
          (m/ListView.separated
+          .controller scroll-ctrl
           .scrollDirection m.Axis/horizontal
           .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 16.0)
-          .itemCount (count visual-items)
+          .itemCount (if (and loading-more? (not outbox?))
+                       (inc (count visual-items))
+                       (count visual-items))
           .separatorBuilder (fn [_ _] (m/SizedBox .width 12.0))
           .itemBuilder (fn [_ idx]
-                         (if outbox?
-                           (outbox-item (nth visual-items idx))
-                           (let [{:keys [msg thread-count thread-key is-child? header?]}
-                                 (nth visual-items idx)]
-                             (message-item idx msg
-                                           :thread-count thread-count
-                                           :thread-key thread-key
-                                           :is-child? is-child?
-                                           :header? header?))))))))))
+                         (if (= idx (count visual-items))
+                           (m/Container
+                            .width 80.0
+                            .alignment m.Alignment/center
+                            .child (m/CircularProgressIndicator.
+                                    .strokeWidth 2.0
+                                    .color (theme/sky)))
+                           (if outbox?
+                             (outbox-item (nth visual-items idx))
+                             (let [{:keys [msg thread-count thread-key is-child? header?]}
+                                   (nth visual-items idx)]
+                               (message-item idx msg
+                                             :thread-count thread-count
+                                             :thread-key thread-key
+                                             :is-child? is-child?
+                                             :header? header?)))))))))))

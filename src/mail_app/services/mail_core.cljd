@@ -841,8 +841,19 @@
     {:to (str/join ", " to-list)
      :cc (when (seq cc-list) (str/join ", " cc-list))}))
 
-(defn- finish-load-more! [^async/Future fut]
+(defn- finish-load-more! [^async/Future fut mailbox previous-count]
   (-> fut
+      (.then (fn [_]
+               ;; Give the Drift watch stream time to publish rows written by
+               ;; the sync before deciding that the server has no older mail.
+               (async/Future.delayed
+                (dart:core/Duration. .milliseconds 300)
+                (fn []
+                  (when (= mailbox (:selected-mailbox @store/app-state))
+                    (store/set-mail-has-more!
+                     (> (count (:mail-list @store/app-state))
+                        previous-count)))
+                  nil))))
       (.catchError (fn [e]
                      (store/set-error! (str "Load more failed: " e))
                      nil))
@@ -859,6 +870,7 @@
         sel (:selected-mailbox state)]
     (when (and sel
                (not= sel :outbox)
+               (:mail-has-more? state)
                (not (:loading-more? state)))
       (store/set-loading-more! true)
       (if-let [b @!bridge]
@@ -867,7 +879,9 @@
             (finish-load-more!
              (.syncRole ^mc/MailBridge b (name sel)
                         .accountId aid
-                        .limit new-limit))
+                        .limit new-limit)
+             sel current-count)
             (finish-load-more!
-             (.syncFolder ^mc/MailBridge b sel .limit new-limit))))
+             (.syncFolder ^mc/MailBridge b sel .limit new-limit)
+             sel current-count)))
         (store/set-loading-more! false)))))

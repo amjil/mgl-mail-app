@@ -84,6 +84,7 @@
          :search-results []
          :searching? false
          :loading-more? false
+         :mail-has-more? true
          ;; attachment download in progress (id set)
          :downloading-attachment-ids #{}
          ;; compose prefill: {:to :cc :subject :body-plain :body-state :quote-state} or nil
@@ -143,7 +144,10 @@
   (swap! app-state assoc :folder-list (or folders [])))
 
 (defn set-selected-mailbox! [sel]
-  (swap! app-state assoc :selected-mailbox sel)
+  (swap! app-state assoc
+         :selected-mailbox sel
+         :loading-more? false
+         :mail-has-more? true)
   (persist-mailbox! sel))
 
 (defn set-mail-list! [msgs]
@@ -196,6 +200,9 @@
 
 (defn set-loading-more! [v]
   (swap! app-state assoc :loading-more? (boolean v)))
+
+(defn set-mail-has-more! [v]
+  (swap! app-state assoc :mail-has-more? (boolean v)))
 
 (defn mark-downloading! [att-id on?]
   (swap! app-state update :downloading-attachment-ids
