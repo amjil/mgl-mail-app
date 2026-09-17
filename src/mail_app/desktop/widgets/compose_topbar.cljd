@@ -162,7 +162,7 @@
 (defn topbar
   "Back, Cc/Bcc toggle, attach, insert image, Save Draft, and Send."
   [{:keys [!doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
-           !show-cc? !show-bcc? !attachment-paths !draft-meta
+           !show-cc? !show-bcc? !attachment-paths !draft-meta !auto-save-gate
            on-insert-image]}]
   (f/widget
    :context ctx
@@ -170,7 +170,10 @@
    :watch [{:keys [sending? current-account-id]} store/app-state
            show-cc? !show-cc?
            show-bcc? !show-bcc?
-           attachment-paths !attachment-paths]
+           attachment-paths !attachment-paths
+           auto-save-state !auto-save-gate]
+   :let [auto-saving? (:inflight? auto-save-state)
+         send-blocked? (or sending? auto-saving?)]
    (m/Container
     .decoration (m/BoxDecoration
                  .color (theme/surface)
@@ -255,21 +258,23 @@
                        .shape (m/RoundedRectangleBorder
                                .borderRadius (m/BorderRadius.circular theme/radius-sm)))
                .tooltip "Save Draft"
-               .onPressed (fn []
-                            (save-draft-pressed! ctx navigator !doc-state !quote-state
-                                                 to-ctrl cc-ctrl bcc-ctrl subject-ctrl
-                                                 show-cc? show-bcc? sending?
-                                                 current-account-id
-                                                 attachment-paths @!draft-meta))
+               .onPressed (when-not send-blocked?
+                            (fn []
+                              (save-draft-pressed! ctx navigator !doc-state !quote-state
+                                                   to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                                                   show-cc? show-bcc? send-blocked?
+                                                   current-account-id
+                                                   attachment-paths @!draft-meta)))
                .icon (m/Icon m.Icons/drafts_outlined .size 20.0 .color (theme/ink-muted)))
               (m/SizedBox .width 8.0)
               (m/FilledButton.icon
-               .onPressed (fn []
-                            (send-pressed! ctx navigator !doc-state !quote-state
-                                           to-ctrl cc-ctrl bcc-ctrl subject-ctrl
-                                           show-cc? show-bcc? sending?
-                                           current-account-id
-                                           attachment-paths @!draft-meta))
+               .onPressed (when-not send-blocked?
+                            (fn []
+                              (send-pressed! ctx navigator !doc-state !quote-state
+                                             to-ctrl cc-ctrl bcc-ctrl subject-ctrl
+                                             show-cc? show-bcc? send-blocked?
+                                             current-account-id
+                                             attachment-paths @!draft-meta)))
                .style (m/FilledButton.styleFrom
                        .backgroundColor (theme/sky)
                        .foregroundColor m.Colors/white

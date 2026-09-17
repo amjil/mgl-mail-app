@@ -14,8 +14,8 @@
   [ctx navigator !busy email-ctrl pwd-ctrl imap-ctrl smtp-ctrl]
   (let [e (str/trim (.-text email-ctrl))
         p (.-text pwd-ctrl)
-        i (str/trim (.-text imap-ctrl))
-        s (str/trim (.-text smtp-ctrl))]
+        i (not-empty (str/trim (.-text imap-ctrl)))
+        s (not-empty (str/trim (.-text smtp-ctrl)))]
     (if (or (empty? e) (empty? p))
       (toast/error! ctx "Мэдээллээ гүйцэд оруулна уу!")
       (do

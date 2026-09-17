@@ -27,9 +27,21 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
 
   Future<int> insert(OutboxCompanion row) => into(outbox).insert(row);
 
-  Future<void> markSending(int id) => (update(outbox)
-        ..where((o) => o.id.equals(id)))
-      .write(const OutboxCompanion(status: Value('sending')));
+  Future<bool> claimForSending(int id) async {
+    final changed = await (update(outbox)
+          ..where((o) =>
+              o.id.equals(id) &
+              (o.status.equals('pending') | o.status.equals('failed'))))
+        .write(const OutboxCompanion(status: Value('sending')));
+    return changed == 1;
+  }
+
+  Future<void> recoverInterruptedSending(String accountId) {
+    return (update(outbox)
+          ..where((o) =>
+              o.accountId.equals(accountId) & o.status.equals('sending')))
+        .write(const OutboxCompanion(status: Value('pending')));
+  }
 
   Future<void> markSent(int id) =>
       (update(outbox)..where((o) => o.id.equals(id)))

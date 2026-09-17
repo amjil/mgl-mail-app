@@ -16,4 +16,7 @@ class MessageBodyDao extends DatabaseAccessor<AppDatabase>
 
   Future<void> upsert(MessageBodiesCompanion row) =>
       into(messageBodies).insertOnConflictUpdate(row);
+
+  Future<void> deleteForMessage(int messageId) =>
+      (delete(messageBodies)..where((b) => b.messageId.equals(messageId))).go();
 }

@@ -8,6 +8,7 @@
 (defonce !bridge (atom nil))
 (defonce !mailbox-sub (atom nil))
 (defonce !folder-sub (atom nil))
+(defonce !search-generation (atom 0))
 
 (declare select-mailbox!)
 
@@ -28,7 +29,8 @@
   (when-let [b @!bridge]
     (let [aid (:current-account-id @store/app-state)
           apply! (fn [folders]
-                   (store/set-folder-list! (vec (or folders []))))]
+                   (when (= aid (:current-account-id @store/app-state))
+                     (store/set-folder-list! (vec (or folders [])))))]
       ;; Eager load so UI is not stuck on empty until the next DB write.
       (-> (.listFolders ^mc/MailBridge b .accountId aid)
           (.then apply!)
@@ -135,8 +137,8 @@
     :or {display-name nil}}]
   (let [b @!bridge
         domain (-> (or email "") (str/split #"@") last)
-        imap (or imap-host (str "imap." domain))
-        smtp (or smtp-host (str "smtp." domain))]
+        imap (if (str/blank? imap-host) (str "imap." domain) imap-host)
+        smtp (if (str/blank? smtp-host) (str "smtp." domain) smtp-host)]
     (when (nil? b)
       (throw (Exception. "MailBridge not initialized")))
     (when (or (empty? email) (empty? password) (empty? domain))
@@ -282,7 +284,9 @@
         (.then (fn [detail]
                  ;; Show headers immediately so the detail screen is never stuck
                  ;; on a spinner while IMAP downloads or repairs the body.
-                 (store/set-message-detail! detail)
+                 (when (= message-id
+                          (:selected-message-id @store/app-state))
+                   (store/set-message-detail! detail))
                  ;; Always call ensure: it is a no-op for a healthy cached body,
                  ;; but re-fetches old native HTML that still contains cid: URLs.
                  (-> (.ensureBodyDownloaded ^mc/MailBridge b message-id)
@@ -294,10 +298,14 @@
                                 (store/set-message-detail! fresh))
                               fresh))
                      (.catchError (fn [e]
-                                    (store/set-error! (str e))
+                                    (when (= message-id
+                                             (:selected-message-id @store/app-state))
+                                      (store/set-error! (str e)))
                                     nil)))))
         (.catchError (fn [e]
-                       (store/set-error! (str e))
+                       (when (= message-id
+                                (:selected-message-id @store/app-state))
+                         (store/set-error! (str e)))
                        nil)))))
 
 (defn delete-message!
@@ -307,7 +315,9 @@
     (store/clear-error!)
     (-> (.deleteMessage ^mc/MailBridge b message-id)
         (.then (fn [_]
-                 (store/clear-message-detail!)
+                 (when (= message-id
+                          (:selected-message-id @store/app-state))
+                   (store/clear-message-detail!))
                  (store/set-mail-list!
                   (filterv (fn [^mc/MailMessageDto m]
                              (not= (.-id m) message-id))
@@ -328,7 +338,9 @@
     (store/clear-error!)
     (-> (.moveToArchive ^mc/MailBridge b message-id)
         (.then (fn [_]
-                 (store/clear-message-detail!)
+                 (when (= message-id
+                          (:selected-message-id @store/app-state))
+                   (store/clear-message-detail!))
                  (store/set-mail-list!
                   (filterv (fn [^mc/MailMessageDto m]
                              (not= (.-id m) message-id))
@@ -345,7 +357,9 @@
     (store/clear-error!)
     (-> (.moveToInbox ^mc/MailBridge b message-id)
         (.then (fn [_]
-                 (store/clear-message-detail!)
+                 (when (= message-id
+                          (:selected-message-id @store/app-state))
+                   (store/clear-message-detail!))
                  (store/set-mail-list!
                   (filterv (fn [^mc/MailMessageDto m]
                              (not= (.-id m) message-id))
@@ -362,7 +376,9 @@
     (store/clear-error!)
     (-> (.moveToJunk ^mc/MailBridge b message-id)
         (.then (fn [_]
-                 (store/clear-message-detail!)
+                 (when (= message-id
+                          (:selected-message-id @store/app-state))
+                   (store/clear-message-detail!))
                  (store/set-mail-list!
                   (filterv (fn [^mc/MailMessageDto m]
                              (not= (.-id m) message-id))
@@ -406,6 +422,7 @@
   ([query filters]
    (let [q (str/trim (or query ""))
          filters (or filters {})
+         generation (swap! !search-generation inc)
          filtered? (or (:unread filters)
                        (:attachment filters)
                        (:starred filters)
@@ -426,13 +443,15 @@
                         .starredOnly (boolean (:starred filters))
                         .thisWeekOnly (boolean (:this-week filters)))
                (.then (fn [hits]
-                        (store/set-search-results! (vec (or hits [])))
-                        (store/set-searching! false)
+                        (when (= generation @!search-generation)
+                          (store/set-search-results! (vec (or hits [])))
+                          (store/set-searching! false))
                         hits))
                (.catchError (fn [e]
-                              (store/set-searching! false)
-                              (store/set-error! (str e))
-                              (store/set-search-results! [])
+                              (when (= generation @!search-generation)
+                                (store/set-searching! false)
+                                (store/set-error! (str e))
+                                (store/set-search-results! []))
                               [])))))))))
 
 (defn search-contacts!

@@ -28,26 +28,47 @@ class OutboxWorker {
   final Duration pollInterval;
 
   bool _running = false;
+  Future<void>? _loopFuture;
+  Future<void>? _processing;
 
   void start() {
     if (_running) return;
     _running = true;
-    unawaited(_loop());
+    final future = _loop();
+    _loopFuture = future;
+    unawaited(future);
   }
 
   Future<void> stop() async {
     _running = false;
+    await _loopFuture;
+    _loopFuture = null;
   }
 
-  Future<void> kick() => _processOnce();
+  Future<void> kick() => _processOnceExclusive();
 
   Future<void> _loop() async {
+    await db.outboxDao.recoverInterruptedSending(account.id);
     while (_running) {
       try {
-        await _processOnce();
+        await _processOnceExclusive();
       } catch (_) {}
       await Future<void>.delayed(pollInterval);
     }
+  }
+
+  Future<void> _processOnceExclusive() {
+    final current = _processing;
+    if (current != null) return current;
+
+    late final Future<void> run;
+    run = _processOnce().whenComplete(() {
+      if (identical(_processing, run)) {
+        _processing = null;
+      }
+    });
+    _processing = run;
+    return run;
   }
 
   Future<void> _processOnce() async {
@@ -62,7 +83,7 @@ class OutboxWorker {
   }
 
   Future<void> _sendOne(OutboxData item) async {
-    await db.outboxDao.markSending(item.id);
+    if (!await db.outboxDao.claimForSending(item.id)) return;
     try {
       final message = await db.messageDao.findById(item.messageId);
       final body = await db.messageBodyDao.find(item.messageId);

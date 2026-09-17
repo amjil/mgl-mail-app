@@ -37,6 +37,21 @@ class MessageDao extends DatabaseAccessor<AppDatabase> with _$MessageDaoMixin {
         .getSingleOrNull();
   }
 
+  Future<Message?> findUnboundByRfcMessageId(
+    String accountId,
+    int folderId,
+    String messageId,
+  ) {
+    return (select(messages)
+          ..where((m) =>
+              m.accountId.equals(accountId) &
+              m.folderId.equals(folderId) &
+              m.uid.isNull() &
+              m.messageId.equals(messageId))
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
   Future<List<Message>> findWithoutThreadId() {
     return (select(messages)
           ..where((m) => m.threadId.isNull() & m.deleted.equals(false)))
@@ -52,9 +67,9 @@ class MessageDao extends DatabaseAccessor<AppDatabase> with _$MessageDaoMixin {
           ..where(
               (m) => m.accountId.equals(accountId) & m.threadId.equals(from)))
         .write(MessagesCompanion(
-          threadId: Value(to),
-          updatedAt: Value(DateTime.now()),
-        ));
+      threadId: Value(to),
+      updatedAt: Value(DateTime.now()),
+    ));
   }
 
   /// Messages sharing Message-ID graph edges with [normalizedIds].
@@ -118,6 +133,12 @@ class MessageDao extends DatabaseAccessor<AppDatabase> with _$MessageDaoMixin {
               (m) => m.folderId.equals(folderId) & m.uid.isIn(uids.toList())))
         .get();
     return rows.map((r) => r.uid).whereType<String>().toSet();
+  }
+
+  Future<List<Message>> listRemoteMessagesInFolder(int folderId) {
+    return (select(messages)
+          ..where((m) => m.folderId.equals(folderId) & m.uid.isNotNull()))
+        .get();
   }
 
   Future<int> insertMessage(MessagesCompanion row) =>

@@ -94,6 +94,7 @@
                              :!show-bcc? !show-bcc?
                              :!attachment-paths !attachment-paths
                              :!draft-meta !draft-meta
+                             :!auto-save-gate !auto-save-gate
                              :on-insert-image #(compose/pick-inline-image! !doc-state)})
              (m/Expanded
               .child

@@ -69,19 +69,26 @@ class ImapSyncService {
   Future<void> connect() async {
     if (isConnected) return;
     final c = ImapClient(isLogEnabled: isLogEnabled);
-    await c.connectToServer(
-      account.imapHost,
-      account.imapPort,
-      isSecure: account.imapSsl,
-    );
-    final secret = await getSecret();
-    if (useOAuth) {
-      await c.authenticateWithOAuth2(account.username, secret);
-    } else {
-      await c.login(account.username, secret);
+    try {
+      await c.connectToServer(
+        account.imapHost,
+        account.imapPort,
+        isSecure: account.imapSsl,
+      );
+      final secret = await getSecret();
+      if (useOAuth) {
+        await c.authenticateWithOAuth2(account.username, secret);
+      } else {
+        await c.login(account.username, secret);
+      }
+      await _identifyClient(c);
+      _client = c;
+    } catch (_) {
+      try {
+        await c.disconnect();
+      } catch (_) {}
+      rethrow;
     }
-    await _identifyClient(c);
-    _client = c;
   }
 
   /// Tell the server who we are before SELECT / IDLE / APPEND.
@@ -592,23 +599,27 @@ class ImapSyncService {
       );
 
       final sync = await db.syncStateDao.find(account.id, active.id);
+      final uidValidityChanged = sync?.uidValidity != null &&
+          validity != null &&
+          sync!.uidValidity != validity;
       final notifyNewMail = sync != null &&
           (sync.uidValidity == null ||
               validity == null ||
               sync.uidValidity == validity);
-      if (sync?.uidValidity != null &&
-          validity != null &&
-          sync!.uidValidity != validity) {
+      if (uidValidityChanged) {
         // ignore: avoid_print
         print('UIDVALIDITY changed for ${active.path}; refetching recent');
+        await _removeLocalRemoteMessages(active.id, const <int>{});
       }
 
       var allUids = <int>[];
+      var completeUidSet = false;
       try {
         allUids = (await client.uidSearchMessages(searchCriteria: 'ALL'))
                 .matchingSequence
                 ?.toList() ??
             <int>[];
+        completeUidSet = true;
       } catch (e) {
         // ignore: avoid_print
         print('UID SEARCH ALL failed: $e');
@@ -619,6 +630,7 @@ class ImapSyncService {
                   .matchingSequence
                   ?.toList() ??
               <int>[];
+          completeUidSet = true;
         } catch (e) {
           // ignore: avoid_print
           print('UID SEARCH UID 1:* failed: $e');
@@ -656,6 +668,9 @@ class ImapSyncService {
         'syncFolderMessages uidCount=${allUids.length} '
         'exists=${mailbox.messagesExists}',
       );
+      if (completeUidSet) {
+        await _removeLocalRemoteMessages(active.id, allUids.toSet());
+      }
       if (allUids.isEmpty) {
         await _saveSyncState(active.id, 0, validity);
         return;
@@ -693,6 +708,26 @@ class ImapSyncService {
       );
     } finally {
       await refreshUnreadCount(active.id);
+    }
+  }
+
+  Future<void> _removeLocalRemoteMessages(
+    int folderId,
+    Set<int> serverUids,
+  ) async {
+    final local = await db.messageDao.listRemoteMessagesInFolder(folderId);
+    final missing = local.where((message) {
+      final uid = int.tryParse(message.uid!);
+      return uid == null || !serverUids.contains(uid);
+    }).toList(growable: false);
+
+    for (final message in missing) {
+      await indexer.remove(message.id);
+      await db.transaction(() async {
+        await db.attachmentDao.deleteForMessage(message.id);
+        await db.messageBodyDao.deleteForMessage(message.id);
+        await db.messageDao.deleteByMessageId(message.id);
+      });
     }
   }
 
@@ -1001,30 +1036,32 @@ class ImapSyncService {
       }
     }
     if (messageId != null && messageId.isNotEmpty) {
-      final byMid =
-          await db.messageDao.findByRfcMessageId(account.id, messageId);
-      if (byMid != null) {
+      final unbound = await db.messageDao.findUnboundByRfcMessageId(
+        account.id,
+        folder.id,
+        messageId,
+      );
+      if (unbound != null) {
         await db.messageDao.updateMessage(
-          byMid.id,
+          unbound.id,
           MessagesCompanion(
-            folderId: Value(folder.id),
             uid: Value(uidStr),
             state: Value(state),
+            isRead: Value(mime.isSeen),
             updatedAt: Value(DateTime.now()),
           ),
         );
         await indexer.indexMessage(
-          messageId: byMid.id,
+          messageId: unbound.id,
           accountId: account.id,
-          subject: byMid.subject,
-          fromAddr: byMid.fromAddr,
-          toAddr: byMid.toAddr,
+          subject: unbound.subject,
+          fromAddr: unbound.fromAddr,
+          toAddr: unbound.toAddr,
         );
-        await threading.assignForMessage(byMid.id);
-        return byMid.id;
+        await threading.assignForMessage(unbound.id);
+        return unbound.id;
       }
     }
-
     final id = await db.messageDao.insertMessage(
       MessagesCompanion.insert(
         accountId: account.id,
@@ -1675,7 +1712,7 @@ class ImapSyncService {
         print(
           'IMAP moved uid=$uid → ${targetBox.path} newUid=$newUid',
         );
-        return (folderId: targetFolder.id, uid: newUid ?? uidStr);
+        return (folderId: targetFolder.id, uid: newUid);
       });
 
   /// Delete on the IMAP server via enough_mail [ImapClient].
@@ -1816,8 +1853,8 @@ class ImapSyncService {
       await client.uidExpunge(sequence);
     } catch (e) {
       // ignore: avoid_print
-      print('uidExpunge failed ($e), falling back to EXPUNGE');
-      await client.expunge();
+      print('uidExpunge failed; refusing unsafe mailbox-wide EXPUNGE: $e');
+      rethrow;
     }
   }
 

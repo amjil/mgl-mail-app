@@ -45,6 +45,8 @@ class MailEngine {
   late final MessageThreading threading;
 
   final Map<String, AccountEngine> _accounts = {};
+  final Map<int, int> _draftRevisions = {};
+  final Map<int, Future<void>> _draftPushes = {};
   final _uuid = const Uuid();
 
   Future<void> initialize({bool startWorkers = true}) async {
@@ -977,26 +979,40 @@ class MailEngine {
     );
     await threading.assignForMessage(messageId);
 
-    unawaited(
-      _pushDraftToImap(
-        accountId: accountId,
-        account: account,
-        messageId: messageId,
-        draftFolderId: draftFolder?.id,
-        toJoined: toJoined,
-        ccJoined: ccJoined,
-        bccJoined: bccJoined,
-        subject: subject,
-        plainText: plainText,
-        htmlText: htmlText,
-        clientMessageId: clientMessageId,
-        rfcId: rfcId,
-        inReplyTo: inReplyTo,
-        references: references,
-        previousUid: previousUid,
-        previousFolderId: previousFolderId,
-      ),
-    );
+    final revision = (_draftRevisions[messageId] ?? 0) + 1;
+    _draftRevisions[messageId] = revision;
+    final previousPush = _draftPushes[messageId] ?? Future<void>.value();
+    late final Future<void> push;
+    push = previousPush
+        .catchError((_) {})
+        .then(
+          (_) => _pushDraftToImap(
+            accountId: accountId,
+            account: account,
+            messageId: messageId,
+            revision: revision,
+            draftFolderId: draftFolder?.id,
+            toJoined: toJoined,
+            ccJoined: ccJoined,
+            bccJoined: bccJoined,
+            subject: subject,
+            plainText: plainText,
+            htmlText: htmlText,
+            clientMessageId: clientMessageId,
+            rfcId: rfcId,
+            inReplyTo: inReplyTo,
+            references: references,
+            previousUid: previousUid,
+            previousFolderId: previousFolderId,
+          ),
+        )
+        .whenComplete(() {
+      if (identical(_draftPushes[messageId], push)) {
+        _draftPushes.remove(messageId);
+      }
+    });
+    _draftPushes[messageId] = push;
+    unawaited(push);
     return messageId;
   }
 
@@ -1004,6 +1020,7 @@ class MailEngine {
     required String accountId,
     required Account account,
     required int messageId,
+    required int revision,
     required int? draftFolderId,
     required String toJoined,
     required String? ccJoined,
@@ -1035,6 +1052,19 @@ class MailEngine {
         attachments: atts,
       );
       final uid = await _accounts[accountId]?.appendDraft(mime);
+      final current = await db.messageDao.findById(messageId);
+      final isCurrent = _draftRevisions[messageId] == revision &&
+          current != null &&
+          current.state == 'draft';
+      if (!isCurrent) {
+        if (uid != null && draftFolderId != null) {
+          await _accounts[accountId]?.expungeDraftUid(
+            uid: uid,
+            folderId: draftFolderId,
+          );
+        }
+        return;
+      }
       if (uid != null) {
         await db.messageDao.updateMessage(
           messageId,
