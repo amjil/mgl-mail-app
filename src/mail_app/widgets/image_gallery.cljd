@@ -1,0 +1,85 @@
+(ns mail-app.widgets.image-gallery
+  "Full-screen interactive image gallery with pinch-to-zoom and swipe support."
+  (:require ["package:flutter/material.dart" :as m]
+            ["dart:io" :as io]
+            [clojure.string :as str]
+            [cljd.flutter :as f]))
+
+(defn- local-image-path? [url]
+  (let [u (or url "")]
+    (and (seq u)
+         (not (str/starts-with? u "http://"))
+         (not (str/starts-with? u "https://"))
+         (not (str/starts-with? u "cid:"))
+         (not (str/starts-with? u "data:"))
+         (not (str/starts-with? u "//")))))
+
+(defn- file-from-url [url]
+  (if (str/starts-with? (or url "") "file://")
+    (io/File. (.toFilePath (dart:core/Uri.parse url)))
+    (io/File. url)))
+
+(defn- page-indicator [current total]
+  (m/Positioned
+   .bottom 40.0 .left 0.0 .right 0.0
+   .child
+   (m/Center
+    .child
+    (m/Container
+     .padding (m/EdgeInsets.symmetric .horizontal 16.0 .vertical 8.0)
+     .decoration (m/BoxDecoration
+                  .color (-> m.Colors/white (.withOpacity 0.2))
+                  .borderRadius (m/BorderRadius.circular 20.0))
+     .child (m/Text (str (inc current) " / " total)
+                    .style (m/TextStyle .color m.Colors/white
+                                        .fontSize 14.0
+                                        .letterSpacing 2.0))))))
+
+(defn viewer [image-urls initial-index]
+  (f/widget
+   :managed [page-ctrl (m/PageController .initialPage initial-index)
+             :dispose .dispose
+             !current-idx (atom initial-index) :dispose nil]
+   :get [m/Navigator]
+   :watch [current-idx !current-idx]
+   (m/Scaffold
+    .backgroundColor m.Colors/black
+    .extendBodyBehindAppBar true
+    .appBar (m/AppBar
+             .backgroundColor m.Colors/transparent
+             .elevation 0.0
+             .iconTheme (m/IconThemeData .color m.Colors/white)
+             .leading (m/IconButton
+                       .icon (m/Icon m.Icons/close .size 28.0)
+                       .onPressed #(.pop navigator)))
+    .body
+    (m/Stack
+     .children
+     (cond->
+      [(m/PageView.builder
+        .controller page-ctrl
+        .onPageChanged #(reset! !current-idx %)
+        .itemCount (count image-urls)
+        .itemBuilder
+        (fn [_ idx]
+          (let [url (nth image-urls idx)]
+            (m/InteractiveViewer
+             .minScale 0.5
+             .maxScale 4.0
+             .child
+             (m/Center
+              .child
+              (if (local-image-path? url)
+                (m/Image.file (file-from-url url) .fit m.BoxFit/contain)
+                (m/Image.network url .fit m.BoxFit/contain)))))))]
+       ;; Bottom page indicator (only shown for multiple images).
+       (> (count image-urls) 1)
+       (conj (page-indicator current-idx (count image-urls))))))))
+
+(defn open! [ctx image-urls initial-index]
+  (.push (m/Navigator.of ctx)
+         (m/PageRouteBuilder
+          .opaque false
+          .pageBuilder (fn [_ _ _] (viewer image-urls initial-index))
+          .transitionsBuilder (fn [_ anim _ child]
+                                (m/FadeTransition .opacity anim .child child)))))

@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:enough_mail/enough_mail.dart';
 import 'package:enough_mail/src/private/imap/command.dart';
 import 'package:enough_mail/src/private/imap/noop_parser.dart';
+import 'package:path/path.dart' as p;
 
 import '../db/app_database.dart';
 import '../search/fts_indexer.dart';
@@ -223,9 +225,7 @@ class ImapSyncService {
         s += 200;
       }
       if (f.role == 'archive' &&
-          (n.contains('归档') ||
-              n.contains('歸檔') ||
-              n.contains('archive'))) {
+          (n.contains('归档') || n.contains('歸檔') || n.contains('archive'))) {
         s += 200;
       }
       if (f.role == 'sent' &&
@@ -281,8 +281,14 @@ class ImapSyncService {
 
     // Role groups: include name-mapped customs (stale role) so Drafts+草稿
     // collapse to one selectable row.
-    for (final role
-        in const ['inbox', 'sent', 'draft', 'archive', 'trash', 'junk']) {
+    for (final role in const [
+      'inbox',
+      'sent',
+      'draft',
+      'archive',
+      'trash',
+      'junk'
+    ]) {
       await collapse(
         all
             .where(
@@ -391,8 +397,7 @@ class ImapSyncService {
         ),
       );
       // Hide other same-role twins so UI/sync stick to the populated one.
-      final twins =
-          await db.folderDao.listByRole(role, accountId: account.id);
+      final twins = await db.folderDao.listByRole(role, accountId: account.id);
       for (final t in twins) {
         if (t.id != id) {
           await db.folderDao.markSelectable(t.id, false);
@@ -579,98 +584,99 @@ class ImapSyncService {
       }
       final validity = mailbox.uidValidity;
 
-    // ignore: avoid_print
-    print(
-      'syncFolderMessages name="${active.name}" path="${active.path}" '
-      'role=${active.role} exists=${mailbox.messagesExists}',
-    );
-
-    final sync = await db.syncStateDao.find(account.id, active.id);
-    if (sync?.uidValidity != null &&
-        validity != null &&
-        sync!.uidValidity != validity) {
       // ignore: avoid_print
-      print('UIDVALIDITY changed for ${active.path}; refetching recent');
-    }
+      print(
+        'syncFolderMessages name="${active.name}" path="${active.path}" '
+        'role=${active.role} exists=${mailbox.messagesExists}',
+      );
 
-    var allUids = <int>[];
-    try {
-      allUids = (await client.uidSearchMessages(searchCriteria: 'ALL'))
-              .matchingSequence
-              ?.toList() ??
-          <int>[];
-    } catch (e) {
-      // ignore: avoid_print
-      print('UID SEARCH ALL failed: $e');
-    }
-    if (allUids.isEmpty && mailbox.messagesExists > 0) {
+      final sync = await db.syncStateDao.find(account.id, active.id);
+      if (sync?.uidValidity != null &&
+          validity != null &&
+          sync!.uidValidity != validity) {
+        // ignore: avoid_print
+        print('UIDVALIDITY changed for ${active.path}; refetching recent');
+      }
+
+      var allUids = <int>[];
       try {
-        allUids = (await client.uidSearchMessages(searchCriteria: 'UID 1:*'))
+        allUids = (await client.uidSearchMessages(searchCriteria: 'ALL'))
                 .matchingSequence
                 ?.toList() ??
             <int>[];
       } catch (e) {
         // ignore: avoid_print
-        print('UID SEARCH UID 1:* failed: $e');
+        print('UID SEARCH ALL failed: $e');
       }
-    }
-    // Some CN ISP mailboxes report EXISTS but return empty UID SEARCH.
-    // Recover UIDs (or store directly) via sequence FETCH of the recent window.
-    if (allUids.isEmpty && mailbox.messagesExists > 0) {
-      final end = mailbox.messagesExists;
-      final start = end > limit ? end - limit + 1 : 1;
-      allUids = await _uidsFromSequenceRange(start, end);
+      if (allUids.isEmpty && mailbox.messagesExists > 0) {
+        try {
+          allUids = (await client.uidSearchMessages(searchCriteria: 'UID 1:*'))
+                  .matchingSequence
+                  ?.toList() ??
+              <int>[];
+        } catch (e) {
+          // ignore: avoid_print
+          print('UID SEARCH UID 1:* failed: $e');
+        }
+      }
+      // Some CN ISP mailboxes report EXISTS but return empty UID SEARCH.
+      // Recover UIDs (or store directly) via sequence FETCH of the recent window.
+      if (allUids.isEmpty && mailbox.messagesExists > 0) {
+        final end = mailbox.messagesExists;
+        final start = end > limit ? end - limit + 1 : 1;
+        allUids = await _uidsFromSequenceRange(start, end);
+        if (allUids.isEmpty) {
+          // Last resort: FETCH envelopes by sequence and upsert without UID list.
+          // ignore: avoid_print
+          print(
+            'seq UID recovery empty; fetching envelopes $start:$end directly',
+          );
+          await _fetchAndStoreBySequence(active, start, end);
+          await _saveSyncState(active.id, 0, validity);
+          // ignore: avoid_print
+          print(
+            'syncFolderMessages done(seq) localCount='
+            '${await db.messageDao.countInFolder(active.id)}',
+          );
+          return;
+        }
+      }
+      // ignore: avoid_print
+      print(
+        'syncFolderMessages uidCount=${allUids.length} '
+        'exists=${mailbox.messagesExists}',
+      );
       if (allUids.isEmpty) {
-        // Last resort: FETCH envelopes by sequence and upsert without UID list.
-        // ignore: avoid_print
-        print(
-          'seq UID recovery empty; fetching envelopes $start:$end directly',
-        );
-        await _fetchAndStoreBySequence(active, start, end);
         await _saveSyncState(active.id, 0, validity);
-        // ignore: avoid_print
-        print(
-          'syncFolderMessages done(seq) localCount='
-          '${await db.messageDao.countInFolder(active.id)}',
-        );
         return;
       }
-    }
-    // ignore: avoid_print
-    print(
-      'syncFolderMessages uidCount=${allUids.length} '
-      'exists=${mailbox.messagesExists}',
-    );
-    if (allUids.isEmpty) {
-      await _saveSyncState(active.id, 0, validity);
-      return;
-    }
 
-    allUids.sort();
-    final target = allUids.length <= limit
-        ? allUids
-        : allUids.sublist(allUids.length - limit);
-    final targetStr = target.map((e) => '$e').toList();
-    final existing = await db.messageDao.findExistingUids(active.id, targetStr);
-    var newUids =
-        target.where((u) => !existing.contains('$u')).toList(growable: false);
-    if (newUids.isEmpty &&
-        (await db.messageDao.countInFolder(active.id)) == 0) {
-      newUids = target;
-    }
-    if (newUids.isNotEmpty) {
-      await _fetchAndStoreHeaders(active, newUids);
-    }
+      allUids.sort();
+      final target = allUids.length <= limit
+          ? allUids
+          : allUids.sublist(allUids.length - limit);
+      final targetStr = target.map((e) => '$e').toList();
+      final existing =
+          await db.messageDao.findExistingUids(active.id, targetStr);
+      var newUids =
+          target.where((u) => !existing.contains('$u')).toList(growable: false);
+      if (newUids.isEmpty &&
+          (await db.messageDao.countInFolder(active.id)) == 0) {
+        newUids = target;
+      }
+      if (newUids.isNotEmpty) {
+        await _fetchAndStoreHeaders(active, newUids);
+      }
 
-    await _fetchAndUpdateFlags(active, target);
+      await _fetchAndUpdateFlags(active, target);
 
-    final maxUid = target.isEmpty ? 0 : target.last;
-    await _saveSyncState(active.id, maxUid, validity);
-    // ignore: avoid_print
-    print(
-      'syncFolderMessages done localCount='
-      '${await db.messageDao.countInFolder(active.id)}',
-    );
+      final maxUid = target.isEmpty ? 0 : target.last;
+      await _saveSyncState(active.id, maxUid, validity);
+      // ignore: avoid_print
+      print(
+        'syncFolderMessages done localCount='
+        '${await db.messageDao.countInFolder(active.id)}',
+      );
     } finally {
       await refreshUnreadCount(active.id);
     }
@@ -696,8 +702,7 @@ class ImapSyncService {
       final twin = await _findAsciiTwin(still);
       return twin ?? still;
     }
-    final byName =
-        await db.folderDao.findByName(folder.accountId, folder.name);
+    final byName = await db.folderDao.findByName(folder.accountId, folder.name);
     if (byName != null) return byName;
     if (folder.role != 'custom') {
       final byRole =
@@ -725,10 +730,8 @@ class ImapSyncService {
     for (final criteria in ['(UID)', 'UID', '(FLAGS UID)', 'FAST']) {
       try {
         final fetched = await client.fetchMessages(seq, criteria);
-        final uids = fetched.messages
-            .map((m) => m.uid)
-            .whereType<int>()
-            .toList();
+        final uids =
+            fetched.messages.map((m) => m.uid).whereType<int>().toList();
         // ignore: avoid_print
         print('seq UID recovery $criteria $start:$end → ${uids.length} uids');
         if (uids.isNotEmpty) return uids;
@@ -803,7 +806,8 @@ class ImapSyncService {
 
     String? workingCriteria;
     for (var i = 0; i < uids.length; i += 10) {
-      final chunk = uids.sublist(i, i + 10 > uids.length ? uids.length : i + 10);
+      final chunk =
+          uids.sublist(i, i + 10 > uids.length ? uids.length : i + 10);
       final sequence = MessageSequence.fromIds(chunk, isUid: true);
       final result = await _uidFetchWithFallback(
         sequence,
@@ -844,7 +848,8 @@ class ImapSyncService {
     if (uids.isEmpty) return;
     // UID FETCH already returns UIDs; keep attribute list minimal for Sina.
     for (var i = 0; i < uids.length; i += 20) {
-      final chunk = uids.sublist(i, i + 20 > uids.length ? uids.length : i + 20);
+      final chunk =
+          uids.sublist(i, i + 20 > uids.length ? uids.length : i + 20);
       final sequence = MessageSequence.fromIds(chunk, isUid: true);
       FetchImapResult result;
       try {
@@ -1032,7 +1037,8 @@ class ImapSyncService {
   }
 
   Future<void> _storeAttachmentMeta(int messageId, MimeMessage mime) async {
-    final parts = mime.findContentInfo(disposition: ContentDisposition.attachment);
+    final parts =
+        mime.findContentInfo(disposition: ContentDisposition.attachment);
     for (final info in parts) {
       await db.attachmentDao.upsertMeta(
         AttachmentsCompanion.insert(
@@ -1047,13 +1053,82 @@ class ImapSyncService {
     }
   }
 
+  Future<String?> _resolveInlineImages(
+    int messageId,
+    String? html,
+    MimeMessage mime,
+  ) async {
+    if (html == null || html.isEmpty || !html.toLowerCase().contains('cid:')) {
+      return html;
+    }
+
+    final cidPaths = <String, String>{};
+    var index = 0;
+    // Traverse all MIME parts instead of relying on Content-Disposition.
+    // Some providers change an inline part to "attachment" (or omit the
+    // disposition entirely) while preserving the Content-ID used by the HTML.
+    for (final part in mime.allPartsFlat) {
+      final cid = _normalizeCid(part.getHeaderValue('content-id'));
+      final mediaType = part.getHeaderContentType()?.mediaType;
+      if (cid == null || mediaType?.top != MediaToptype.image) {
+        continue;
+      }
+      final bytes = part.decodeContentBinary();
+      if (bytes == null || bytes.isEmpty) continue;
+
+      final dir = await AppDatabase.attachmentDir(
+        accountId: account.id,
+        messageId: messageId,
+      );
+      final fallbackExtension = mediaType?.sub.name ?? 'image';
+      final originalName =
+          part.decodeFileName() ?? 'inline_${index + 1}.$fallbackExtension';
+      final safeName = originalName.replaceAll(RegExp(r'[\\/]'), '_');
+      final filePath = p.join(dir.path, 'inline_${index + 1}_$safeName');
+      try {
+        await File(filePath).writeAsBytes(bytes, flush: true);
+      } catch (_) {
+        continue;
+      }
+      cidPaths[cid] = Uri.file(filePath).toString();
+      index++;
+    }
+
+    if (cidPaths.isEmpty) return html;
+    return html.replaceAllMapped(
+      RegExp(r'''cid:([^"'\s>]+)''', caseSensitive: false),
+      (match) {
+        final cid = _normalizeCid(match.group(1));
+        return cid == null ? match.group(0)! : cidPaths[cid] ?? match.group(0)!;
+      },
+    );
+  }
+
+  String? _normalizeCid(String? value) {
+    if (value == null) return null;
+    var cid = value.trim();
+    if (cid.toLowerCase().startsWith('cid:')) cid = cid.substring(4);
+    try {
+      cid = Uri.decodeComponent(cid);
+    } catch (_) {}
+    if (cid.startsWith('<') && cid.endsWith('>') && cid.length > 2) {
+      cid = cid.substring(1, cid.length - 1);
+    }
+    cid = cid.trim().toLowerCase();
+    return cid.isEmpty ? null : cid;
+  }
+
   Future<void> downloadBodyIfNeeded(int messageId) => _serialized(() async {
         final message = await db.messageDao.findById(messageId);
-        if (message == null || message.uid == null || message.folderId == null) {
+        if (message == null ||
+            message.uid == null ||
+            message.folderId == null) {
           return;
         }
         final body = await db.messageBodyDao.find(messageId);
-        if (body?.isDownloaded == true) return;
+        final hasUnresolvedCid = MglMailIdentity.fromHtml(body?.htmlText) &&
+            body?.htmlText?.toLowerCase().contains('cid:') == true;
+        if (body?.isDownloaded == true && !hasUnresolvedCid) return;
 
         final folder = await db.folderDao.findById(message.folderId!);
         if (folder == null || folder.path.trim().isEmpty) return;
@@ -1080,10 +1155,11 @@ class ImapSyncService {
         if (result == null || result.messages.isEmpty) return;
         final mime = result.messages.first;
         final plain = mime.decodeTextPlainPart();
-        final html = MglMailIdentity.stampHtmlIfNative(
+        final stampedHtml = MglMailIdentity.stampHtmlIfNative(
           mime.decodeTextHtmlPart(),
           mime,
         );
+        final html = await _resolveInlineImages(messageId, stampedHtml, mime);
         await db.messageBodyDao.upsert(
           MessageBodiesCompanion.insert(
             messageId: Value(messageId),
@@ -1136,13 +1212,10 @@ class ImapSyncService {
     final p = path.trim();
     if (p.isEmpty || !_hasNonAscii(p)) return p;
     final sep = pathSeparator.isEmpty ? '/' : pathSeparator;
-    return p
-        .split(sep)
-        .map((seg) {
-          if (seg.isEmpty || !_hasNonAscii(seg)) return seg;
-          return Mailbox.encode(seg, sep);
-        })
-        .join(sep);
+    return p.split(sep).map((seg) {
+      if (seg.isEmpty || !_hasNonAscii(seg)) return seg;
+      return Mailbox.encode(seg, sep);
+    }).join(sep);
   }
 
   /// Path we persist / SELECT with.
@@ -1306,8 +1379,8 @@ class ImapSyncService {
       if (f.id != folder.id && !_hasNonAscii(f.path)) return f;
     }
     if (folder.role != 'custom') {
-      final byRole =
-          await db.folderDao.listByRole(folder.role, accountId: folder.accountId);
+      final byRole = await db.folderDao
+          .listByRole(folder.role, accountId: folder.accountId);
       for (final f in byRole) {
         if (f.id != folder.id && !_hasNonAscii(f.path)) return f;
       }
@@ -1321,8 +1394,7 @@ class ImapSyncService {
       await db.folderDao.markSelectable(folder.id, true);
       return folder;
     }
-    final other =
-        await db.folderDao.findByPath(folder.accountId, workingPath);
+    final other = await db.folderDao.findByPath(folder.accountId, workingPath);
     if (other == null) {
       await db.folderDao.updatePath(folder.id, workingPath);
       await db.folderDao.markSelectable(folder.id, true);
@@ -1441,8 +1513,7 @@ class ImapSyncService {
   }
 
   /// Public LIST lookup for APPEND / MOVE targets (requires [connect] first).
-  Future<Mailbox?> findMailboxForRole(String role) =>
-      _findMailboxByRole(role);
+  Future<Mailbox?> findMailboxForRole(String role) => _findMailboxByRole(role);
 
   /// Paths safe to pass as [ImapClient] `targetMailboxPath`.
   /// Prefer Unicode (`box.path` / display name) so enough_mail encodes once.
@@ -1481,8 +1552,7 @@ class ImapSyncService {
           print('UID MOVE ok targetMailboxPath="$path"');
           return result;
         }
-        final result =
-            await client.uidCopy(sequence, targetMailboxPath: path);
+        final result = await client.uidCopy(sequence, targetMailboxPath: path);
         await client.uidStore(
           sequence,
           [MessageFlags.deleted],
@@ -1520,7 +1590,8 @@ class ImapSyncService {
 
         final folder = await db.folderDao.findById(folderId);
         if (folder == null || folder.path.trim().isEmpty) {
-          throw StateError('Folder $folderId missing for message ${message.id}');
+          throw StateError(
+              'Folder $folderId missing for message ${message.id}');
         }
 
         final targetFolder =
@@ -1553,8 +1624,9 @@ class ImapSyncService {
         );
 
         final newIds = result.responseCodeCopyUid?.targetSequence.toList();
-        final newUid =
-            (newIds != null && newIds.isNotEmpty) ? newIds.first.toString() : null;
+        final newUid = (newIds != null && newIds.isNotEmpty)
+            ? newIds.first.toString()
+            : null;
         // ignore: avoid_print
         print(
           'IMAP moved uid=$uid → ${targetBox.path} newUid=$newUid',
@@ -1575,7 +1647,8 @@ class ImapSyncService {
 
         final folder = await db.folderDao.findById(folderId);
         if (folder == null || folder.path.trim().isEmpty) {
-          throw StateError('Folder $folderId missing for message ${message.id}');
+          throw StateError(
+              'Folder $folderId missing for message ${message.id}');
         }
 
         final uid = int.tryParse(uidStr);
@@ -1784,8 +1857,7 @@ class ImapSyncService {
     final sep = client.serverInfo.pathSeparator ?? '/';
     final oldEnc = _storagePathFor(box);
     final newEnc = _toImapPath(unicodeTarget, pathSeparator: sep);
-    final oldUni =
-        box.path.trim().isNotEmpty ? box.path.trim() : oldEnc;
+    final oldUni = box.path.trim().isNotEmpty ? box.path.trim() : oldEnc;
 
     // RENAME of the selected mailbox is often rejected.
     await _unselectIfNeeded();
@@ -1913,7 +1985,8 @@ class ImapSyncService {
       await client.deleteMailbox(live);
     } catch (e) {
       last = e;
-      throw StateError(_imapErrorMessage(last, fallback: 'Delete folder failed'));
+      throw StateError(
+          _imapErrorMessage(last, fallback: 'Delete folder failed'));
     }
   }
 
@@ -1949,8 +2022,7 @@ class ImapSyncService {
         final sep = client.serverInfo.pathSeparator ?? '/';
         // Always compose the target in Unicode space (box.path), never append
         // to mUTF-7 storage paths like `&UXZbg5CuTvY-`.
-        final oldUnicode =
-            box.path.trim().isNotEmpty ? box.path.trim() : from;
+        final oldUnicode = box.path.trim().isNotEmpty ? box.path.trim() : from;
         final targetUnicode = _renameTargetUnicode(oldUnicode, toRaw);
         final targetEnc = _toImapPath(targetUnicode, pathSeparator: sep);
         if (targetEnc == from || targetEnc == _storagePathFor(box)) {

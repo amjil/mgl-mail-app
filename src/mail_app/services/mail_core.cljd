@@ -281,22 +281,21 @@
     (-> (.openMessage ^mc/MailBridge b message-id)
         (.then (fn [detail]
                  ;; Show headers immediately so the detail screen is never stuck
-                 ;; on a spinner while IMAP downloads the body.
+                 ;; on a spinner while IMAP downloads or repairs the body.
                  (store/set-message-detail! detail)
-                 (let [^mc/MailMessageDto msg (.-message ^mc/MailMessageWithBody detail)]
-                   (if (.-hasBody msg)
-                     detail
-                     (-> (.ensureBodyDownloaded ^mc/MailBridge b message-id)
-                         (.then (fn [_]
-                                  (.openMessage ^mc/MailBridge b message-id)))
-                         (.then (fn [fresh]
-                                  (when (= message-id
-                                           (:selected-message-id @store/app-state))
-                                    (store/set-message-detail! fresh))
-                                  fresh))
-                         (.catchError (fn [e]
-                                        (store/set-error! (str e))
-                                        nil)))))))
+                 ;; Always call ensure: it is a no-op for a healthy cached body,
+                 ;; but re-fetches old native HTML that still contains cid: URLs.
+                 (-> (.ensureBodyDownloaded ^mc/MailBridge b message-id)
+                     (.then (fn [_]
+                              (.openMessage ^mc/MailBridge b message-id)))
+                     (.then (fn [fresh]
+                              (when (= message-id
+                                       (:selected-message-id @store/app-state))
+                                (store/set-message-detail! fresh))
+                              fresh))
+                     (.catchError (fn [e]
+                                    (store/set-error! (str e))
+                                    nil)))))
         (.catchError (fn [e]
                        (store/set-error! (str e))
                        nil)))))

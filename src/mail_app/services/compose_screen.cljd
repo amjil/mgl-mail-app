@@ -11,7 +11,8 @@
             [mail-app.desktop.widgets.compose-topbar :as topbar]
             [mail-app.services.compose-export :as export]
             [mail-app.state.store :as store]
-            [mail-app.theme :as theme :refer [font-family]]))
+            [mail-app.theme :as theme :refer [font-family]]
+            [mail-app.widgets.image-gallery :as gallery]))
 
 (def text-block-types
   #{:paragraph :heading-1 :heading-2 :heading-3
@@ -71,6 +72,21 @@
         .alignment m.Alignment/center
         .child (m/Icon m.Icons/image .color (theme/ink-muted)))))))
 
+(defn- extract-image-urls [state]
+  (let [blocks (:blocks state)
+        out (atom [])]
+    (letfn [(walk [ids]
+              (doseq [id ids]
+                (when-let [b (get blocks id)]
+                  (when (= (:type b) :image)
+                    (let [u (or (get-in b [:data :url]) (:url b) "")]
+                      (when (seq u)
+                        (swap! out conj u))))
+                  (when (seq (:children b))
+                    (walk (:children b))))))]
+      (walk (:root state))
+      @out)))
+
 (defn image-plugin
   "Overrides the default Image.network plugin so local compose/read paths render."
   []
@@ -80,9 +96,20 @@
              (let [b (get-in @!state [:blocks id])
                    url (or (get-in b [:data :url]) (:url b) "")]
                (image-block-widget url)))
-   :render-read (fn [block _style _tap _!state]
-                  (image-block-widget
-                   (or (get-in block [:data :url]) (:url block) "")))})
+   :render-read (fn [block _style _tap !state]
+                  (f/widget
+                   :context ctx
+                   (let [url (or (get-in block [:data :url]) (:url block) "")]
+                     (m/GestureDetector
+                      .behavior m.HitTestBehavior/opaque
+                      .onTap
+                      (fn []
+                        (let [all-urls (extract-image-urls @!state)
+                              idx (.indexOf all-urls url)
+                              idx (if (neg? idx) 0 idx)]
+                          (gallery/open! ctx all-urls idx))
+                        nil)
+                      .child (image-block-widget url)))))})
 
 (defn insert-image-block!
   "Insert an `:image` block after the active block (or at the end of :root)."

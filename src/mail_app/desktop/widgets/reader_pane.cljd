@@ -6,6 +6,7 @@
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             ["package:url_launcher/url_launcher.dart" :as ul]
             [cljd.flutter :as f]
+            [clojure.string :as str]
             [block-editor.utils.html :as be-html]
             [block-editor.plugins.core :as be-plugins]
             [block-editor.widgets.reader :as reader]
@@ -17,7 +18,8 @@
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]
             [mail-app.widgets.html-webview :as html-wv]
-            [mail-app.widgets.mail-identity :as ident]))
+            [mail-app.widgets.mail-identity :as ident]
+            [mail-app.widgets.image-gallery :as gallery]))
 
 (def ^:private reader-plugins
   "File-aware image plugin first so local `<img src>` paths render in the reader."
@@ -174,11 +176,22 @@
                        (toast/error! ctx (str "Cannot open: " e))
                        nil)))))
 
+(defn- image-attachment? [^mc/MailAttachmentDto att]
+  (let [mime (str/lower-case (or (.-mimeType att) ""))
+        name (str/lower-case (or (.-filename att) ""))]
+    (or (str/starts-with? mime "image/")
+        (str/ends-with? name ".jpg")
+        (str/ends-with? name ".jpeg")
+        (str/ends-with? name ".png")
+        (str/ends-with? name ".gif")
+        (str/ends-with? name ".webp"))))
+
 (defn- attachment-row
-  [ctx ^mc/MailAttachmentDto att downloading?]
+  [ctx ^mc/MailMessageWithBody detail ^mc/MailAttachmentDto att downloading?]
   (let [name (or (.-filename att) "file")
         ready? (and (.-isDownloaded att) (seq (.-localPath att)))
-        size-label (format-size (.-size att))]
+        size-label (format-size (.-size att))
+        is-img? (image-attachment? att)]
     (m/Container
      .margin (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 4.0)
      .decoration (m/BoxDecoration
@@ -194,7 +207,8 @@
                 .decoration (m/BoxDecoration
                              .color (theme/sky-light)
                              .borderRadius (m/BorderRadius.circular 8.0))
-                .child (m/Icon m.Icons/attach_file .size 16.0 .color (theme/sky)))
+                .child (m/Icon (if is-img? m.Icons/image m.Icons/attach_file)
+                               .size 16.0 .color (theme/sky)))
       .title (m/Text name
                      .overflow m.TextOverflow/ellipsis
                      .style (m/TextStyle .fontSize 13.0 .color (theme/ink)))
@@ -210,9 +224,19 @@
 
         ready?
         (m/IconButton
-         .tooltip "Open"
-         .icon (m/Icon m.Icons/open_in_new .size 18.0 .color (theme/sky))
-         .onPressed (fn [] (open-local-path! ctx (.-localPath att)) nil))
+         .tooltip (if is-img? "View Image" "Open File")
+         .icon (m/Icon (if is-img? m.Icons/visibility m.Icons/open_in_new)
+                       .size 18.0 .color (theme/sky))
+         .onPressed
+         (fn []
+           (if is-img?
+             (let [all-atts (vec (or (.-attachments detail) []))
+                   img-atts (filter image-attachment? all-atts)
+                   urls (mapv #(.-localPath ^mc/MailAttachmentDto %) img-atts)
+                   idx (.indexOf urls (.-localPath att))]
+               (gallery/open! ctx urls (max 0 idx)))
+             (open-local-path! ctx (.-localPath att)))
+           nil))
 
         :else
         (m/IconButton
@@ -224,7 +248,9 @@
                (.then (fn [dto]
                         (toast/success! ctx "Downloaded")
                         (when (and dto (.-localPath dto))
-                          (open-local-path! ctx (.-localPath dto)))
+                          (if (image-attachment? dto)
+                            (gallery/open! ctx [(.-localPath dto)] 0)
+                            (open-local-path! ctx (.-localPath dto))))
                         nil))
                (.catchError (fn [e]
                               (toast/error! ctx (str e))
@@ -260,7 +286,8 @@
           (m/ListView
            .children
            (mapv (fn [^mc/MailAttachmentDto a]
-                   (attachment-row ctx a (contains? downloading-ids (.-id a))))
+                   (attachment-row ctx detail a
+                                   (contains? downloading-ids (.-id a))))
                  atts)))])))))
 
 (defn- mongol-meta
