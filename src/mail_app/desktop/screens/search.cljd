@@ -1,5 +1,5 @@
 (ns mail-app.desktop.screens.search
-  "Desktop search screen: Vertical search panel on the left, horizontal results on the right."
+  "Desktop search screen: Fully adapted traditional Mongolian vertical search bar & filter chips."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
@@ -12,17 +12,16 @@
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]))
 
-;; Predefined dispose function for the text listener
-(defn- unlisten-search! [{:keys [ctrl listener]}]
-  (.removeListener ^m/TextEditingController ctrl listener)
+;; ==========================================
+;; Core Component & Disposers
+;; ==========================================
+(defn- dispose-search-trigger! [{:keys [^m/TextEditingController ctrl trig !timer]}]
+  (when-let [t @!timer] (.cancel ^async/Timer t))
+  (.removeListener ctrl trig)
   nil)
 
-;; ==========================================
-;; Core Component: Mongol input field based on rich-editor
-;; ==========================================
 (defn- mongol-field
-  "Uses the same !ime / editor state as compose fields.
-   Do not wrap here — the page-level ime-global-wrapper paints candidates."
+  "Vertical text field for search input."
   [!ime controller focus-node hint]
   (custom-tf/text-field
    !ime
@@ -35,6 +34,46 @@
                         .color (theme/ink))
     :decoration (m/InputDecoration .border m/InputBorder.none)}))
 
+;; ==========================================
+;; Custom Vertical Filter Chip
+;; ==========================================
+(defn- vertical-filter-chip [label icon filter-key filters query-ctrl]
+  (let [selected? (get filters filter-key false)]
+    (m/GestureDetector
+     .behavior m.HitTestBehavior/opaque
+     .onTap (fn []
+              (store/toggle-search-filter! filter-key)
+              ;; Trigger search immediately upon toggling the filter
+              (mail/search! (.-text ^m/TextEditingController query-ctrl)
+                            (:search-filters @store/app-state))
+              nil)
+     .child
+     (m/AnimatedContainer
+      .duration (dart:core/Duration. .milliseconds 200)
+      .width 48.0
+      .margin (m.EdgeInsets/only .left 12.0 .top 16.0 .bottom 16.0)
+      .decoration (m/BoxDecoration
+                   .color (if selected? (theme/sky-soft) m.Colors/transparent)
+                   .borderRadius (m/BorderRadius.circular 24.0)
+                   .border (m/Border.all
+                            .color (if selected? (theme/sky) (theme/divider))))
+      .child
+      (m/Column
+       .children
+       [(m/Padding
+         .padding (m.EdgeInsets/all 12.0)
+         .child (m/Icon icon .size 20.0
+                        .color (if selected? (theme/sky-deep) (theme/ink-muted))))
+        (m/Expanded
+         .child
+         (m/Padding
+          .padding (m.EdgeInsets/only .bottom 16.0 .top 4.0)
+          .child
+          (mgl/MongolText label
+                          .style (m/TextStyle .fontFamily font-family
+                                              .color (if selected? (theme/sky-deep) (theme/ink-muted))
+                                              .fontSize 14.0
+                                              .fontWeight (if selected? m/FontWeight.w600 m/FontWeight.normal)))))])))))
 
 ;; ==========================================
 ;; Search Results UI
@@ -57,10 +96,11 @@
              .padding (m.EdgeInsets/only .top 8.0)
              .child
              (mgl/MongolText
-              (or (.-subject hit) "No Subject")
+              (let [s (.-subject hit)]
+                (if (or (nil? s) (empty? s)) "ᠭᠠᠷᠴᠢᠭ ᠦᠭᠡᠢ" s)) ;; "No Subject"
               .style (m/TextStyle .fontSize 18.0
                                   .fontFamily font-family
-                                  .fontWeight m.FontWeight/bold
+                                  .fontWeight m/FontWeight.bold
                                   .color (theme/ink)
                                   .height 1.4)))
      .subtitle (m/Padding
@@ -73,7 +113,7 @@
                                      .color (theme/ink-muted)
                                      .height 1.4)))))))
 
-(defn- results-body [search-results searching? navigator search-query]
+(defn- results-body [search-results searching? navigator search-query filters]
   (cond
     searching?
     (m/Center .child (m/CircularProgressIndicator. .color (theme/sky)))
@@ -81,9 +121,9 @@
     (empty? search-results)
     (theme/empty-state
      m.Icons/search
-     (if (seq search-query)
-       "Илэрц олдсонгүй"
-       "Хайх утгаа оруулна уу"))
+     (if (or (seq search-query) (some true? (vals filters)))
+       "ᠢᠯᠡᠷᠡᠴᠡ ᠣᠯᠳᠣᠭᠰᠠᠨ ᠦᠭᠡᠢ" ;; "No results found"
+       "ᠬᠠᠶᠢᠬᠤ ᠤᠳᠬ᠎ᠠ ᠪᠠᠨ ᠣᠷᠣᠭᠤᠯᠤᠨ᠎ᠠ ᠤᠤ")) ;; "Please enter search text"
 
     :else
     (m/ListView.separated
@@ -93,7 +133,7 @@
      .separatorBuilder (fn [_ _] (m/SizedBox .width 10.0))
      .itemBuilder (fn [_ idx]
                     (m/Container
-                     .width 260.0
+                     .width 160.0
                      .decoration (m/BoxDecoration
                                   .color (theme/surface)
                                   .border (m/Border.all .color (theme/divider) .width 0.5)
@@ -107,7 +147,7 @@
 ;; ==========================================
 (defn screen []
   (let [!timer (atom nil)
-        !ime (atom {})] ;; Create a local empty state for text-field
+        !ime (atom {})]
     (f/widget
      :context ctx
      :get [m/Navigator]
@@ -116,150 +156,110 @@
                query-focus (m/FocusNode.)
                
                ;; Bind text listener to trigger debounced search
-               search-listener
-               (let [on-text (fn []
-                               (when-let [t @!timer] (.cancel ^async/Timer t))
-                               (reset! !timer
-                                       (async/Timer.
-                                        (dart:core/Duration. .milliseconds 350)
-                                        (fn []
-                                          (let [q (str/trim (.-text query-ctrl))]
-                                            (mail/search!
-                                             q
-                                             (:search-filters @store/app-state))))))
-                               nil)]
-                 (.addListener query-ctrl on-text)
-                 {:ctrl query-ctrl :listener on-text})
-               :dispose unlisten-search!]
+               search-trigger-state
+               (let [trig (fn []
+                            (when-let [t @!timer] (.cancel ^async/Timer t))
+                            (reset! !timer
+                                    (async/Timer.
+                                     (dart:core/Duration. .milliseconds 350)
+                                     (fn []
+                                       (let [q (str/trim (.-text query-ctrl))]
+                                         ;; Search with current query AND filters
+                                         (mail/search! q (:search-filters @store/app-state)))))))]
+                 (.addListener query-ctrl trig)
+                 {:ctrl query-ctrl :trig trig :!timer !timer})
+               :dispose dispose-search-trigger!]
                
      :watch [{:keys [search-results searching? search-query search-filters]} store/app-state]
-     
-     (m/Scaffold
-      .backgroundColor (theme/paper)
-      .body
-      ;; Page-level IME overlay (same as compose). Wrapping only the 100px
-      ;; search field clips the candidates popup.
-      (overlay/ime-global-wrapper
-       (m/Row
-        .crossAxisAlignment m.CrossAxisAlignment/stretch
-        .children
-        [;; --- Left panel: Vertical search panel ---
-         (m/Container
-          .width 180.0
-          .decoration (m/BoxDecoration
-                       .color (theme/sky-light)
-                       .border (m/Border
-                                .right (m/BorderSide .color (theme/divider))))
-          .child
-          (m/Column
-           .children
-           [;; Back button
-            (m/Padding
-             .padding (m.EdgeInsets/only .top 16.0 .bottom 8.0)
-             .child
-             (m/IconButton
-              .icon (m/Icon m.Icons/arrow_back_ios_new
-                            .size 20.0
-                            .color (theme/ink-muted))
-              .tooltip "Back"
-              .onPressed (fn []
-                           (when-let [t @!timer] (.cancel ^async/Timer t))
-                           (.clear query-ctrl)
-                           (store/clear-search-filters!)
-                           (store/set-search-results! [])
-                           (store/set-search-query! "")
-                           (.pop navigator)
-                           nil)))
-            
-            ;; Mongol search field based on !ime and custom-tf/text-field
-            (m/Expanded
-             .child
-             (m/Column
-              .crossAxisAlignment m.CrossAxisAlignment/stretch
-              .children
-              [(m/Expanded
-                .child
-                (m/GestureDetector
-                 .behavior m.HitTestBehavior/opaque
-                 .onTap (fn [] (.requestFocus query-focus) nil)
-                 .child
-                 (m/Container
-                  .margin (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 4.0)
-                  .padding (m.EdgeInsets/symmetric .horizontal 4.0 .vertical 8.0)
-                  .alignment m.Alignment/topCenter
-                  .decoration (m/BoxDecoration
-                               .color (theme/surface)
-                               .borderRadius (m/BorderRadius.circular theme/radius-sm)
-                               .border (m/Border.all .color (theme/divider) .width 0.5))
+     (let [filters (or search-filters {})]
+       (m/Scaffold
+        .backgroundColor (theme/paper)
+        .body
+        (overlay/ime-global-wrapper
+         (m/Row
+          .crossAxisAlignment m.CrossAxisAlignment/stretch
+          .children
+          [;; --- Left panel: Dynamic Search & Filter Zone ---
+           (m/Container
+            .decoration (m/BoxDecoration
+                         .color (theme/sky-light)
+                         .border (m/Border .right (m/BorderSide .color (theme/divider))))
+            .child
+            (m/Row
+             .children
+             [;; Column 1: The Input Bar
+              (m/Container
+               .width 80.0
+               .decoration (m/BoxDecoration .border (m/Border .right (m/BorderSide .color (theme/divider) .width 0.5)))
+               .child
+               (m/Column
+                .children
+                [;; Back button
+                 (m/Padding
+                  .padding (m.EdgeInsets/only .top 16.0 .bottom 8.0)
                   .child
-                  (mongol-field !ime query-ctrl query-focus "Search..."))))
-               (m/Padding
-                .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 8.0)
-                .child
-                (m/Wrap
-                 .spacing 8.0
-                 .runSpacing 8.0
-                 .children
-                 (mapv
-                  (fn [{:keys [label key icon]}]
-                    (let [selected? (boolean (get search-filters key false))]
-                      (m/FilterChip
-                       .label (m/Text label
-                                      .style (m/TextStyle .fontSize 12.0))
-                       .selected selected?
-                       .showCheckmark false
-                       .avatar (m/Icon icon
-                                       .size 16.0
-                                       .color (if selected?
-                                                (theme/sky-deep)
-                                                (theme/ink-muted)))
-                       .selectedColor (theme/sky-light)
-                       .backgroundColor m.Colors/transparent
-                       .shape (m/RoundedRectangleBorder
-                               .borderRadius (m/BorderRadius.circular 8.0)
-                               .side (m/BorderSide
-                                      .color (if selected?
-                                               (theme/sky)
-                                               (theme/divider))))
-                       .onSelected
-                       (fn [_]
-                         (store/toggle-search-filter! key)
-                         (mail/search!
-                          (.-text query-ctrl)
-                          (:search-filters @store/app-state))
-                         nil))))
-                  [{:label "Unread"
-                    :key :unread
-                    :icon m.Icons/mark_email_unread_outlined}
-                   {:label "Attachment"
-                    :key :attachment
-                    :icon m.Icons/attach_file}
-                   {:label "Starred"
-                    :key :starred
-                    :icon m.Icons/star_border}
-                   {:label "This Week"
-                    :key :this-week
-                    :icon m.Icons/date_range}])))]))
-            
-            ;; Bottom actions: Loading indicator or clear text button
-            (m/Padding
-             .padding (m.EdgeInsets/all 16.0)
-             .child
-             (if searching?
-               (m/SizedBox .width 24.0 .height 24.0
-                           .child (m/CircularProgressIndicator .strokeWidth 2.0))
-               (m/IconButton
-                .icon (m/Icon m.Icons/close)
-                .tooltip "Clear"
-                .onPressed (fn []
-                             (.clear query-ctrl)
-                             (store/clear-search-filters!)
-                             (store/set-search-query! "")
-                             (store/set-search-results! [])
-                             nil))))]))
-         
-         ;; --- Right panel: Horizontal scrollable search results ---
-         (m/Expanded
-          .child
-          (results-body search-results searching? navigator search-query))])
-       "search-ime")))))
+                  (m/IconButton
+                   .icon (m/Icon m.Icons/arrow_back_ios_new
+                                 .size 20.0
+                                 .color (theme/ink-muted))
+                   .tooltip "Back"
+                   .onPressed (fn []
+                                (when-let [t @!timer] (.cancel ^async/Timer t))
+                                (.clear query-ctrl)
+                                (store/clear-search-filters!)
+                                (store/set-search-results! [])
+                                (store/set-search-query! "")
+                                (.pop navigator)
+                                nil)))
+                 
+                 ;; Mongol search field
+                 (m/Expanded
+                  .child
+                  (m/GestureDetector
+                   .behavior m.HitTestBehavior/opaque
+                   .onTap (fn [] (.requestFocus query-focus) nil)
+                   .child
+                   (m/Container
+                    .margin (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 4.0)
+                    .padding (m.EdgeInsets/symmetric .horizontal 4.0 .vertical 8.0)
+                    .alignment m.Alignment/topCenter
+                    .decoration (m/BoxDecoration
+                                 .color (theme/surface)
+                                 .borderRadius (m/BorderRadius.circular theme/radius-sm)
+                                 .border (m/Border.all .color (theme/divider) .width 0.5))
+                    .child
+                    (mongol-field !ime query-ctrl query-focus "ᠬᠠᠶᠢᠬᠤ...")))) ;; "Search..."
+                 
+                 ;; Bottom actions: Loading indicator or clear text button
+                 (m/Padding
+                  .padding (m.EdgeInsets/all 16.0)
+                  .child
+                  (if searching?
+                    (m/SizedBox .width 24.0 .height 24.0
+                                .child (m/CircularProgressIndicator .strokeWidth 2.0 .color (theme/sky)))
+                    (m/IconButton
+                     .icon (m/Icon m.Icons/close .color (theme/ink-muted))
+                     .tooltip "Clear"
+                     .onPressed (fn []
+                                  (.clear query-ctrl)
+                                  (store/set-search-query! "")
+                                  (store/clear-search-filters!)
+                                  (store/set-search-results! [])
+                                  nil))))]))
+              
+              ;; Column 2: The Vertical Filter Chips
+              (m/Container
+               .padding (m.EdgeInsets/only .right 16.0)
+               .child
+               (m/Row
+                .children
+                [(vertical-filter-chip "ᠤᠩᠰᠢᠭᠠᠳᠦᠢ" m.Icons/mark_email_unread_outlined :unread filters query-ctrl) ;; Unread
+                 (vertical-filter-chip "ᠬᠠᠪᠰᠤᠷᠠᠯᠲᠠ" m.Icons/attach_file :attachment filters query-ctrl) ;; Attachment
+                 (vertical-filter-chip "ᠣᠳᠣ ᠲᠠᠢ" m.Icons/star_border :starred filters query-ctrl) ;; Starred
+                 (vertical-filter-chip "ᠡᠨᠡ ᠳᠣᠯᠣᠭ᠎ᠠ ᠬᠣᠨᠣᠭ" m.Icons/date_range :this-week filters query-ctrl)]))])) ;; This Week
+           
+           ;; --- Right panel: Horizontal scrollable search results ---
+           (m/Expanded
+            .child
+            (results-body search-results searching? navigator search-query filters))])
+         "search-ime"))))))
