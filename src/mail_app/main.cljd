@@ -1,5 +1,6 @@
 (ns mail-app.main
   (:require ["package:flutter/material.dart" :as m]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [cljd.flutter :as f]
             [mail-app.platform :as platform]
             [mail-app.bootstrap.desktop :as desktop-boot]
@@ -11,6 +12,15 @@
 
 (defn main []
   (m/WidgetsFlutterBinding.ensureInitialized)
+
+  ;; Native mobile notification permissions + periodic background sync.
+  (when (platform/mobile?)
+    (try
+      (await (mc.NotificationService/initialize))
+      (await (mc.BackgroundService/initialize))
+      (await (mc.BackgroundService/registerPeriodicSync))
+      (catch Exception e
+        (dart:core/print (str "notification/background init failed: " e)))))
 
   (try
     (if (platform/desktop?)

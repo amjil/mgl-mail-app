@@ -61,6 +61,8 @@ dependencies:
   flutter_slidable: ^4.0.3
   webview_flutter: ^4.14.1
   webview_flutter_wkwebview: ^3.25.1
+  flutter_local_notifications: ^17.0.0
+  workmanager: ^0.5.2
 
 dev_dependencies:
   flutter_test:

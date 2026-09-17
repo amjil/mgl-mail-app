@@ -8,6 +8,7 @@ import 'package:enough_mail/src/private/imap/noop_parser.dart';
 import 'package:path/path.dart' as p;
 
 import '../db/app_database.dart';
+import '../notifications/notification_service.dart';
 import '../search/fts_indexer.dart';
 import '../smtp/mgl_mail_identity.dart';
 import '../threading/message_threading.dart';
@@ -1028,6 +1029,23 @@ class ImapSyncService {
       fromAddr: from?.email,
       toAddr: to,
     );
+
+    if (effectiveRole(folder) == 'inbox' && !mime.isSeen) {
+      final senderDisplay = from?.personalName?.isNotEmpty == true
+          ? from!.personalName!
+          : (from?.email ?? 'Unknown');
+      try {
+        await NotificationService.showNewMail(
+          id,
+          senderDisplay,
+          subject ?? 'No Subject',
+        );
+      } catch (e) {
+        // A notification failure must not roll back the rest of mail ingestion.
+        // ignore: avoid_print
+        print('New mail notification failed: $e');
+      }
+    }
 
     if (hasAtt) {
       await _storeAttachmentMeta(id, mime);
