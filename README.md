@@ -63,6 +63,50 @@ clj -M:cljd flutter -d macos
 clj -M:cljd flutter -d chrome
 ```
 
+## Background sync and local notifications
+
+Background mail sync uses `workmanager`, and new-mail alerts use
+`flutter_local_notifications`. A fresh mobile platform project must keep the
+following native configuration.
+
+### Android
+
+Add the notification permission directly below the opening `<manifest>` tag in
+`android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+```
+
+Android 13 and later also require a runtime permission request. This is already
+handled by `NotificationService.initialize()` when the app starts. The
+`workmanager` dependency merges its required WorkManager services, receivers,
+and permissions into the final manifest automatically; no manual service or
+receiver declaration is needed. The app currently displays notifications
+immediately rather than scheduling exact alarms, so exact-alarm permissions are
+not required.
+
+### iOS
+
+Enable **Signing & Capabilities → Background Modes → Background fetch** for the
+Runner target. Ensure `ios/Runner/Info.plist` contains:
+
+```xml
+<key>UIBackgroundModes</key>
+<array>
+	<string>fetch</string>
+</array>
+```
+
+Local-notification alert, badge, and sound access does not use an
+`Info.plist` usage-description key. iOS asks for these permissions at runtime
+when `NotificationService.initialize()` runs.
+
+Background execution is best-effort on both platforms. Android enforces a
+15-minute minimum periodic interval; this app requests 30 minutes. With the
+currently pinned `workmanager` 0.5.x, iOS controls Background Fetch timing and
+does not guarantee the requested interval.
+
 ## Project layout
 
 ```
