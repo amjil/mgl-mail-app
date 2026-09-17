@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/widgets.dart';
 import 'package:workmanager/workmanager.dart';
 
 import '../engine/mail_engine.dart';
@@ -13,6 +14,7 @@ void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     MailEngine? engine;
     try {
+      WidgetsFlutterBinding.ensureInitialized();
       DartPluginRegistrant.ensureInitialized();
       await NotificationService.initialize(requestPermissions: false);
 
