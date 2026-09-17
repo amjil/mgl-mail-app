@@ -401,27 +401,39 @@
                        (throw e))))))
 
 (defn search!
-  [query]
-  (let [q (str/trim (or query ""))]
-    (store/set-search-query! q)
-    (if (empty? q)
-      (do
-        (store/set-search-results! [])
-        (store/set-searching! false)
-        (async/Future.value []))
-      (when-let [b @!bridge]
-        (store/set-searching! true)
-        (let [aid (:current-account-id @store/app-state)]
-          (-> (.search ^mc/MailBridge b q .accountId aid)
-              (.then (fn [hits]
-                       (store/set-search-results! (vec (or hits [])))
-                       (store/set-searching! false)
-                       hits))
-              (.catchError (fn [e]
-                             (store/set-searching! false)
-                             (store/set-error! (str e))
-                             (store/set-search-results! [])
-                             []))))))))
+  ([query]
+   (search! query {}))
+  ([query filters]
+   (let [q (str/trim (or query ""))
+         filters (or filters {})
+         filtered? (or (:unread filters)
+                       (:attachment filters)
+                       (:starred filters)
+                       (:this-week filters))]
+     (store/set-search-query! q)
+     (if (and (empty? q) (not filtered?))
+       (do
+         (store/set-search-results! [])
+         (store/set-searching! false)
+         (async/Future.value []))
+       (when-let [b @!bridge]
+         (store/set-searching! true)
+         (let [aid (:current-account-id @store/app-state)]
+           (-> (.search ^mc/MailBridge b q
+                        .accountId aid
+                        .unreadOnly (boolean (:unread filters))
+                        .attachmentOnly (boolean (:attachment filters))
+                        .starredOnly (boolean (:starred filters))
+                        .thisWeekOnly (boolean (:this-week filters)))
+               (.then (fn [hits]
+                        (store/set-search-results! (vec (or hits [])))
+                        (store/set-searching! false)
+                        hits))
+               (.catchError (fn [e]
+                              (store/set-searching! false)
+                              (store/set-error! (str e))
+                              (store/set-search-results! [])
+                              [])))))))))
 
 (defn search-contacts!
   "Fuzzy-match historical from/to/cc addresses for compose autocomplete.

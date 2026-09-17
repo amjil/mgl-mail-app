@@ -147,8 +147,19 @@ class MailBridge {
   Future<List<MailSearchResultDto>> search(
     String query, {
     String? accountId,
+    bool unreadOnly = false,
+    bool attachmentOnly = false,
+    bool starredOnly = false,
+    bool thisWeekOnly = false,
   }) =>
-      _engine.search(query, accountId: accountId);
+      _engine.search(
+        query,
+        accountId: accountId,
+        unreadOnly: unreadOnly,
+        attachmentOnly: attachmentOnly,
+        starredOnly: starredOnly,
+        thisWeekOnly: thisWeekOnly,
+      );
 
   Future<List<String>> searchContacts(String query, {String? accountId}) =>
       _engine.searchContacts(query, accountId: accountId);

@@ -12,11 +12,19 @@ class MailSearchService {
     String query, {
     String? accountId,
     int limit = 50,
+    bool unreadOnly = false,
+    bool attachmentOnly = false,
+    bool starredOnly = false,
+    bool thisWeekOnly = false,
   }) async {
     final hits = await _db.mailSearchDao.search(
       query,
       accountId: accountId,
       limit: limit,
+      unreadOnly: unreadOnly,
+      attachmentOnly: attachmentOnly,
+      starredOnly: starredOnly,
+      thisWeekOnly: thisWeekOnly,
     );
     return hits
         .map(

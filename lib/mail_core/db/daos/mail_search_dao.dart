@@ -94,7 +94,14 @@ WHERE m.deleted = 0
     await customStatement(
       'INSERT INTO fts_messages(rowid, subject, body, from_addr, to_addr, account_id) '
       'VALUES (?, ?, ?, ?, ?, ?)',
-      [messageId, subject ?? '', body ?? '', fromAddr ?? '', toAddr ?? '', accountId],
+      [
+        messageId,
+        subject ?? '',
+        body ?? '',
+        fromAddr ?? '',
+        toAddr ?? '',
+        accountId
+      ],
     );
   }
 
@@ -117,13 +124,33 @@ WHERE m.deleted = 0
     String query, {
     String? accountId,
     int limit = 50,
+    bool unreadOnly = false,
+    bool attachmentOnly = false,
+    bool starredOnly = false,
+    bool thisWeekOnly = false,
   }) async {
     final trimmed = query.trim();
-    if (trimmed.isEmpty) return [];
+    if (trimmed.isEmpty &&
+        !unreadOnly &&
+        !attachmentOnly &&
+        !starredOnly &&
+        !thisWeekOnly) {
+      return [];
+    }
 
     await ensureTable();
 
     var rows = <QueryRow>[];
+    var extraWhere = '';
+    if (unreadOnly) extraWhere += ' AND m.is_read = 0';
+    if (attachmentOnly) extraWhere += ' AND m.has_attachment = 1';
+    if (starredOnly) extraWhere += ' AND m.is_starred = 1';
+    if (thisWeekOnly) {
+      // Drift stores DateTime columns as Unix timestamps by default.
+      extraWhere +=
+          " AND m.date >= CAST(strftime('%s', 'now', '-7 days') AS INTEGER)";
+    }
+
     final match = _ftsMatchQuery(trimmed);
     if (match != null) {
       try {
@@ -142,6 +169,7 @@ WHERE m.deleted = 0
           WHERE fts_messages MATCH ?
             AND m.deleted = 0
             ${accountId != null ? 'AND m.account_id = ?' : ''}
+            $extraWhere
           ORDER BY rank
           LIMIT ?
           ''',
@@ -158,7 +186,12 @@ WHERE m.deleted = 0
     }
 
     if (rows.isEmpty) {
-      rows = await _likeFallback(trimmed, accountId: accountId, limit: limit);
+      rows = await _likeFallback(
+        trimmed,
+        accountId: accountId,
+        limit: limit,
+        extraWhere: extraWhere,
+      );
     }
 
     return rows
@@ -167,7 +200,8 @@ WHERE m.deleted = 0
             messageId: _readInt(r, 'message_id'),
             accountId: r.read<String>('account_id'),
             subject: r.read<String>('subject'),
-            snippet: r.readNullable<String>('snip') ?? r.read<String>('subject'),
+            snippet:
+                r.readNullable<String>('snip') ?? r.read<String>('subject'),
           ),
         )
         .toList();
@@ -184,6 +218,7 @@ WHERE m.deleted = 0
     String query, {
     String? accountId,
     required int limit,
+    String extraWhere = '',
   }) {
     final pattern = '%${_escapeLike(query)}%';
     return customSelect(
@@ -199,8 +234,10 @@ WHERE m.deleted = 0
           OR IFNULL(m.from_addr, '') LIKE ? ESCAPE '!'
           OR IFNULL(m.to_addr, '') LIKE ? ESCAPE '!'
           OR IFNULL(m.from_name, '') LIKE ? ESCAPE '!'
+          ${query.isEmpty ? 'OR 1 = 1' : ''}
         )
         ${accountId != null ? 'AND m.account_id = ?' : ''}
+        $extraWhere
       ORDER BY m.date DESC
       LIMIT ?
       ''',
@@ -228,8 +265,6 @@ WHERE m.deleted = 0
     return terms.join(' AND ');
   }
 
-  static String _escapeLike(String s) => s
-      .replaceAll('!', '!!')
-      .replaceAll('%', '!%')
-      .replaceAll('_', '!_');
+  static String _escapeLike(String s) =>
+      s.replaceAll('!', '!!').replaceAll('%', '!%').replaceAll('_', '!_');
 }

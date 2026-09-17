@@ -83,6 +83,10 @@
          :search-query ""
          :search-results []
          :searching? false
+         :search-filters {:unread false
+                          :attachment false
+                          :starred false
+                          :this-week false}
          :loading-more? false
          :mail-has-more? true
          ;; attachment download in progress (id set)
@@ -197,6 +201,16 @@
 
 (defn set-searching! [v]
   (swap! app-state assoc :searching? (boolean v)))
+
+(defn toggle-search-filter! [k]
+  (swap! app-state update-in [:search-filters k] not))
+
+(defn clear-search-filters! []
+  (swap! app-state assoc :search-filters
+         {:unread false
+          :attachment false
+          :starred false
+          :this-week false}))
 
 (defn set-loading-more! [v]
   (swap! app-state assoc :loading-more? (boolean v)))

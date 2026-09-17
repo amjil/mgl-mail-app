@@ -705,11 +705,19 @@ class MailEngine {
   Future<List<MailSearchResultDto>> search(
     String query, {
     String? accountId,
+    bool unreadOnly = false,
+    bool attachmentOnly = false,
+    bool starredOnly = false,
+    bool thisWeekOnly = false,
   }) async {
     final filter = accountId ?? context.currentAccountId;
     final results = await searchService.search(
       query,
       accountId: filter,
+      unreadOnly: unreadOnly,
+      attachmentOnly: attachmentOnly,
+      starredOnly: starredOnly,
+      thisWeekOnly: thisWeekOnly,
     );
     if (filter != null) return results;
     return results.where((r) => _accounts.containsKey(r.accountId)).toList();
