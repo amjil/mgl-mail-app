@@ -19,17 +19,17 @@
   (let [name (or (.-filename att) "file")
         ready? (and (.-isDownloaded att) (seq (.-localPath att)))]
     (m/ListTile
-     .leading (m/Icon m.Icons/attach_file .color theme/ink-muted)
-     .title (m/Text name .style (m/TextStyle .fontSize 14.0 .color theme/ink))
+     .leading (m/Icon m.Icons/attach_file .color (theme/ink-muted))
+     .title (m/Text name .style (m/TextStyle .fontSize 14.0 .color (theme/ink)))
      .subtitle (when (.-size att)
                  (m/Text (str (.-size att) " bytes")
-                         .style (m/TextStyle .fontSize 12.0 .color theme/ink-muted)))
+                         .style (m/TextStyle .fontSize 12.0 .color (theme/ink-muted))))
      .trailing
      (cond
        downloading?
        (m/SizedBox
         .width 20.0 .height 20.0
-        .child (m/CircularProgressIndicator. .strokeWidth 2.0 .color theme/sky))
+        .child (m/CircularProgressIndicator. .strokeWidth 2.0 .color (theme/sky)))
 
        ready?
        (m/IconButton
@@ -58,7 +58,7 @@
       (m/showModalBottomSheet
        .context ctx
        .showDragHandle true
-       .backgroundColor theme/surface
+       .backgroundColor (theme/surface)
        .builder
        (fn [sheet-ctx]
          (m/SafeArea
@@ -73,7 +73,7 @@
                    (m/Text "Attachments"
                            .style (m/TextStyle .fontWeight m/FontWeight.w600
                                                .fontSize 16.0
-                                               .color theme/ink)))]
+                                               .color (theme/ink))))]
                  (mapv (fn [^mc/MailAttachmentDto a]
                          (attachment-tile sheet-ctx a
                                           (contains? downloading-ids (.-id a))))

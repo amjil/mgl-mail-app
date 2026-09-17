@@ -93,8 +93,8 @@
                    .padding (m.EdgeInsets/all 8.0)
                    .alignment m.Alignment/topLeft
                    .decoration (m/BoxDecoration
-                                .color theme/paper
-                                .border (m/Border.all .color theme/divider)
+                                .color (theme/paper)
+                                .border (m/Border.all .color (theme/divider))
                                 .borderRadius (m/BorderRadius.circular 8.0))
                    .child
                    (custom-tf/text-field
@@ -103,7 +103,7 @@
                      :focus-node focus-node
                      :hint "Folder name"
                      :max-lines nil
-                     :style (m/TextStyle .fontSize 18.0 .fontFamily font-family .color theme/ink)
+                     :style (m/TextStyle .fontSize 18.0 .fontFamily font-family .color (theme/ink))
                      :decoration (m/InputDecoration .border m/InputBorder.none)})))
            :actions
            [(mgl/MongolTextButton
@@ -162,7 +162,7 @@
                                          nil)))
                       nil)
          .child (mgl/MongolText "Delete"
-                               .style (m/TextStyle .color theme/danger)))]}))))
+                               .style (m/TextStyle .color (theme/danger))))]}))))
 
 
 ;; ==========================================
@@ -177,7 +177,7 @@
    (m/Container
     .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 2.0)
     .decoration (m/BoxDecoration
-                 .color theme/sky
+                 .color (theme/sky)
                  .borderRadius (m.BorderRadius/circular 10.0))
     .child
     (m/Text (if (> badge-count 99) "99+" (str badge-count))
@@ -206,7 +206,7 @@
                .selected selected?
                .leading (m/Icon (folder-icon key)
                                 .size 20.0
-                                .color (if selected? theme/sky theme/ink-muted))
+                                .color (if selected? (theme/sky) (theme/ink-muted)))
                .title (m/Padding
                        .padding (m.EdgeInsets/only .top 8.0)
                        .child
@@ -216,7 +216,7 @@
                                 .fontSize 18.0
                                 .fontFamily font-family
                                 .height 1.4
-                                .color (if selected? theme/ink theme/ink-muted)
+                                .color (if selected? (theme/ink) (theme/ink-muted))
                                 .fontWeight (if selected?
                                               m/FontWeight.w600
                                               m/FontWeight.normal))))
@@ -237,13 +237,13 @@
                       (menu/custom-popup-menu
                        {:offset-y 4.0
                         :menu-width 160.0
-                        :bg-color theme/surface
+                        :bg-color (theme/surface)
                         :trigger-builder
                         (fn [show-menu]
                           (m/IconButton
                            .icon (m/Icon m.Icons/more_vert
                                          .size 16.0
-                                         .color theme/ink-muted)
+                                         .color (theme/ink-muted))
                            .iconSize 16.0
                            .tooltip "Folder Options"
                            .padding (m.EdgeInsets/all 2.0)
@@ -258,7 +258,7 @@
                                            nil)}
                                 {:type :item
                                  :title "Delete"
-                                 :title-style (m/TextStyle .color theme/danger)
+                                 :title-style (m/TextStyle .color (theme/danger))
                                  :on-tap (fn []
                                            (confirm-delete-folder! ctx folder-path key label)
                                            nil)}]}))))]
@@ -273,13 +273,13 @@
        .margin (m.EdgeInsets/symmetric .horizontal 4.0)
        .decoration (m/BoxDecoration
                     .color (cond
-                             selected? theme/surface
-                             hover? (.withOpacity theme/surface 0.7)
+                             selected? (theme/surface)
+                             hover? (.withOpacity (theme/surface) 0.7)
                              :else m.Colors/transparent)
                     .borderRadius (m/BorderRadius.circular theme/radius-md)
                     .border (when (or selected? hover?)
                               (m/Border.all
-                               .color (if selected? theme/sky-soft theme/divider)
+                               .color (if selected? (theme/sky-soft) (theme/divider))
                                .width (if selected? 1.5 0.5)))
                     .boxShadow (when selected? (theme/hair-shadow)))
        .child
@@ -297,7 +297,7 @@
             (m/Container
              .width 3.0
              .decoration (m/BoxDecoration
-                          .color theme/sky
+                          .color (theme/sky)
                           .borderRadius (m/BorderRadius.circular 2.0))))))))))))
 
 (defn- mailbox-dedupe-key
@@ -369,7 +369,7 @@
       .crossAxisAlignment m.CrossAxisAlignment/stretch
       .children
       [(accounts/account-chip)
-       (m/Divider .height 1.0 .thickness 1.0 .color theme/divider)
+       (m/Divider .height 1.0 .thickness 1.0 .color (theme/divider))
        (m/Expanded
         .child
         (m/ListView

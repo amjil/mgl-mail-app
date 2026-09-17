@@ -1,8 +1,10 @@
 (ns mail-app.bootstrap.desktop
   "Desktop-only startup: FST / next-word for shared desktop IME."
-  (:require [mail-app.bootstrap.ime :as ime]))
+  (:require [mail-app.bootstrap.ime :as ime]
+            [shared-ime.overlay-view :as overlay]))
 
 (defn init!
   "Load IME dictionaries used by mgl-block-editor desktop overlay."
   []
+  (overlay/set-overlay-style! {:candidate-font-size 18.0})
   (ime/init! "desktop"))

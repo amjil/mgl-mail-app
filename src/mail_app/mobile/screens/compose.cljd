@@ -73,12 +73,12 @@
 
          (m/Scaffold
           .key scaffold-key
-          .backgroundColor theme/paper
+          .backgroundColor (theme/paper)
           .resizeToAvoidBottomInset false
           .endDrawer
           (when has-quote?
             (m/Drawer
-             .backgroundColor theme/paper
+             .backgroundColor (theme/paper)
              .child
              (m/SafeArea
               .child
@@ -86,7 +86,7 @@
           .appBar (m/AppBar
                    .title (m/Text "Compose" .style (m/TextStyle .fontFamily font-family
                                                                .fontWeight m/FontWeight.w600
-                                                               .color theme/ink))
+                                                               .color (theme/ink)))
                    .actions
                    (cond-> []
                      has-quote?
@@ -135,11 +135,11 @@
                             .padding (m.EdgeInsets/all 16.0)
                             .child
                             (m/SizedBox .width 20.0 .height 20.0
-                                        .child (m/CircularProgressIndicator .strokeWidth 2.0 .color theme/sky))))
+                                        .child (m/CircularProgressIndicator .strokeWidth 2.0 .color (theme/sky)))))
 
                      (not sending?)
                      (conj (m/IconButton
-                            .icon (m/Icon m.Icons/send .color theme/sky)
+                            .icon (m/Icon m.Icons/send .color (theme/sky))
                             .tooltip "Send"
                             .onPressed (fn []
                                          (topbar/send-pressed! ctx navigator !doc-state !quote-state
@@ -165,10 +165,10 @@
                  .children
                  (mapv (fn [path]
                          (m/InputChip
-                          .backgroundColor theme/sky-light
-                          .side (m/BorderSide .color theme/sky-soft)
+                          .backgroundColor (theme/sky-light)
+                          .side (m/BorderSide .color (theme/sky-soft))
                           .label (m/Text (compose/basename path)
-                                         .style (m/TextStyle .fontSize 12.0 .color theme/ink))
+                                         .style (m/TextStyle .fontSize 12.0 .color (theme/ink)))
                           .onDeleted (fn [] (swap! !attachment-paths #(vec (remove #{path} %))) nil)))
                        attachment-paths))))
 
@@ -192,14 +192,14 @@
                        :subject-ctrl subject-ctrl :subject-focus subject-focus
                        :show-cc? show-cc?
                        :show-bcc? show-bcc?})
-                     (m/VerticalDivider .width 1.0 .thickness 1.0 .color theme/divider)
+                     (m/VerticalDivider .width 1.0 .thickness 1.0 .color (theme/divider))
                      (m/Container
                       .width screen-w
                       .child
                       (editor/mongol-block-editor
                        !doc-state
                        :editor-config editor-config
-                       :background-color theme/surface
+                       :background-color (theme/surface)
                        :show-block-handles? false
                        :wrap-ime? false
                        :padding (m.EdgeInsets/all 16.0)))]))

@@ -59,7 +59,7 @@
          .width (if active? 4.0 0.0)
          .height (if active? 60.0 0.0)
          .decoration (m/BoxDecoration
-                      .color theme/sky
+                      .color (theme/sky)
                       .borderRadius (m/BorderRadius.circular 2.0))))))))))
 
 (defn- folder-mail-split []
@@ -79,13 +79,13 @@
            .width folder-w
            .child
            (m/ColoredBox
-            .color theme/paper-deep
+            .color (theme/paper-deep)
             .child (mailbox/mailbox-list)))
           (folder-split-handle max-folder)
           (m/Expanded
            .child
            (m/ColoredBox
-            .color theme/paper
+            .color (theme/paper)
             .child (maillist/list-view)))]))))))
 
 (defn screen []
@@ -153,7 +153,7 @@
          (shortcuts/with-shortcuts
           bindings
           (m/Scaffold
-           .backgroundColor theme/paper
+           .backgroundColor (theme/paper)
            .body
            (m/SafeArea
             .child
@@ -200,6 +200,6 @@
                .child
                (if reading-mail?
                  (m/ColoredBox
-                  .color theme/surface
+                  .color (theme/surface)
                   .child (reader-pane/pane))
                  (folder-mail-split)))])))))))))

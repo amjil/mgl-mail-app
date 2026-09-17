@@ -33,12 +33,12 @@
    (fn [b-type]
      (case b-type
        :heading-1 (m/TextStyle .fontSize 24.0 .fontWeight m/FontWeight.bold
-                               .color (or on-surface theme/ink) .fontFamily font-family)
+                               .color (or on-surface (theme/ink)) .fontFamily font-family)
        :heading-2 (m/TextStyle .fontSize 20.0 .fontWeight m/FontWeight.bold
-                               .color (or on-surface theme/ink) .fontFamily font-family)
+                               .color (or on-surface (theme/ink)) .fontFamily font-family)
        :heading-3 (m/TextStyle .fontSize 18.0 .fontWeight m/FontWeight.w600
-                               .color (or on-surface theme/ink) .fontFamily font-family)
-       (m/TextStyle .fontSize 16.0 .color (or on-surface theme/ink)
+                               .color (or on-surface (theme/ink)) .fontFamily font-family)
+       (m/TextStyle .fontSize 16.0 .color (or on-surface (theme/ink))
                     .fontFamily font-family)))
    :block-plugins reader-plugins})
 

@@ -135,7 +135,7 @@
               (m/TextButton
                .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) true) nil)
                .child (mgl/MongolText "Delete"
-                                     .style (m/TextStyle .color theme/danger)))]})))
+                                     .style (m/TextStyle .color (theme/danger))))]})))
         (.then (fn [ok?]
                  (when ok?
                    (-> (mail/delete-message! mid)
@@ -283,7 +283,7 @@
          nil)}
 
       (m/Scaffold
-       .backgroundColor theme/paper
+       .backgroundColor (theme/paper)
        .body
        (m/SafeArea
         .child

@@ -58,7 +58,7 @@
    .width 24.0
    .height 24.0
    .child (m/CircularProgressIndicator.
-           .color theme/sky
+           .color (theme/sky)
            .strokeWidth 2.0)))
 
 (defn screen []
@@ -86,7 +86,7 @@
              {:keys [accounts]} store/app-state]
 
      (m/Scaffold
-      .backgroundColor theme/paper
+      .backgroundColor (theme/paper)
       .resizeToAvoidBottomInset false
       .body
       (m/SafeArea
@@ -112,7 +112,7 @@
                    .child
                    (m/IconButton
                     .icon (m/Icon m.Icons/arrow_back_ios_new
-                                  .color theme/ink-muted)
+                                  .color (theme/ink-muted))
                     .onPressed (fn []
                                  (when (.canPop navigator)
                                    (.pop navigator))
@@ -125,25 +125,25 @@
                    .width 88.0
                    .height 88.0
                    .decoration (m/BoxDecoration
-                                .color theme/sky-light
+                                .color (theme/sky-light)
                                 .shape m.BoxShape/circle)
                    .child (m/Center
                            .child (m/Icon m.Icons/mail_outline
                                           .size 40.0
-                                          .color theme/sky)))
+                                          .color (theme/sky))))
                   (m/SizedBox .height 24.0)
                   (mgl/MongolText "Тавтай морилно уу"
                                   .style (m/TextStyle .fontFamily font-family
                                                       .fontSize 24.0
                                                       .fontWeight m.FontWeight/bold
-                                                      .color theme/ink))
+                                                      .color (theme/ink)))
                   (m/SizedBox .height 8.0)
                   (mgl/MongolText "И-мэйл хаягаа\nхолбоно уу"
                                   .style (m/TextStyle .fontFamily font-family
                                                       .fontSize 16.0
-                                                      .color theme/ink-muted))])
+                                                      .color (theme/ink-muted)))])
 
-                (m/VerticalDivider .width 40.0 .thickness 1.0 .color theme/divider)
+                (m/VerticalDivider .width 40.0 .thickness 1.0 .color (theme/divider))
 
                 (m/Container
                  .width 70.0
@@ -151,8 +151,8 @@
                  .child
                  (m/OutlinedButton
                   .style (m/OutlinedButton.styleFrom
-                          .foregroundColor theme/ink
-                          .side (m/BorderSide .color theme/sky-soft)
+                          .foregroundColor (theme/ink)
+                          .side (m/BorderSide .color (theme/sky-soft))
                           .elevation 0.0
                           .shape (m/RoundedRectangleBorder
                                   .borderRadius (m.BorderRadius/circular theme/radius-md)))
@@ -167,22 +167,22 @@
                      .style (m/TextStyle .fontFamily font-family
                                          .fontSize 18.0
                                          .fontWeight m.FontWeight/bold
-                                         .color theme/sky)))))
+                                         .color (theme/sky))))))
 
                 (m/SizedBox .width 12.0)
                 (m/Column
                  .mainAxisAlignment m.MainAxisAlignment/center
                  .children
                  [(m/Expanded
-                   .child (m/VerticalDivider .width 1.0 .color theme/divider))
+                   .child (m/VerticalDivider .width 1.0 .color (theme/divider)))
                   (m/Padding
                    .padding (m.EdgeInsets/symmetric .vertical 8.0)
                    .child (mgl/MongolText "эсвэл"
                                           .style (m/TextStyle .fontFamily font-family
                                                               .fontSize 13.0
-                                                              .color theme/ink-muted)))
+                                                              .color (theme/ink-muted))))
                   (m/Expanded
-                   .child (m/VerticalDivider .width 1.0 .color theme/divider))])
+                   .child (m/VerticalDivider .width 1.0 .color (theme/divider)))])
                 (m/SizedBox .width 12.0)
 
                (m/Container
@@ -191,10 +191,10 @@
                 (mgl/MongolTextField
                  .controller email-ctrl
                  .focusNode email-focus
-                 .style (m/TextStyle .fontFamily font-family .color theme/ink)
+                 .style (m/TextStyle .fontFamily font-family .color (theme/ink))
                  .decoration (m/InputDecoration
                               .labelText "И-мэйл (Email)"
-                              .prefixIcon (m/Icon m.Icons/email_outlined .color theme/ink-muted)
+                              .prefixIcon (m/Icon m.Icons/email_outlined .color (theme/ink-muted))
                               .border (m/OutlineInputBorder .borderRadius (m.BorderRadius/circular theme/radius-md)))))
 
                (m/SizedBox .width 16.0)
@@ -206,10 +206,10 @@
                  .controller pwd-ctrl
                  .focusNode pwd-focus
                  .obscureText true
-                 .style (m/TextStyle .fontFamily font-family .color theme/ink)
+                 .style (m/TextStyle .fontFamily font-family .color (theme/ink))
                  .decoration (m/InputDecoration
                               .labelText "Нууц үг (Password)"
-                              .prefixIcon (m/Icon m.Icons/lock_outline .color theme/ink-muted)
+                              .prefixIcon (m/Icon m.Icons/lock_outline .color (theme/ink-muted))
                               .border (m/OutlineInputBorder .borderRadius (m.BorderRadius/circular theme/radius-md)))))
 
                (m/SizedBox .width 16.0)
@@ -221,7 +221,7 @@
                  .onPressed #(swap! !show-advanced? not)
                  .child (mgl/MongolText (if show-adv? "Тохиргоог нуух" "Дэлгэрэнгүй (IMAP)")
                                         .style (m/TextStyle .fontFamily font-family
-                                                            .color theme/sky))))
+                                                            .color (theme/sky)))))
 
                ;; Core fix: use if + SizedBox.shrink so we never return nil (which would crash)
                (if show-adv?
@@ -235,10 +235,10 @@
                     (mgl/MongolTextField
                      .controller imap-ctrl
                      .focusNode imap-focus
-                     .style (m/TextStyle .fontFamily font-family .color theme/ink)
+                     .style (m/TextStyle .fontFamily font-family .color (theme/ink))
                      .decoration (m/InputDecoration
                                   .labelText "IMAP Server"
-                                  .prefixIcon (m/Icon m.Icons/download_rounded .color theme/ink-muted)
+                                  .prefixIcon (m/Icon m.Icons/download_rounded .color (theme/ink-muted))
                                   .border (m/OutlineInputBorder .borderRadius (m.BorderRadius/circular theme/radius-md)))))
                    (m/SizedBox .width 16.0)
                    (m/Container
@@ -247,10 +247,10 @@
                     (mgl/MongolTextField
                      .controller smtp-ctrl
                      .focusNode smtp-focus
-                     .style (m/TextStyle .fontFamily font-family .color theme/ink)
+                     .style (m/TextStyle .fontFamily font-family .color (theme/ink))
                      .decoration (m/InputDecoration
                                   .labelText "SMTP Server"
-                                  .prefixIcon (m/Icon m.Icons/upload_rounded .color theme/ink-muted)
+                                  .prefixIcon (m/Icon m.Icons/upload_rounded .color (theme/ink-muted))
                                   .border (m/OutlineInputBorder .borderRadius (m.BorderRadius/circular theme/radius-md)))))])
                  (m/SizedBox.shrink)) ;; If advanced settings are hidden, render an invisible empty widget — never return nil
 
@@ -262,7 +262,7 @@
                 .child
                 (m/ElevatedButton
                  .style (m/ElevatedButton.styleFrom
-                         .backgroundColor theme/sky
+                         .backgroundColor (theme/sky)
                          .foregroundColor m.Colors/white
                          .elevation 0.0
                          .shape (m/RoundedRectangleBorder .borderRadius (m.BorderRadius/circular theme/radius-md)))

@@ -76,7 +76,7 @@
            nil)}
 
         (m/Scaffold
-         .backgroundColor theme/paper
+         .backgroundColor (theme/paper)
          .body
          (overlay/ime-global-wrapper
           (m/SafeArea
@@ -103,9 +103,9 @@
                (cond->
                  [(m/DecoratedBox
                    .decoration (m/BoxDecoration
-                                .color theme/paper
+                                .color (theme/paper)
                                 .border (m/Border
-                                         .right (m/BorderSide .color theme/divider)))
+                                         .right (m/BorderSide .color (theme/divider))))
                    .child
                    (fields/header-row
                     {:!ime !doc-state
@@ -121,7 +121,7 @@
                    (editor/mongol-block-editor
                     !doc-state
                     :editor-config editor-config
-                    :background-color theme/surface
+                    :background-color (theme/surface)
                     :show-block-handles? false
                     :wrap-ime? false
                     :padding (m.EdgeInsets/all 24.0)))]

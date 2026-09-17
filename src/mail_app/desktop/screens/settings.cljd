@@ -14,7 +14,7 @@
   (f/widget
    :context ctx
    :get [m/Navigator]
-   :watch [{:keys [current-account-id accounts]} store/app-state]
+   :watch [{:keys [current-account-id accounts dark-mode?]} store/app-state]
    (let [current (some #(when (= (.-id ^mc/MailAccountDto %) current-account-id) %)
                        accounts)
          current-email (when current (.-email ^mc/MailAccountDto current))
@@ -76,17 +76,17 @@
                                                                                  nil)))
                                                               nil)
                                                  .child (m/Text "Remove"
-                                                               .style (m/TextStyle .color theme/danger)))]))))
+                                                               .style (m/TextStyle .color (theme/danger))))]))))
                                 nil)}]
      (m/Scaffold
-      .backgroundColor theme/paper
+      .backgroundColor (theme/paper)
       .appBar
       (m/AppBar
        .elevation 0.0
-       .backgroundColor theme/surface
-       .foregroundColor theme/ink
+       .backgroundColor (theme/surface)
+       .foregroundColor (theme/ink)
        .leading (m/IconButton
-                 .icon (m/Icon m.Icons/arrow_back_ios_new .color theme/ink-muted)
+                 .icon (m/Icon m.Icons/arrow_back_ios_new .color (theme/ink-muted))
                  .tooltip "Back"
                  .onPressed (fn []
                               (when (.canPop navigator)
@@ -95,7 +95,7 @@
        .title (m/Text "Settings"
                       .style (m/TextStyle .fontFamily font-family
                                           .fontWeight m.FontWeight/w600
-                                          .color theme/ink)))
+                                          .color (theme/ink))))
       .body
       (m/SafeArea
        .child
@@ -138,6 +138,13 @@
               :subtitle "When new mail arrives"
               :value notify?
               :on-changed (fn [v] (reset! !notify? v))}]))
+          (cs/settings-section
+           "Appearance"
+           [{:leading m.Icons/dark_mode_outlined
+             :title "Dark Mode"
+             :subtitle "Toggle dark appearance"
+             :value dark-mode?
+             :on-changed (fn [_] (store/toggle-dark-mode!))}])
           (cs/settings-section
            "Other"
            [{:leading m.Icons/cleaning_services_rounded

@@ -35,8 +35,8 @@
                    .padding (m.EdgeInsets/all 8.0)
                    .alignment m.Alignment/topLeft
                    .decoration (m/BoxDecoration 
-                                .color (-> theme/ink (.withOpacity 0.05))
-                                .border (m/Border.all .color theme/divider)
+                                .color (-> (theme/ink) (.withOpacity 0.05))
+                                .border (m/Border.all .color (theme/divider))
                                 .borderRadius (m/BorderRadius.circular 8.0))
                    .child
                    ;; Use the exact same custom-tf/text-field as search.cljd
@@ -46,7 +46,7 @@
                      :focus-node focus-node
                      :hint "Folder name"
                      :max-lines nil
-                     :style (m/TextStyle .fontSize 18.0 .fontFamily font-family .color theme/ink)
+                     :style (m/TextStyle .fontSize 18.0 .fontFamily font-family .color (theme/ink))
                      :decoration (m/InputDecoration .border m/InputBorder.none)})))
            :actions
            [(mgl/MongolTextButton
@@ -78,8 +78,8 @@
    .padding (m.EdgeInsets/symmetric .horizontal 16.0)
    .alignment m.Alignment/center
    .decoration (m/BoxDecoration
-                .color theme/surface
-                .border (m/Border .bottom (m/BorderSide .color theme/divider .width 0.5)))
+                .color (theme/surface)
+                .border (m/Border .bottom (m/BorderSide .color (theme/divider) .width 0.5)))
    .child child))
 
 (defn- icon-btn
@@ -88,20 +88,20 @@
    .padding (m.EdgeInsets/all 10.0)
    .constraints (m/BoxConstraints. .minWidth 44.0 .minHeight 44.0)
    .style (m/IconButton.styleFrom
-           .hoverColor theme/sky-light
-           .highlightColor theme/sky-soft
+           .hoverColor (theme/sky-light)
+           .highlightColor (theme/sky-soft)
            .shape (m/RoundedRectangleBorder
                    .borderRadius (m/BorderRadius.circular theme/radius-md)))
    .tooltip tooltip
    .onPressed on-pressed
-   .icon (m/Icon icon .size 20.0 .color (or color theme/ink-muted))))
+   .icon (m/Icon icon .size 20.0 .color (or color (theme/ink-muted)))))
 
 (defn- v-rule []
   (m/Container
    .width 1.0
    .height 22.0
    .margin (m.EdgeInsets/symmetric .horizontal 6.0)
-   .color theme/divider))
+   .color (theme/divider)))
 
 (defn- compose-btn [on-pressed]
   (m/Tooltip
@@ -110,13 +110,13 @@
    (m/FilledButton
     .onPressed on-pressed
     .style (m/FilledButton.styleFrom
-            .backgroundColor theme/sky
+            .backgroundColor (theme/sky)
             .foregroundColor m.Colors/white
             .minimumSize (m/Size. 40.0 40.0)
             .padding (m.EdgeInsets/all 8.0)
             .shape (m/CircleBorder.)
             .elevation 0.0
-            .shadowColor (.withOpacity theme/sky 0.4))
+            .shadowColor (.withOpacity (theme/sky) 0.4))
     .child (m/Icon m.Icons/edit_outlined .size 18.0))))
 
 (defn- chrome-actions [navigator ctx syncing?]
@@ -132,8 +132,8 @@
      .padding (m.EdgeInsets/all 10.0)
      .constraints (m/BoxConstraints. .minWidth 44.0 .minHeight 44.0)
      .style (m/IconButton.styleFrom
-             .hoverColor theme/sky-light
-             .highlightColor theme/sky-soft
+             .hoverColor (theme/sky-light)
+             .highlightColor (theme/sky-soft)
              .shape (m/RoundedRectangleBorder
                      .borderRadius (m/BorderRadius.circular theme/radius-md)))
      .tooltip "Sync"
@@ -141,8 +141,8 @@
      .icon (if syncing?
              (m/SizedBox
               .width 20.0 .height 20.0
-              .child (m/CircularProgressIndicator. .strokeWidth 2.0 .color theme/sky))
-             (m/Icon m.Icons/sync .size 20.0 .color theme/ink-muted)))
+              .child (m/CircularProgressIndicator. .strokeWidth 2.0 .color (theme/sky)))
+             (m/Icon m.Icons/sync .size 20.0 .color (theme/ink-muted))))
     (icon-btn "Settings"
               (fn [] (.pushNamed navigator "/settings") nil)
               m.Icons/settings_outlined)
@@ -174,7 +174,7 @@
      on-star
      (conj (icon-btn (if starred? "Unstar" "Star") on-star
                      (if starred? m.Icons/star m.Icons/star_border)
-                     :color (when starred? theme/gold)))
+                     :color (when starred? (theme/gold))))
      on-toggle-read
      (conj (icon-btn (if read? "Mark unread" "Mark read") on-toggle-read
                      (if read?
@@ -191,7 +191,7 @@
      (conj (icon-btn "Not Junk" on-not-junk m.Icons/report_off_outlined))
      on-delete
      (conj (icon-btn "Delete" on-delete m.Icons/delete_outline
-                     :color theme/danger)))))
+                     :color (theme/danger))))))
 
 (defn shell
   "Unified home chrome: browse / reading / bulk-select."
@@ -222,15 +222,15 @@
            .children
            [(m/Container
              .padding (m.EdgeInsets/all 8.0)
-             .decoration (m/BoxDecoration .color theme/sky-light .shape m.BoxShape/circle)
-             .child (m/Icon m.Icons/mail_outline .color theme/sky .size 20.0))
+             .decoration (m/BoxDecoration .color (theme/sky-light) .shape m.BoxShape/circle)
+             .child (m/Icon m.Icons/mail_outline .color (theme/sky) .size 20.0))
             (m/SizedBox .width 12.0)
             (m/Text "MGL Mail"
                     .style (m/TextStyle .fontWeight m/FontWeight.w800
                                         .fontSize 18.0
                                         .letterSpacing 0.5
                                         .fontFamily "Roboto"
-                                        .color theme/ink))])
+                                        .color (theme/ink)))])
           (chrome-actions navigator ctx syncing?)]))))))
 
 (defn mail-box
@@ -312,9 +312,9 @@
       .padding (m.EdgeInsets/symmetric .horizontal 10.0)
       .alignment m.Alignment/center
       .decoration (m/BoxDecoration
-                   .color theme/sky-light
+                   .color (theme/sky-light)
                    .border (m/Border
-                            .bottom (m/BorderSide .color theme/sky-soft .width 0.5))
+                            .bottom (m/BorderSide .color (theme/sky-soft) .width 0.5))
                    .boxShadow (theme/hair-shadow))
       .child
       (m/Row
@@ -325,19 +325,19 @@
          [(icon-btn "Cancel selection"
                     (fn [] (store/clear-message-selection!) nil)
                     m.Icons/close
-                    :color theme/sky)
+                    :color (theme/sky))
           (m/SizedBox .width 6.0)
           (m/Container
            .padding (m.EdgeInsets/symmetric .horizontal 12.0 .vertical 5.0)
            .decoration (m/BoxDecoration
-                        .color theme/surface
+                        .color (theme/surface)
                         .borderRadius (m/BorderRadius.circular 14.0)
-                        .border (m/Border.all .color theme/sky-soft))
+                        .border (m/Border.all .color (theme/sky-soft)))
            .child
            (m/Text (str cnt " selected")
                    .style (m/TextStyle .fontWeight m/FontWeight.w600
                                        .fontSize 13.0
-                                       .color theme/sky-deep)))])
+                                       .color (theme/sky-deep))))])
         (m/Row
          .children
          [(icon-btn "Mark Read" (fn [] (mail/bulk-set-read! true) nil)
@@ -350,4 +350,4 @@
                     m.Icons/report_outlined)
           (icon-btn "Delete" (fn [] (mail/bulk-delete!) nil)
                     m.Icons/delete_outline
-                    :color theme/danger)])])))))
+                    :color (theme/danger))])])))))

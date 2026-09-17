@@ -14,7 +14,7 @@
   (f/widget
    :context ctx
    :get [m/Navigator]
-   :watch [{:keys [current-account-id accounts]} store/app-state]
+   :watch [{:keys [current-account-id accounts dark-mode?]} store/app-state]
    (let [current-sig (or (store/get-signature current-account-id) "")
          !auto-sync? (atom true)
          !notify? (atom true)
@@ -53,17 +53,17 @@
                                    .context ctx
                                    .builder (fn [^m/BuildContext dialog-ctx]
                                               (m/AlertDialog
-                                               .backgroundColor theme/surface
+                                               .backgroundColor (theme/surface)
                                                .title (m/Text "Данс устгах"
                                                               .style (m/TextStyle .fontFamily font-family
-                                                                                  .color theme/ink))
+                                                                                  .color (theme/ink)))
                                                .content (m/Text "Энэ дансыг устгахдаа итгэлтэй байна уу?"
-                                                                .style (m/TextStyle .color theme/ink-muted))
+                                                                .style (m/TextStyle .color (theme/ink-muted)))
                                                .actions
                                                [(m/TextButton
                                                  .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx)) nil)
                                                  .child (m/Text "Цуцлах"
-                                                               .style (m/TextStyle .color theme/ink-muted)))
+                                                               .style (m/TextStyle .color (theme/ink-muted))))
                                                 (m/TextButton
                                                  .onPressed (fn []
                                                               (.pop (m/Navigator.of dialog-ctx))
@@ -74,14 +74,14 @@
                                                                                  nil)))
                                                               nil)
                                                  .child (m/Text "Устгах"
-                                                               .style (m/TextStyle .color theme/danger)))]))))
+                                                               .style (m/TextStyle .color (theme/danger))))]))))
                                 nil)}]
      (m/Scaffold
-      .backgroundColor theme/paper
+      .backgroundColor (theme/paper)
       .appBar (m/AppBar
                .title (m/Text "Settings" .style (m/TextStyle .fontFamily font-family
                                                             .fontWeight m/FontWeight.w600
-                                                            .color theme/ink)))
+                                                            .color (theme/ink))))
       .body
       (m/SafeArea
        .child
@@ -119,6 +119,13 @@
               :subtitle "When new mail arrives"
               :value notify?
               :on-changed (fn [v] (reset! !notify? v))}]))
+          (cs/settings-section
+           "Appearance"
+           [{:leading m.Icons/dark_mode_outlined
+             :title "Dark Mode"
+             :subtitle "Toggle dark appearance"
+             :value dark-mode?
+             :on-changed (fn [_] (store/toggle-dark-mode!))}])
           (cs/settings-section
            "Other"
            [{:leading m.Icons/cleaning_services_rounded

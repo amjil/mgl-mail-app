@@ -21,6 +21,7 @@
   (life/wrap
    (f/widget
     :managed [nav-key (#/(m/GlobalKey m/NavigatorState))]
+    :watch [{:keys [dark-mode?]} store/app-state]
     (shortcuts/with-shortcuts
      {;; Global compose: Cmd/Ctrl + N
       (shortcuts/cmd-key s/LogicalKeyboardKey.keyN)
@@ -47,6 +48,7 @@
       .navigatorKey nav-key
       .title "MGL Mail"
       .debugShowCheckedModeBanner false
+      .themeMode (if dark-mode? m.ThemeMode/dark m.ThemeMode/light)
       .theme (theme/sky-theme)
       .builder
       (fn [_ctx child]

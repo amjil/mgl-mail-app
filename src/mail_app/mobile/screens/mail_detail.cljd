@@ -67,17 +67,17 @@
           (m/Container
            .padding (m.EdgeInsets/all 24.0)
            .decoration (m/BoxDecoration
-                        .color theme/surface
+                        .color (theme/surface)
                         .borderRadius (m.BorderRadius/circular theme/radius-lg)
                         .boxShadow (theme/card-shadow))
            .child (m/Column
                    .mainAxisSize m.MainAxisSize/min
-                   .children [(m/CircularProgressIndicator. .color theme/sky)
+                   .children [(m/CircularProgressIndicator. .color (theme/sky))
                               (m/SizedBox .height 16.0)
                               (mgl/MongolText "Зөөж байна..."
                                               .style (m/TextStyle .fontFamily font-family
                                                                   .fontSize 16.0
-                                                                  .color theme/ink))])))))))
+                                                                  .color (theme/ink)))])))))))
     (async/Future.delayed
      (dart:core/Duration. .milliseconds 500)
      (fn []
@@ -169,7 +169,7 @@
               (m/TextButton
                .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx) true) nil)
                .child (mgl/MongolText "Delete"
-                                     .style (m/TextStyle .color theme/danger)))]})))
+                                     .style (m/TextStyle .color (theme/danger))))]})))
         (.then (fn [ok?]
                  (when ok?
                    (async/Future.delayed
@@ -246,11 +246,11 @@
          loading-body? (if msg (not (.-hasBody msg)) true)
          atts (when message-detail
                 (vec (or (.-attachments ^mc/MailMessageWithBody message-detail) [])))
-         meta-colors {:on-surface theme/ink
-                      :on-surface-variant theme/ink-muted}
+         meta-colors {:on-surface (theme/ink)
+                      :on-surface-variant (theme/ink-muted)}
          leading (when msg (mail-body/meta-leading msg meta-colors))]
      (m/Scaffold
-      .backgroundColor theme/paper
+      .backgroundColor (theme/paper)
       .appBar (m/AppBar
                .actions
                (cond-> []
@@ -286,14 +286,14 @@
                                      ctx navigator message-detail)))
                  msg
                  (conj (m/IconButton
-                        .icon (m/Icon m.Icons/delete_outline .color theme/danger)
+                        .icon (m/Icon m.Icons/delete_outline .color (theme/danger))
                         .onPressed #(confirm-delete! ctx navigator message-detail)))))
       .body
       (cond
         (nil? message-detail)
         (m/Center .child (if (seq last-error)
-                           (m/Text (str last-error) .style (m/TextStyle .color theme/danger))
-                           (m/CircularProgressIndicator. .color theme/sky)))
+                           (m/Text (str last-error) .style (m/TextStyle .color (theme/danger)))
+                           (m/CircularProgressIndicator. .color (theme/sky))))
         :else
         (m/SafeArea
          .child
@@ -316,6 +316,6 @@
                    .child
                    (m/Text (str "Failed to load body:\n" last-error)
                            .textAlign m.TextAlign/center
-                           .style (m/TextStyle .color theme/danger .fontSize 13.0)))
-                  (m/CircularProgressIndicator. .color theme/sky)))))))
+                           .style (m/TextStyle .color (theme/danger) .fontSize 13.0)))
+                  (m/CircularProgressIndicator. .color (theme/sky))))))))
            (mail-body/body-view message-detail leading))))))))

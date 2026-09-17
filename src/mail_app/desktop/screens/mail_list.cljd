@@ -30,7 +30,7 @@
        nil)}
 
     (m/Scaffold
-     .backgroundColor theme/paper
+     .backgroundColor (theme/paper)
      .body
      (m/SafeArea
       .child

@@ -24,7 +24,7 @@
     :max-lines nil
     :style (m/TextStyle .fontSize 18.0
                         .fontFamily font-family
-                        .color theme/ink)
+                        .color (theme/ink))
     :decoration (m/InputDecoration .border m/InputBorder.none)}))
 
 (defn- unlisten-ac!
@@ -54,7 +54,7 @@
                     .softWrap false
                     .style (m/TextStyle
                             .fontSize chip-font-size
-                            .color theme/ink)))))
+                            .color (theme/ink))))))
 
 (defn- panel-height
   "Approx. vertical extent of the tallest Mongol address (+ padding)."
@@ -80,8 +80,8 @@
       .child
        (m/Material
        .elevation 4.0
-       .color theme/surface
-       .shadowColor (.withOpacity theme/ink 0.12)
+       .color (theme/surface)
+       .shadowColor (.withOpacity (theme/ink) 0.12)
        .clipBehavior m.Clip/antiAlias
        .child
        (m/LimitedBox
@@ -181,9 +181,9 @@
         .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
         .alignment m.Alignment/topCenter
         .decoration (m/BoxDecoration
-                     .color theme/surface
+                     .color (theme/surface)
                      .borderRadius (m/BorderRadius.circular theme/radius-sm)
-                     .border (m/Border.all .color theme/divider .width 0.5))
+                     .border (m/Border.all .color (theme/divider) .width 0.5))
         .child (mongol-field !ime controller focus-node hint))))))))
 
 (defn- field-column
@@ -202,9 +202,9 @@
      .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
      .alignment m.Alignment/topCenter
      .decoration (m/BoxDecoration
-                  .color theme/surface
+                  .color (theme/surface)
                   .borderRadius (m/BorderRadius.circular theme/radius-sm)
-                  .border (m/Border.all .color theme/divider .width 0.5))
+                  .border (m/Border.all .color (theme/divider) .width 0.5))
      .child (mongol-field !ime controller focus-node hint)))))
 
 (defn header-row

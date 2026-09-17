@@ -55,39 +55,39 @@
                  .height 22.0
                  .child (m/CircularProgressIndicator
                          .strokeWidth 2.0
-                         .color theme/sky)))
+                         .color (theme/sky))))
                (m/IconButton
                 .icon (m/Icon m.Icons/sync)
                 .tooltip "Sync"
                 .onPressed #(mail/sync!)))]
          (m/Scaffold
-          .backgroundColor theme/paper
+          .backgroundColor (theme/paper)
           .drawer (when-not in-selection-mode? (drawer/drawer ctx))
           .appBar
           (if in-selection-mode?
             (m/AppBar
-             .backgroundColor theme/sky-light
-             .foregroundColor theme/sky-deep
+             .backgroundColor (theme/sky-light)
+             .foregroundColor (theme/sky-deep)
              .elevation 0.0
              .scrolledUnderElevation 0.0
              .leading (m/IconButton
-                       .icon (m/Icon m.Icons/close .color theme/sky-deep)
+                       .icon (m/Icon m.Icons/close .color (theme/sky-deep))
                        .onPressed (fn []
                                     (store/clear-message-selection!)
                                     nil))
              .title (m/Text (str (count selected-message-ids) " сонгосон")
                             .style (m/TextStyle .fontFamily font-family
                                                 .fontWeight m/FontWeight.w600
-                                                .color theme/sky-deep))
+                                                .color (theme/sky-deep)))
              .actions
              [(m/IconButton
-               .icon (m/Icon m.Icons/archive_outlined .color theme/sky-deep)
+               .icon (m/Icon m.Icons/archive_outlined .color (theme/sky-deep))
                .tooltip "Archive All"
                .onPressed (fn []
                             (bulk-then! ctx mail/bulk-archive! "Бүгдийг архивлалаа")
                             nil))
               (m/IconButton
-               .icon (m/Icon m.Icons/delete_outline .color theme/danger)
+               .icon (m/Icon m.Icons/delete_outline .color (theme/danger))
                .tooltip "Delete All"
                .onPressed (fn []
                             (bulk-then! ctx mail/bulk-delete! "Бүгдийг устгалаа")
@@ -95,7 +95,7 @@
             (m/AppBar
              .title (m/Text title .style (m/TextStyle .fontFamily font-family
                                                      .fontWeight m/FontWeight.w600
-                                                     .color theme/ink))
+                                                     .color (theme/ink)))
              .actions
              [(m/IconButton
                .icon (m/Icon m.Icons/search)

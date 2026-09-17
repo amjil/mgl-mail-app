@@ -43,11 +43,11 @@
 (defn- label-style []
   (m/TextStyle .fontSize 12.0
                .fontWeight m/FontWeight.w600
-               .color theme/ink-muted
+               .color (theme/ink-muted)
                .height 1.3))
 
 (defn- value-style
-  ([] (value-style 14.0 m/FontWeight.w500 theme/ink))
+  ([] (value-style 14.0 m/FontWeight.w500 (theme/ink)))
   ([size weight color]
    (m/TextStyle .fontSize size
                 .fontWeight weight
@@ -78,17 +78,17 @@
        [(m/Text name
                 .maxLines 2
                 .overflow m.TextOverflow/ellipsis
-                .style (value-style 15.0 m/FontWeight.w700 theme/ink))
+                .style (value-style 15.0 m/FontWeight.w700 (theme/ink)))
         (m/Text addr
                 .maxLines 2
                 .overflow m.TextOverflow/ellipsis
-                .style (value-style 13.0 m/FontWeight.w400 theme/ink-muted))])
+                .style (value-style 13.0 m/FontWeight.w400 (theme/ink-muted)))])
 
       (or (seq name) (seq addr))
       (m/Text (if (seq name) name addr)
               .maxLines 2
               .overflow m.TextOverflow/ellipsis
-              .style (value-style 15.0 m/FontWeight.w700 theme/ink))
+              .style (value-style 15.0 m/FontWeight.w700 (theme/ink)))
 
       :else nil)))
 
@@ -110,19 +110,19 @@
     (m/Container
      .padding (m.EdgeInsets/fromLTRB 20.0 16.0 20.0 12.0)
      .decoration (m/BoxDecoration
-                  .color theme/paper
+                  .color (theme/paper)
                   .border (m/Border
-                           .bottom (m/BorderSide .color theme/divider .width 0.5)))
+                           .bottom (m/BorderSide .color (theme/divider) .width 0.5)))
      .child
      (m/Row
       .crossAxisAlignment m.CrossAxisAlignment/start
       .children
       [(m/CircleAvatar
         .radius 18.0
-        .backgroundColor theme/sky-soft
+        .backgroundColor (theme/sky-soft)
         .child
         (m/Text (sender-initial msg)
-                .style (m/TextStyle .color theme/sky-deep
+                .style (m/TextStyle .color (theme/sky-deep)
                                     .fontSize 14.0
                                     .fontWeight m/FontWeight.w700)))
        (m/SizedBox .width 14.0)
@@ -144,8 +144,8 @@
                                       .overflow m.TextOverflow/ellipsis
                                       .style (value-style))))
                    (when date
-                     (kv "Date" (m/Text date .style (value-style 13.0 m/FontWeight.w400 theme/ink-muted))))
+                     (kv "Date" (m/Text date .style (value-style 13.0 m/FontWeight.w400 (theme/ink-muted)))))
                    (kv "Subject" (m/Text subject
                                          .maxLines 3
                                          .overflow m.TextOverflow/ellipsis
-                                         .style (value-style 14.0 m/FontWeight.w600 theme/ink)))])))]))))
+                                         .style (value-style 14.0 m/FontWeight.w600 (theme/ink))))])))]))))

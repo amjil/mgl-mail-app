@@ -9,7 +9,7 @@
 (def info
   (merge vk-options/keyboard-option
          {:keyboard/mongol-font-family "OyunQaganTig"
-          :keyboard/key-container-color theme/ink-muted
+          :keyboard/key-container-color (theme/ink-muted)
           :keyboard/font-size 16}))
 
 (defn install []
@@ -26,6 +26,6 @@
 (defn bar []
   (m/Container
    .decoration (m/BoxDecoration
-                .color theme/paper
-                .border (m/Border .top (m/BorderSide .color theme/divider .width 1.0)))
+                .color (theme/paper)
+                .border (m/Border .top (m/BorderSide .color (theme/divider) .width 1.0)))
    .child (vk/keyboard {})))

@@ -44,14 +44,14 @@
              .width 88.0
              .height 88.0
              .decoration (m/BoxDecoration
-                          .color theme/sky-light
+                          .color (theme/sky-light)
                           .shape m.BoxShape/circle)
              .child (m/Center
-                     .child (m/Icon icon .size 40.0 .color theme/sky)))
+                     .child (m/Icon icon .size 40.0 .color (theme/sky))))
             (m/SizedBox .width 20.0)
             (mgl/MongolText label
                             .style (m/TextStyle .fontFamily font-family
-                                                .color theme/ink-muted
+                                                .color (theme/ink-muted)
                                                 .fontSize 18.0
                                                 .height 1.4))])))
 
@@ -72,14 +72,14 @@
                 .height 28.0
                 .alignment m.Alignment/center
                 .decoration (m/BoxDecoration
-                             .color (if unread? theme/sky-soft theme/paper-deep)
+                             .color (if unread? (theme/sky-soft) (theme/paper-deep))
                              .shape m.BoxShape/circle)
                 .child
                 (m/Text (sender-initial msg)
                         .style (m/TextStyle
                                 .fontSize 13.0
                                 .fontWeight m/FontWeight.w600
-                                .color (if unread? theme/sky-deep theme/ink-muted)
+                                .color (if unread? (theme/sky-deep) (theme/ink-muted))
                                 .fontFamily font-family)))
       .title (m/Padding
               .padding (m.EdgeInsets/only .top 8.0)
@@ -89,7 +89,7 @@
                                           .fontSize 18.0
                                           .height 1.4
                                           .fontWeight (if unread? m/FontWeight.w700 m/FontWeight.normal)
-                                          .color (if unread? theme/ink theme/ink-muted))))
+                                          .color (if unread? (theme/ink) (theme/ink-muted)))))
       .subtitle (m/Column
                  .crossAxisAlignment m.CrossAxisAlignment/start
                  .mainAxisSize m.MainAxisSize/min
@@ -99,16 +99,16 @@
                                     .style (m/TextStyle .fontFamily font-family
                                                         .fontSize 14.0
                                                         .height 1.35
-                                                        .color (if unread? theme/ink-muted
-                                                                    (.withOpacity theme/ink-muted 0.8))))
+                                                        .color (if unread? (theme/ink-muted)
+                                                                    (.withOpacity (theme/ink-muted) 0.8))))
                     (m/SizedBox .height 8.0)
                     (mgl/MongolText (or (format-date (.-date msg)) "")
                                     .style (m/TextStyle .fontSize 12.0
-                                                        .color theme/ink-muted))]
+                                                        .color (theme/ink-muted)))]
                    (.-isStarred msg)
                    (conj (m/Padding
                           .padding (m.EdgeInsets/only .top 8.0)
-                          .child (m/Icon m.Icons/star .size 14.0 .color theme/gold)))))
+                          .child (m/Icon m.Icons/star .size 14.0 .color (theme/gold))))))
       .onTap handle-tap
       .onLongPress on-long-press))))
 
@@ -119,9 +119,9 @@
     .width 148.0
     .margin (m.EdgeInsets/symmetric .horizontal 4.0)
     .decoration (m/BoxDecoration
-                 .color theme/surface
+                 .color (theme/surface)
                  .borderRadius (m/BorderRadius.circular theme/radius-md)
-                 .border (m/Border.all .color theme/divider .width 0.5)
+                 .border (m/Border.all .color (theme/divider) .width 0.5)
                  .boxShadow (theme/hair-shadow))
     .child
     (mgl/MongolListTile
@@ -135,7 +135,7 @@
                                   .fontSize 18.0
                                   .height 1.4
                                   .fontWeight m/FontWeight.w700
-                                  .color theme/ink)))
+                                  .color (theme/ink))))
      .subtitle (m/Padding
                 .padding (m.EdgeInsets/only .top 8.0)
                 .child
@@ -144,7 +144,7 @@
                  .style (m/TextStyle .fontFamily font-family
                                      .fontSize 14.0
                                      .height 1.35
-                                     .color theme/ink-muted)))
+                                     .color (theme/ink-muted))))
      .onTap (fn []
               (mail/open-message! (.-messageId hit))
               (.pushNamed navigator "/mail_detail")
@@ -203,10 +203,10 @@
           .width 148.0
           .margin (m.EdgeInsets/symmetric .horizontal 4.0)
           .decoration (m/BoxDecoration
-                       .color (if selected? theme/sky-soft theme/surface)
+                       .color (if selected? (theme/sky-soft) (theme/surface))
                        .borderRadius (m/BorderRadius.circular theme/radius-md)
                        .border (m/Border.all
-                                .color (if selected? theme/sky theme/divider)
+                                .color (if selected? (theme/sky) (theme/divider))
                                 .width (if selected? 1.5 0.5))
                        .boxShadow (theme/hair-shadow))
           .child
@@ -224,7 +224,7 @@
                      .child (m/Container
                              .width 3.0
                              .decoration (m/BoxDecoration
-                                          .color theme/sky
+                                          .color (theme/sky)
                                           .borderRadius (m/BorderRadius.circular 2.0)))))
               in-selection-mode?
               (conj (m/Positioned
@@ -233,7 +233,7 @@
                      .child (m/Icon (if selected?
                                       m.Icons/check_circle
                                       m.Icons/radio_button_unchecked)
-                                    .color (if selected? theme/sky theme/ink-muted)
+                                    .color (if selected? (theme/sky) (theme/ink-muted))
                                     .size 22.0))))))))}))))
 
 ;; ==========================================
@@ -281,6 +281,6 @@
                           .alignment m.Alignment/center
                           .child (m/CircularProgressIndicator.
                                   .strokeWidth 2.0
-                                  .color theme/sky))
+                                  .color (theme/sky)))
                          (mail-item ctx navigator
                                     (nth mail-list idx)))))))))

@@ -12,22 +12,22 @@
    (if (empty? last-error)
      (m/SizedBox.shrink)
      (m/Container
-      .color theme/danger-soft
+      .color (theme/danger-soft)
       .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 10.0)
       .child
       (m/Row
        .crossAxisAlignment m.CrossAxisAlignment/center
        .children
-       [(m/Icon m.Icons/error_outline .color theme/danger .size 20.0)
+       [(m/Icon m.Icons/error_outline .color (theme/danger) .size 20.0)
         (m/SizedBox .width 12.0)
         (m/Expanded
          .child
          (mgl/MongolText last-error
                          .style (m/TextStyle .fontFamily font-family
                                              .fontSize 14.0
-                                             .color theme/ink)))
+                                             .color (theme/ink))))
         (m/IconButton
-         .icon (m/Icon m.Icons/close .color theme/danger .size 20.0)
+         .icon (m/Icon m.Icons/close .color (theme/danger) .size 20.0)
          .padding m.EdgeInsets/zero
          .constraints (m/BoxConstraints)
          .onPressed (fn []

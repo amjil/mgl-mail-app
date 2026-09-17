@@ -136,7 +136,7 @@
    :managed [controller (make-controller html font-face)
              :dispose false]
    (m/ColoredBox
-    .color theme/surface
+    .color (theme/surface)
     .child (webview/WebViewWidget .controller controller))))
 
 (defn view
@@ -148,5 +148,5 @@
      (load-font-face!)
      (if (nil? font-face)
        (m/Center
-        .child (m/CircularProgressIndicator. .color theme/sky))
+        .child (m/CircularProgressIndicator. .color (theme/sky)))
        (webview-view html font-face)))))

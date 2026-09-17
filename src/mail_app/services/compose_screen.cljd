@@ -46,15 +46,15 @@
   (let [err (fn [_ _ _]
               (m/Container
                .height 80.0
-               .color theme/sky-light
+               .color (theme/sky-light)
                .alignment m.Alignment/center
-               .child (m/Icon m.Icons/broken_image .color theme/ink-muted)))]
+               .child (m/Icon m.Icons/broken_image .color (theme/ink-muted))))]
     (m/Container
      .padding (m.EdgeInsets/symmetric .vertical 12.0)
      .constraints (m/BoxConstraints. .maxHeight 400.0 .maxWidth 280.0)
      .decoration (m/BoxDecoration
                   .borderRadius (m/BorderRadius.circular 8.0)
-                  .border (m/Border.all .color theme/divider .width 0.5))
+                  .border (m/Border.all .color (theme/divider) .width 0.5))
      .clipBehavior m.Clip/antiAlias
      .child
      (if (seq url)
@@ -67,9 +67,9 @@
                           .errorBuilder err))
        (m/Container
         .height 80.0
-        .color theme/sky-light
+        .color (theme/sky-light)
         .alignment m.Alignment/center
-        .child (m/Icon m.Icons/image .color theme/ink-muted))))))
+        .child (m/Icon m.Icons/image .color (theme/ink-muted)))))))
 
 (defn image-plugin
   "Overrides the default Image.network plugin so local compose/read paths render."
@@ -144,9 +144,9 @@
   (let [{:keys [h1 h2 h3 body line-height]}
         (get heading-sizes platform (:mobile heading-sizes))
         body-style (if line-height
-                     (m/TextStyle .fontSize body .color theme/ink
+                     (m/TextStyle .fontSize body .color (theme/ink)
                                   .fontFamily font-family .height line-height)
-                     (m/TextStyle .fontSize body .color theme/ink
+                     (m/TextStyle .fontSize body .color (theme/ink)
                                   .fontFamily font-family))]
     {:text-block-types text-block-types
      :block-plugins [(image-plugin)]
@@ -154,11 +154,11 @@
      (fn [b-type]
        (case b-type
          :heading-1 (m/TextStyle .fontSize h1 .fontWeight m/FontWeight.bold
-                                 .color theme/ink .fontFamily font-family)
+                                 .color (theme/ink) .fontFamily font-family)
          :heading-2 (m/TextStyle .fontSize h2 .fontWeight m/FontWeight.bold
-                                 .color theme/ink .fontFamily font-family)
+                                 .color (theme/ink) .fontFamily font-family)
          :heading-3 (m/TextStyle .fontSize h3 .fontWeight m/FontWeight.w600
-                                 .color theme/ink .fontFamily font-family)
+                                 .color (theme/ink) .fontFamily font-family)
          body-style))}))
 
 (defn apply-fields!

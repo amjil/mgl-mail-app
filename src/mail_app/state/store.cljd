@@ -7,6 +7,7 @@
 (def ^:private pref-account "ui_current_account_id")
 (def ^:private pref-folder-width "ui_folder_pane_width")
 (def ^:private pref-mailbox "ui_selected_mailbox")
+(def ^:private pref-dark-mode "ui_dark_mode")
 
 (defn- sig-key [account-id]
   (str sig-prefix account-id))
@@ -75,6 +76,7 @@
          :message-detail nil
          ;; Home shell: reading pane expanded, folders+list collapsed
          :reading-mail? false
+         :dark-mode? false
          ;; Desktop folder pane width (user-draggable)
          :folder-pane-width 320.0
          ;; search
@@ -101,7 +103,8 @@
     (let [prefs (await (.getInstance sp/SharedPreferences))
           aid (.getString prefs pref-account)
           width (.getDouble prefs pref-folder-width)
-          mailbox (decode-mailbox (.getString prefs pref-mailbox))]
+          mailbox (decode-mailbox (.getString prefs pref-mailbox))
+          dark-mode? (.getBool prefs pref-dark-mode)]
       (swap! app-state
              (fn [s]
                (cond-> s
@@ -113,7 +116,10 @@
                  (assoc :folder-pane-width (double width))
 
                  (some? mailbox)
-                 (assoc :selected-mailbox mailbox)))))
+                 (assoc :selected-mailbox mailbox)
+
+                 (some? dark-mode?)
+                 (assoc :dark-mode? (boolean dark-mode?))))))
     (catch Exception e
       (dart:core/print (str "load-ui-prefs failed: " e)))))
 
@@ -157,6 +163,10 @@
 
 (defn set-reading-mail! [v]
   (swap! app-state assoc :reading-mail? (boolean v)))
+
+(defn toggle-dark-mode! []
+  (swap! app-state update :dark-mode? not)
+  (prefs-write! #(.setBool % pref-dark-mode (:dark-mode? @app-state))))
 
 (defn set-folder-pane-width! [w]
   (let [w (double w)]
