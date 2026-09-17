@@ -128,7 +128,7 @@ class AccountEngine {
   }
 
   /// Sync a single mailbox by local folder id (stop IDLE → SELECT → fetch).
-  Future<void> syncFolder(int folderId) async {
+  Future<void> syncFolder(int folderId, {int limit = 50}) async {
     final folder = await db.folderDao.findById(folderId);
     if (folder == null || folder.accountId != account.id) return;
     final s = sync;
@@ -143,9 +143,9 @@ class AccountEngine {
           role == 'junk' ||
           role == 'sent' ||
           role == 'archive') {
-        await s.syncFolderByRole(role);
+        await s.syncFolderByRole(role, limit: limit);
       } else {
-        await s.syncFolderMessages(folder);
+        await s.syncFolderMessages(folder, limit: limit);
       }
     }
 
@@ -156,14 +156,16 @@ class AccountEngine {
     }
   }
 
-  Future<void> syncRole(String role) async {
+  Future<void> syncRole(String role, {int limit = 50}) async {
     final s = sync;
     if (s == null) return;
     final worker = imapWorker;
     if (worker != null) {
-      await worker.runExclusive(() => s.syncFolderByRole(role));
+      await worker.runExclusive(
+        () => s.syncFolderByRole(role, limit: limit),
+      );
     } else {
-      await s.syncFolderByRole(role);
+      await s.syncFolderByRole(role, limit: limit);
     }
   }
 

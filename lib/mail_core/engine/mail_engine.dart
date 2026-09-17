@@ -27,8 +27,8 @@ class MailEngine {
     CredentialStoreMode? credentialMode,
     OutlookOAuth? outlookOAuth,
   })  : db = database ?? AppDatabase(),
-        credentials = credentials ??
-            AccountCredentialStore(mode: credentialMode),
+        credentials =
+            credentials ?? AccountCredentialStore(mode: credentialMode),
         outlookOAuth = outlookOAuth ?? OutlookOAuth(),
         context = AccountContext() {
     searchService = MailSearchService(db);
@@ -241,14 +241,14 @@ class MailEngine {
     // Repair stale unreadCount=0 for already-synced local messages.
     unawaited(_refreshUnreadCounts(accountId: filter));
     return db.folderDao.watchSelectable(accountId: filter).asyncMap(
-      (rows) async => _dedupeFolderDtos(
-        rows
-            .where((f) => _isVisibleAccount(f.accountId, filter))
-            .map(MailMapper.toFolderDto)
-            .toList(),
-        acrossAccounts: filter == null,
-      ),
-    );
+          (rows) async => _dedupeFolderDtos(
+            rows
+                .where((f) => _isVisibleAccount(f.accountId, filter))
+                .map(MailMapper.toFolderDto)
+                .toList(),
+            acrossAccounts: filter == null,
+          ),
+        );
   }
 
   Future<void> _refreshUnreadCounts({String? accountId}) async {
@@ -394,13 +394,13 @@ class MailEngine {
     });
   }
 
-  Future<void> syncFolder(int folderId) async {
+  Future<void> syncFolder(int folderId, {int limit = 50}) async {
     final ids = await _idsForCustomFolderWatch(folderId);
     for (final id in ids) {
       final folder = await db.folderDao.findById(id);
       if (folder == null) continue;
       try {
-        await _accounts[folder.accountId]?.syncFolder(id);
+        await _accounts[folder.accountId]?.syncFolder(id, limit: limit);
       } catch (e) {
         // ignore: avoid_print
         print('syncFolder($id) for ${folder.accountId} failed: $e');
@@ -408,15 +408,19 @@ class MailEngine {
     }
   }
 
-  Future<void> syncRole(String role, {String? accountId}) async {
+  Future<void> syncRole(
+    String role, {
+    String? accountId,
+    int limit = 50,
+  }) async {
     final filter = accountId ?? context.currentAccountId;
     if (filter != null) {
-      await _accounts[filter]?.syncRole(role);
+      await _accounts[filter]?.syncRole(role, limit: limit);
       return;
     }
     for (final engine in _enginesSnapshot) {
       try {
-        await engine.syncRole(role);
+        await engine.syncRole(role, limit: limit);
       } catch (e) {
         // ignore: avoid_print
         print('syncRole($role) for ${engine.accountId} failed: $e');
@@ -595,8 +599,7 @@ class MailEngine {
         });
       }
       await resubscribeFolders();
-      final refresh =
-          Stream.periodic(const Duration(seconds: 5)).listen((_) {
+      final refresh = Stream.periodic(const Duration(seconds: 5)).listen((_) {
         unawaited(resubscribeFolders());
       });
 
@@ -636,7 +639,8 @@ class MailEngine {
       await _refreshFolderUnread(message.folderId);
       final eng = _accounts[message.accountId];
       if (eng != null) {
-        unawaited(eng.setMessageFlags(messageId, seen: true).catchError((_) {}));
+        unawaited(
+            eng.setMessageFlags(messageId, seen: true).catchError((_) {}));
       }
     }
     final body = await db.messageBodyDao.find(messageId);
@@ -708,9 +712,7 @@ class MailEngine {
       accountId: filter,
     );
     if (filter != null) return results;
-    return results
-        .where((r) => _accounts.containsKey(r.accountId))
-        .toList();
+    return results.where((r) => _accounts.containsKey(r.accountId)).toList();
   }
 
   Future<List<String>> searchContacts(String query, {String? accountId}) {
@@ -1128,16 +1130,13 @@ class MailEngine {
   }
 
   /// Move message to Archive on IMAP and locally.
-  Future<void> moveToArchive(int messageId) =>
-      moveToRole(messageId, 'archive');
+  Future<void> moveToArchive(int messageId) => moveToRole(messageId, 'archive');
 
   /// Move message to Junk on IMAP and locally.
-  Future<void> moveToJunk(int messageId) =>
-      moveToRole(messageId, 'junk');
+  Future<void> moveToJunk(int messageId) => moveToRole(messageId, 'junk');
 
   /// Move message to Inbox on IMAP and locally (e.g. unarchive / not junk).
-  Future<void> moveToInbox(int messageId) =>
-      moveToRole(messageId, 'inbox');
+  Future<void> moveToInbox(int messageId) => moveToRole(messageId, 'inbox');
 
   Future<void> moveToRole(int messageId, String role) async {
     final message = await db.messageDao.findById(messageId);

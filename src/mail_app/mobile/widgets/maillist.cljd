@@ -237,19 +237,50 @@
                                     .size 22.0))))))))}))))
 
 ;; ==========================================
-;; Horizontally scrolling mail list
+;; Horizontally scrolling mail list with infinite loading
 ;; ==========================================
+(defn- make-scroll-resource []
+  (let [ctrl (m/ScrollController.)
+        listener
+        (fn []
+          (when (.-hasClients ctrl)
+            (let [pos (.-position ctrl)]
+              (when (>= (.-pixels pos)
+                        (- (.-maxScrollExtent pos) 150.0))
+                (mail/load-more!)))))]
+    (.addListener ctrl listener)
+    {:controller ctrl :listener listener}))
+
+(defn- dispose-scroll-resource! [{:keys [controller listener]}]
+  (.removeListener ^m/ScrollController controller listener)
+  (.dispose ^m/ScrollController controller)
+  nil)
+
 (defn list-view []
   (f/widget
    :context ctx
    :get [m/Navigator]
-   :watch [{:keys [mail-list]} store/app-state]
-   (if (empty? mail-list)
-     (empty-state m.Icons/inbox_outlined "Хоосон байна")
-     (m/ListView.separated
-      .scrollDirection m.Axis/horizontal
-      .padding (m.EdgeInsets/symmetric .horizontal 12.0 .vertical 12.0)
-      .itemCount (count mail-list)
-      .separatorBuilder (fn [_ _] (m/SizedBox .width 2.0))
-      .itemBuilder (fn [_ idx]
-                     (mail-item ctx navigator (nth mail-list idx)))))))
+   :managed [scroll-resource (make-scroll-resource)
+             :dispose dispose-scroll-resource!]
+   :watch [{:keys [mail-list loading-more?]} store/app-state]
+   (let [scroll-ctrl (:controller scroll-resource)]
+     (if (empty? mail-list)
+       (empty-state m.Icons/inbox_outlined "Хоосон байна")
+       (m/ListView.separated
+        .controller scroll-ctrl
+        .scrollDirection m.Axis/horizontal
+        .padding (m.EdgeInsets/symmetric .horizontal 12.0 .vertical 12.0)
+        .itemCount (if loading-more?
+                     (inc (count mail-list))
+                     (count mail-list))
+        .separatorBuilder (fn [_ _] (m/SizedBox .width 2.0))
+        .itemBuilder (fn [_ idx]
+                       (if (= idx (count mail-list))
+                         (m/Container
+                          .width 80.0
+                          .alignment m.Alignment/center
+                          .child (m/CircularProgressIndicator.
+                                  .strokeWidth 2.0
+                                  .color theme/sky))
+                         (mail-item ctx navigator
+                                    (nth mail-list idx)))))))))

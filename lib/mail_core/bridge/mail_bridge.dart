@@ -87,8 +87,7 @@ class MailBridge {
 
   Future<void> syncAll() => _engine.syncAll();
 
-  Future<void> syncAccount(String accountId) =>
-      _engine.syncAccount(accountId);
+  Future<void> syncAccount(String accountId) => _engine.syncAccount(accountId);
 
   Future<List<MailFolderDto>> listFolders({String? accountId}) =>
       _engine.listFolders(accountId: accountId);
@@ -99,10 +98,15 @@ class MailBridge {
   Stream<List<MailMessageDto>> watchFolder(int folderId) =>
       _engine.watchFolder(folderId);
 
-  Future<void> syncFolder(int folderId) => _engine.syncFolder(folderId);
+  Future<void> syncFolder(int folderId, {int limit = 50}) =>
+      _engine.syncFolder(folderId, limit: limit);
 
-  Future<void> syncRole(String role, {String? accountId}) =>
-      _engine.syncRole(role, accountId: accountId);
+  Future<void> syncRole(
+    String role, {
+    String? accountId,
+    int limit = 50,
+  }) =>
+      _engine.syncRole(role, accountId: accountId, limit: limit);
 
   Stream<List<MailMessageDto>> watchInbox({String? accountId}) =>
       _engine.watchInbox(accountId: accountId);
@@ -207,17 +211,13 @@ class MailBridge {
 
   Future<void> retryOutbox(int outboxId) => _engine.retryOutbox(outboxId);
 
-  Future<void> deleteMessage(int messageId) =>
-      _engine.deleteMessage(messageId);
+  Future<void> deleteMessage(int messageId) => _engine.deleteMessage(messageId);
 
-  Future<void> moveToArchive(int messageId) =>
-      _engine.moveToArchive(messageId);
+  Future<void> moveToArchive(int messageId) => _engine.moveToArchive(messageId);
 
-  Future<void> moveToJunk(int messageId) =>
-      _engine.moveToJunk(messageId);
+  Future<void> moveToJunk(int messageId) => _engine.moveToJunk(messageId);
 
-  Future<void> moveToInbox(int messageId) =>
-      _engine.moveToInbox(messageId);
+  Future<void> moveToInbox(int messageId) => _engine.moveToInbox(messageId);
 
   Future<void> moveToRole(int messageId, String role) =>
       _engine.moveToRole(messageId, role);

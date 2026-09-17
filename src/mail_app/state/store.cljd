@@ -81,6 +81,7 @@
          :search-query ""
          :search-results []
          :searching? false
+         :loading-more? false
          ;; attachment download in progress (id set)
          :downloading-attachment-ids #{}
          ;; compose prefill: {:to :cc :subject :body-plain :body-state :quote-state} or nil
@@ -182,6 +183,9 @@
 
 (defn set-searching! [v]
   (swap! app-state assoc :searching? (boolean v)))
+
+(defn set-loading-more! [v]
+  (swap! app-state assoc :loading-more? (boolean v)))
 
 (defn mark-downloading! [att-id on?]
   (swap! app-state update :downloading-attachment-ids

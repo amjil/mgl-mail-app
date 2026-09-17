@@ -840,3 +840,34 @@
                      dedupe-addrs)]
     {:to (str/join ", " to-list)
      :cc (when (seq cc-list) (str/join ", " cc-list))}))
+
+(defn- finish-load-more! [^async/Future fut]
+  (-> fut
+      (.catchError (fn [e]
+                     (store/set-error! (str "Load more failed: " e))
+                     nil))
+      (.whenComplete (fn []
+                       (store/set-loading-more! false)
+                       nil))))
+
+(defn load-more!
+  "Request older messages from IMAP by dynamically expanding the limit."
+  []
+  (let [state @store/app-state
+        current-count (count (:mail-list state))
+        new-limit (+ current-count 50)
+        sel (:selected-mailbox state)]
+    (when (and sel
+               (not= sel :outbox)
+               (not (:loading-more? state)))
+      (store/set-loading-more! true)
+      (if-let [b @!bridge]
+        (let [aid (:current-account-id state)]
+          (if (keyword? sel)
+            (finish-load-more!
+             (.syncRole ^mc/MailBridge b (name sel)
+                        .accountId aid
+                        .limit new-limit))
+            (finish-load-more!
+             (.syncFolder ^mc/MailBridge b sel .limit new-limit))))
+        (store/set-loading-more! false)))))
