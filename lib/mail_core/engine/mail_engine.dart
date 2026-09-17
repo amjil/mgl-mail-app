@@ -47,7 +47,7 @@ class MailEngine {
   final Map<String, AccountEngine> _accounts = {};
   final _uuid = const Uuid();
 
-  Future<void> initialize() async {
+  Future<void> initialize({bool startWorkers = true}) async {
     await indexer.ensureReady();
     // Older removes only deleted the account row; drop leftover mail so
     // All-accounts cannot keep showing a signed-out mailbox.
@@ -56,7 +56,11 @@ class MailEngine {
     await threading.backfillMissing();
     final rows = await db.accountDao.listAccounts();
     for (final row in rows) {
-      await _register(row, start: true);
+      await _register(
+        row,
+        start: true,
+        startWorkers: startWorkers,
+      );
     }
   }
 
@@ -1204,7 +1208,11 @@ class MailEngine {
     await engine.deleteFolder(path);
   }
 
-  Future<void> _register(Account account, {required bool start}) async {
+  Future<void> _register(
+    Account account, {
+    required bool start,
+    bool startWorkers = true,
+  }) async {
     if (_accounts.containsKey(account.id)) return;
     final engine = AccountEngine(
       db: db,
@@ -1215,7 +1223,7 @@ class MailEngine {
     _accounts[account.id] = engine;
     if (start) {
       try {
-        await engine.start();
+        await engine.start(startWorkers: startWorkers);
       } catch (_) {
         // Account stays registered; workers can be retried after credential fix.
       }

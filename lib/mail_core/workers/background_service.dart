@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/widgets.dart';
@@ -12,6 +13,11 @@ const _periodicSyncTaskName = 'sync_all_mail_accounts';
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
+    if (task != _periodicSyncTaskName &&
+        task != Workmanager.iOSBackgroundTask) {
+      return true;
+    }
+
     MailEngine? engine;
     try {
       WidgetsFlutterBinding.ensureInitialized();
@@ -19,7 +25,9 @@ void callbackDispatcher() {
       await NotificationService.initialize(requestPermissions: false);
 
       engine = MailEngine();
-      await engine.initialize();
+      // A headless task only needs a short-lived IMAP client. Starting the
+      // regular IDLE, outbox, and sent workers here can race the main isolate.
+      await engine.initialize(startWorkers: false);
       await engine.syncAll();
       return true;
     } catch (e) {
@@ -40,8 +48,13 @@ class BackgroundService {
     );
   }
 
-  static Future<void> registerPeriodicSync() {
-    return Workmanager().registerPeriodicTask(
+  static Future<void> registerPeriodicSync() async {
+    // workmanager 0.5.x periodic registration is Android-only. On iOS,
+    // initialize() installs the Background Fetch callback; scheduling is
+    // controlled by the native Background Modes configuration.
+    if (!Platform.isAndroid) return;
+
+    await Workmanager().registerPeriodicTask(
       _periodicSyncUniqueName,
       _periodicSyncTaskName,
       frequency: const Duration(minutes: 30),

@@ -562,7 +562,7 @@ class ImapSyncService {
     // Prefer server LIST encodedPath if current SELECT looks empty.
     var active = await _canonicalFolder(folder);
     try {
-      if (mailbox!.messagesExists == 0) {
+      if (mailbox.messagesExists == 0) {
         final live = await _resolveLiveMailbox(active);
         if (live != null) {
           final retry = await _selectMailboxTryingPaths(live);
@@ -592,6 +592,10 @@ class ImapSyncService {
       );
 
       final sync = await db.syncStateDao.find(account.id, active.id);
+      final notifyNewMail = sync != null &&
+          (sync.uidValidity == null ||
+              validity == null ||
+              sync.uidValidity == validity);
       if (sync?.uidValidity != null &&
           validity != null &&
           sync!.uidValidity != validity) {
@@ -632,7 +636,12 @@ class ImapSyncService {
           print(
             'seq UID recovery empty; fetching envelopes $start:$end directly',
           );
-          await _fetchAndStoreBySequence(active, start, end);
+          await _fetchAndStoreBySequence(
+            active,
+            start,
+            end,
+            notifyNewMail: notifyNewMail,
+          );
           await _saveSyncState(active.id, 0, validity);
           // ignore: avoid_print
           print(
@@ -666,7 +675,11 @@ class ImapSyncService {
         newUids = target;
       }
       if (newUids.isNotEmpty) {
-        await _fetchAndStoreHeaders(active, newUids);
+        await _fetchAndStoreHeaders(
+          active,
+          newUids,
+          notifyNewMail: notifyNewMail,
+        );
       }
 
       await _fetchAndUpdateFlags(active, target);
@@ -744,11 +757,8 @@ class ImapSyncService {
     return const [];
   }
 
-  Future<void> _fetchAndStoreBySequence(
-    Folder folder,
-    int start,
-    int end,
-  ) async {
+  Future<void> _fetchAndStoreBySequence(Folder folder, int start, int end,
+      {required bool notifyNewMail}) async {
     if (end < start || end <= 0) return;
     const criteriaOptions = <String>[
       '(FLAGS ENVELOPE)',
@@ -769,7 +779,11 @@ class ImapSyncService {
         try {
           final result = await client.fetchMessages(sequence, criteria);
           for (final mime in result.messages) {
-            await upsertFromMime(folder, mime);
+            await upsertFromMime(
+              folder,
+              mime,
+              notifyNewMail: notifyNewMail,
+            );
           }
           ok = true;
           break;
@@ -791,7 +805,11 @@ class ImapSyncService {
     }
   }
 
-  Future<void> _fetchAndStoreHeaders(Folder folder, List<int> uids) async {
+  Future<void> _fetchAndStoreHeaders(
+    Folder folder,
+    List<int> uids, {
+    required bool notifyNewMail,
+  }) async {
     // Sina (and similar CN ISP IMAP) rejects many multi-attr FETCH forms with
     // "BAD Excessively complex FETCH attribute list". Try simplest first,
     // in small chunks.
@@ -816,7 +834,11 @@ class ImapSyncService {
       );
       workingCriteria ??= result.$1;
       for (final mime in result.$2.messages) {
-        await upsertFromMime(folder, mime);
+        await upsertFromMime(
+          folder,
+          mime,
+          notifyNewMail: notifyNewMail,
+        );
       }
     }
   }
@@ -883,7 +905,11 @@ class ImapSyncService {
     }
   }
 
-  Future<int> upsertFromMime(Folder folder, MimeMessage mime) async {
+  Future<int> upsertFromMime(
+    Folder folder,
+    MimeMessage mime, {
+    bool notifyNewMail = true,
+  }) async {
     final uid = mime.uid;
     final uidStr = uid?.toString();
     final from = mime.from?.isNotEmpty == true ? mime.from!.first : null;
@@ -1030,7 +1056,7 @@ class ImapSyncService {
       toAddr: to,
     );
 
-    if (effectiveRole(folder) == 'inbox' && !mime.isSeen) {
+    if (notifyNewMail && effectiveRole(folder) == 'inbox' && !mime.isSeen) {
       final senderDisplay = from?.personalName?.isNotEmpty == true
           ? from!.personalName!
           : (from?.email ?? 'Unknown');

@@ -58,7 +58,7 @@ class AccountEngine {
     return password;
   }
 
-  Future<void> start() async {
+  Future<void> start({bool startWorkers = true}) async {
     // Validate credentials exist before starting workers.
     await _resolveSecret();
 
@@ -69,6 +69,8 @@ class AccountEngine {
       useOAuth: _useOAuth,
     );
     attachments = AttachmentDownloader(sync!);
+    if (!startWorkers) return;
+
     final smtp = SmtpService(
       account: account,
       getSecret: _resolveSecret,

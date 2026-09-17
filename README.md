@@ -98,14 +98,27 @@ Runner target. Ensure `ios/Runner/Info.plist` contains:
 </array>
 ```
 
+In `ios/Runner/AppDelegate.swift`, set the native fetch interval from
+`application(_:didFinishLaunchingWithOptions:)`:
+
+```swift
+UIApplication.shared.setMinimumBackgroundFetchInterval(30 * 60)
+```
+
 Local-notification alert, badge, and sound access does not use an
 `Info.plist` usage-description key. iOS asks for these permissions at runtime
 when `NotificationService.initialize()` runs.
 
 Background execution is best-effort on both platforms. Android enforces a
 15-minute minimum periodic interval; this app requests 30 minutes. With the
-currently pinned `workmanager` 0.5.x, iOS controls Background Fetch timing and
-does not guarantee the requested interval.
+currently pinned `workmanager` 0.5.x, `registerPeriodicTask` is Android-only.
+On iOS, initialization installs the Background Fetch callback and the native
+minimum interval above is only a hint; iOS decides when the task runs.
+
+The headless callback creates only short-lived IMAP clients. It does not start
+the regular IDLE, outbox, or sent workers. Initial mailbox population and a
+UIDVALIDITY reset are treated as a baseline and do not emit one notification
+per historical unread message.
 
 ## Project layout
 
