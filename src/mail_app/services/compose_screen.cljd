@@ -8,7 +8,7 @@
             [clojure.string :as str]
             [block-editor.utils.history :as history]
             [block-editor.widgets.toolbar :as toolbar]
-            [mail-app.shared.widgets.compose.topbar :as topbar]
+            [mail-app.shared.actions.compose-actions :as compose-actions]
             [mail-app.services.compose-export :as export]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]
@@ -276,7 +276,7 @@
 (defn- silent-save!
   [!doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
    !show-cc? !show-bcc? !attachment-paths !draft-meta !auto-save-gate]
-  (topbar/silent-save-draft!
+  (compose-actions/silent-save-draft!
    !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
    @!show-cc? @!show-bcc? (:current-account-id @store/app-state)
    @!attachment-paths !draft-meta !auto-save-gate))
