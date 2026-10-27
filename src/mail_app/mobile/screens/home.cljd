@@ -2,7 +2,7 @@
   (:require ["package:flutter/material.dart" :as m]
             ["dart:async" :as async]
             [cljd.flutter :as f]
-            [mail-app.desktop.toast :as toast]
+            [mail-app.shared.toast :as toast]
             [mail-app.mobile.screens.signup :as signup]
             [mail-app.mobile.widgets.drawer :as drawer]
             [mail-app.mobile.widgets.error-banner :as err]

@@ -8,7 +8,8 @@
             [block-editor.utils.html :as be-html]
             [block-editor.plugins.core :as be-plugins]
             [block-editor.widgets.reader :as reader]
-            [mail-app.desktop.widgets.compose-quote :as quote]
+            [mail-app.shared.widgets.compose.quote :as quote]
+            [mail-app.shared.utils.format :as fmt]
             [mail-app.services.compose-export :as export]
             [mail-app.services.compose-screen :as compose]
             [mail-app.services.mail-core :as mail]
@@ -18,15 +19,6 @@
 
 (def ^:private reader-plugins
   (vec (cons (compose/image-plugin) (be-plugins/default-plugins))))
-
-(defn- pad2 [n]
-  (.padLeft (.toString n) 2 "0"))
-
-(defn- format-date [d]
-  (when d
-    (let [^DateTime dt d]
-      (str (.year dt) "-" (pad2 (.month dt)) "-" (pad2 (.day dt)) " "
-           (pad2 (.hour dt)) ":" (pad2 (.minute dt))))))
 
 (defn- reader-cfg [on-surface]
   {:block-style
@@ -134,7 +126,7 @@
                      (str "From: " name)
                      (if (seq addr) (str "From: " addr) "From:"))
         to (or (.-to msg) "")
-        date (format-date (.-date msg))]
+        date (fmt/format-date (.-date msg))]
     (cond->
       [(m/Padding
         .padding (m.EdgeInsets/only .right 16.0)

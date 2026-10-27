@@ -7,7 +7,7 @@
             [clojure.string :as str]
             [components.dialog :as dialog]
             [components.menu :as menu]
-            [mail-app.desktop.toast :as toast]
+            [mail-app.shared.toast :as toast]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]

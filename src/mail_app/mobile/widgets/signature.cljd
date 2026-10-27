@@ -3,7 +3,7 @@
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
             [cljd.flutter :as f]
-            [mail-app.desktop.toast :as toast]
+            [mail-app.shared.toast :as toast]
             [mail-app.mobile.widgets.keyboard :as kb]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]))

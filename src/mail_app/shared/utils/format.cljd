@@ -1,0 +1,18 @@
+(ns mail-app.shared.utils.format
+  "Shared formatting utilities.")
+
+(defn pad2
+  "Pad a number to 2 digits with leading zero."
+  [n]
+  (.padLeft (.toString n) 2 "0"))
+
+(defn format-date
+  "Format a DateTime as YYYY-MM-DD HH:MM."
+  [d]
+  (when d
+    (let [^DateTime dt d]
+      (str (.year dt) "-"
+           (pad2 (.month dt)) "-"
+           (pad2 (.day dt)) " "
+           (pad2 (.hour dt)) ":"
+           (pad2 (.minute dt))))))

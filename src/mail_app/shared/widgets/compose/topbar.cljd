@@ -1,15 +1,14 @@
-(ns mail-app.desktop.widgets.compose-topbar
+(ns mail-app.shared.widgets.compose.topbar
   (:require ["package:flutter/material.dart" :as m]
             ["package:file_selector/file_selector.dart" :as fs]
             [cljd.flutter :as f]
             [clojure.string :as str]
-            [mail-app.desktop.toast :as toast]
+            [mail-app.shared.toast :as toast]
+            [mail-app.shared.actions.compose-actions :as compose-actions]
             [mail-app.services.compose-export :as export]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme]))
-
-(declare compose-body)
 
 (defn- parse-ready? [to]
   (seq (str/trim (or to ""))))
@@ -29,32 +28,6 @@
                nil))
       (.catchError (fn [_] nil))))
 
-(defn- compose-body
-  [!doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl show-cc?
-   show-bcc? attachment-paths draft-meta]
-  (let [reply-plain (export/to-plain-text @!doc-state)
-        reply-html (export/to-html @!doc-state)
-        quote-state (when !quote-state @!quote-state)
-        quote-plain (when quote-state (export/quote-state-to-plain quote-state))
-        quote-html (when quote-state (export/quote-state-to-html quote-state))
-        plain (if (seq quote-plain)
-                (str reply-plain (when (seq reply-plain) "\n\n") quote-plain)
-                reply-plain)
-        ;; Always keep reply-html: even an empty native wrapper stamps
-        ;; data-mgl-mail so replies that are quote-only still identify as ours.
-        html (if (seq quote-html)
-               (str reply-html quote-html)
-               reply-html)]
-    (merge
-     {:to (.-text to-ctrl)
-      :cc (when show-cc? (.-text cc-ctrl))
-      :bcc (when show-bcc? (.-text bcc-ctrl))
-      :subject (.-text subject-ctrl)
-      :plain-text plain
-      :html-text html
-      :attachment-paths attachment-paths}
-     (select-keys (or draft-meta {})
-                  [:draft-message-id :in-reply-to :references :account-id]))))
 
 (defn send-pressed!
   [ctx navigator !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
@@ -71,7 +44,7 @@
       (toast/warn! tctx "Recipient required")
 
       :else
-      (let [payload (compose-body !doc-state !quote-state to-ctrl cc-ctrl
+      (let [payload (compose-actions/compose-body !doc-state !quote-state to-ctrl cc-ctrl
                                   bcc-ctrl subject-ctrl show-cc? show-bcc?
                                   attachment-paths draft-meta)]
         (-> (mail/send! payload)
@@ -96,7 +69,7 @@
       (toast/error! tctx "No account configured")
 
       :else
-      (let [payload (compose-body !doc-state !quote-state to-ctrl cc-ctrl
+      (let [payload (compose-actions/compose-body !doc-state !quote-state to-ctrl cc-ctrl
                                   bcc-ctrl subject-ctrl show-cc? show-bcc?
                                   attachment-paths draft-meta)]
         (-> (mail/save-draft! payload)
@@ -109,55 +82,6 @@
                            nil)))))
     nil))
 
-(defn silent-save-draft!
-  "Auto-save without toast or navigation. Updates !draft-meta with the
-  returned draft id so subsequent saves overwrite instead of creating anew.
-
-  !gate coalesces overlapping runs: if a save is in flight, mark pending and
-  run once more after it finishes (with the latest draft-message-id)."
-  [!doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
-   show-cc? show-bcc? current-account-id attachment-paths !draft-meta !gate]
-  (if (:inflight? @!gate)
-    (do (swap! !gate assoc :pending? true) nil)
-    (do
-      (swap! !gate assoc :inflight? true :pending? false)
-      (let [release!
-            (fn []
-              (let [again? (:pending? @!gate)]
-                (swap! !gate assoc :inflight? false :pending? false)
-                (when again?
-                  (silent-save-draft!
-                   !doc-state !quote-state to-ctrl cc-ctrl bcc-ctrl subject-ctrl
-                   show-cc? show-bcc? current-account-id attachment-paths
-                   !draft-meta !gate))))]
-        (try
-          (let [aid (or current-account-id (:current-account-id @store/app-state))
-                to-val (.-text to-ctrl)
-                sub-val (.-text subject-ctrl)
-                doc-val @!doc-state
-                has-content?
-                (or (seq (str/trim (or to-val "")))
-                    (seq (str/trim (or sub-val "")))
-                    (seq (str/trim (or (export/to-plain-text doc-val) ""))))]
-            (if-not (and aid has-content?)
-              (do (release!) nil)
-              (-> (mail/save-draft!
-                   (assoc (compose-body !doc-state !quote-state to-ctrl cc-ctrl
-                                        bcc-ctrl subject-ctrl show-cc? show-bcc?
-                                        attachment-paths @!draft-meta)
-                          :silent? true))
-                  (.then (fn [id]
-                           (when id
-                             (swap! !draft-meta assoc :draft-message-id id))
-                           id))
-                  (.catchError (fn [e]
-                                 (dart:core/print (str "Silent auto-save failed: " e))
-                                 nil))
-                  (.whenComplete (fn [] (release!) nil)))))
-          (catch Exception e
-            (dart:core/print (str "Silent auto-save error: " e))
-            (release!)
-            nil))))))
 
 (defn topbar
   "Back, Cc/Bcc toggle, attach, insert image, Save Draft, and Send."

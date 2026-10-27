@@ -4,7 +4,7 @@
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [cljd.flutter :as f]
             [components.setting :as cs]
-            [mail-app.desktop.toast :as toast]
+            [mail-app.shared.toast :as toast]
             [mail-app.mobile.widgets.signature :as signature]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
