@@ -76,11 +76,15 @@
 (defn- mail-card [_bg selected? child]
   (m/Container
    .width theme/mail-col-width
-   .margin (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
+   .margin (m.EdgeInsets/symmetric .horizontal theme/space-sm .vertical theme/space-md)
    .decoration (m/BoxDecoration
                 .color (if selected? (theme/sky-soft) (theme/surface))
                 .borderRadius (m/BorderRadius.circular theme/radius-md)
-                .boxShadow (if selected? (theme/card-shadow) (theme/hair-shadow)))
+                .border (when selected?
+                          (m/Border.all .color (theme/sky) .width 1.5))
+                .boxShadow (if selected? 
+                             (theme/card-shadow) 
+                             (theme/hair-shadow)))
    .child
    (m/ClipRRect
     .borderRadius (m/BorderRadius.circular theme/radius-md)
@@ -159,13 +163,13 @@
         .child
         (m/Padding
          .padding (if is-child?
-                    (m.EdgeInsets/only .top 28.0 .left 6.0 .right 6.0)
-                    (m.EdgeInsets/symmetric .horizontal 2.0))
+                    (m.EdgeInsets/only .top theme/space-2xl .left theme/space-sm .right theme/space-sm)
+                    (m.EdgeInsets/symmetric .horizontal theme/space-xs .vertical theme/space-sm))
          .child
          (mgl/MongolListTile
           .leading (m/Container
-                    .width 26.0
-                    .height 26.0
+                    .width 32.0
+                    .height 32.0
                     .alignment m.Alignment/center
                     .decoration (m/BoxDecoration
                                  .color (if unread? (theme/sky-soft) (theme/paper-deep))
@@ -173,20 +177,21 @@
                     .child
                     (m/Text (sender-initial msg)
                             .style (m/TextStyle
-                                    .fontSize 12.0
+                                    .fontSize theme/text-sm
                                     .fontWeight m/FontWeight.w600
                                     .color (if unread? (theme/sky-deep) (theme/ink-muted))
                                     .fontFamily font-family)))
           .title (m/Padding
-                  .padding (m.EdgeInsets/only .top 8.0)
+                  .padding (m.EdgeInsets/only .top theme/space-md)
                   .child
                   (mgl/MongolText
                    display-subject
                    .style (m/TextStyle
-                           .fontSize 16.0
+                           .fontSize theme/text-md
                            .fontFamily font-family
                            .color title-color
-                           .height 1.4
+                           .height 1.5
+                           .letterSpacing 0.2
                            .fontWeight (if unread?
                                          m/FontWeight.w700
                                          m/FontWeight.normal))))
@@ -196,76 +201,106 @@
                      .children
                      [(mgl/MongolText
                        (sender-subtitle msg)
-                       .style (m/TextStyle .fontSize 13.0
+                       .style (m/TextStyle .fontSize theme/text-sm
                                            .fontFamily font-family
                                            .color subtitle-color
-                                           .height 1.4))
-                      (m/SizedBox .height 6.0)
+                                           .height 1.45
+                                           .letterSpacing 0.1))
+                      (m/SizedBox .height theme/space-sm)
                       (mgl/MongolText (or (format-date (.-date msg)) "")
-                                      .style (m/TextStyle .fontSize 11.0
-                                                          .color (theme/ink-muted)))])
-          .trailing (m/Row
-                     .mainAxisSize m.MainAxisSize/min
-                     .children
-                     (cond-> []
-                       unread?
-                       (conj (m/Container
-                              .width 7.0
-                              .height 7.0
-                              .margin (m.EdgeInsets/only .right 4.0)
-                              .decoration (m/BoxDecoration
-                                           .color (theme/sky)
-                                           .shape m.BoxShape/circle)))
-                       (and header? (> thread-count 1))
-                       (conj (m/GestureDetector
-                              .behavior m.HitTestBehavior/opaque
-                              .onTap (fn []
-                                       (store/toggle-thread-expansion! thread-key)
-                                       nil)
-                              .child (m/Padding
-                                      .padding (m.EdgeInsets/only .bottom 8.0
-                                                                  .left 4.0
-                                                                  .right 4.0)
-                                      .child
-                                      (m/Icon (if expanded?
-                                                m.Icons/unfold_less
-                                                m.Icons/unfold_more)
-                                              .size 16.0 .color (theme/sky)))))
-                       (.-isStarred msg)
-                       (conj (m/Icon m.Icons/star .size 14.0 .color (theme/gold)))
-                       (.-hasAttachment msg)
-                       (conj (m/Icon m.Icons/attach_file .size 16.0
-                                     .color (theme/ink-muted)))))))))))))
+                                      .style (m/TextStyle .fontSize theme/text-xs
+                                                          .color (theme/ink-muted)
+                                                          .letterSpacing 0.1))])
+          .trailing (m/Padding
+                     .padding (m.EdgeInsets/only .top theme/space-sm)
+                     .child
+                     (m/Row
+                      .mainAxisSize m.MainAxisSize/min
+                      .children
+                      (cond-> []
+                        unread?
+                        (conj (m/Container
+                               .width 8.0
+                               .height 8.0
+                               .margin (m.EdgeInsets/only .right theme/space-xs)
+                               .decoration (m/BoxDecoration
+                                            .color (theme/sky)
+                                            .shape m.BoxShape/circle
+                                            .boxShadow [(m/BoxShadow
+                                                         .color (.withOpacity (theme/sky) 0.3)
+                                                         .blurRadius 4.0
+                                                         .spreadRadius 1.0)])))
+                        (and header? (> thread-count 1))
+                        (conj (m/GestureDetector
+                               .behavior m.HitTestBehavior/opaque
+                               .onTap (fn []
+                                        (store/toggle-thread-expansion! thread-key)
+                                        nil)
+                               .child (m/Padding
+                                       .padding (m.EdgeInsets/all theme/space-xs)
+                                       .child
+                                       (m/Icon (if expanded?
+                                                 m.Icons/unfold_less
+                                                 m.Icons/unfold_more)
+                                               .size 18.0 .color (theme/sky)))))
+                        (.-isStarred msg)
+                        (conj (m/Padding
+                               .padding (m.EdgeInsets/symmetric .horizontal theme/space-xs)
+                               .child
+                               (m/Icon m.Icons/star .size 16.0 .color (theme/gold))))
+                        (.-hasAttachment msg)
+                        (conj (m/Padding
+                               .padding (m.EdgeInsets/symmetric .horizontal theme/space-xs)
+                               .child
+                               (m/Icon m.Icons/attach_file .size 17.0
+                                       .color (theme/ink-muted)))))))))))))))
 
 (defn- outbox-item [^mc/MailOutboxDto row]
   (f/widget
    (mail-card
     (theme/surface) false
-    (mgl/MongolListTile
-     .title (m/Padding
-             .padding (m.EdgeInsets/only .top 8.0)
-             .child
-             (mgl/MongolText
-              (or (.-subject row) "No Subject")
-              .style (m/TextStyle .fontSize 16.0 .fontFamily font-family .height 1.4 .color (theme/ink))))
-     .subtitle (mgl/MongolText
-                (str (.-status row)
-                     (when (.-lastError row)
-                       (str " · " (.-lastError row))))
-                .style (m/TextStyle .fontSize 12.0
-                                    .fontFamily font-family
-                                    .color (theme/ink-muted)))
-     .trailing (when (or (= (.-status row) "failed")
-                         (= (.-status row) "pending"))
-                 (m/IconButton
-                  .icon (m/Icon m.Icons/refresh .color (theme/sky))
-                  .tooltip "Retry"
-                  .onPressed (fn []
-                               (mail/retry-outbox! (.-id row))
-                               nil)))
-     .onTap (fn []
-              (mail/open-message! (.-messageId row))
-              nil)))))
+    (m/Padding
+     .padding (m.EdgeInsets/symmetric .horizontal theme/space-sm .vertical theme/space-md)
+     .child
+     (mgl/MongolListTile
+      .title (m/Padding
+              .padding (m.EdgeInsets/only .top theme/space-md)
+              .child
+              (mgl/MongolText
+               (or (.-subject row) "No Subject")
+               .style (m/TextStyle .fontSize theme/text-md 
+                                   .fontFamily font-family 
+                                   .height 1.5
+                                   .letterSpacing 0.2
+                                   .color (theme/ink)
+                                   .fontWeight m/FontWeight.w600)))
+      .subtitle (mgl/MongolText
+                 (str (.-status row)
+                      (when (.-lastError row)
+                        (str " · " (.-lastError row))))
+                 .style (m/TextStyle .fontSize theme/text-sm
+                                     .fontFamily font-family
+                                     .height 1.4
+                                     .letterSpacing 0.1
+                                     .color (theme/ink-muted)))
+      .trailing (when (or (= (.-status row) "failed")
+                          (= (.-status row) "pending"))
+                  (m/Container
+                   .margin (m.EdgeInsets/only .top theme/space-sm)
+                   .child
+                   (m/IconButton
+                    .icon (m/Icon m.Icons/refresh .color (theme/sky) .size 20.0)
+                    .tooltip "Retry"
+                    .style (m/IconButton.styleFrom
+                            .backgroundColor (theme/sky-light)
+                            .shape (m/RoundedRectangleBorder
+                                    .borderRadius (m/BorderRadius.circular theme/radius-sm)))
+                    .onPressed (fn []
+                                 (mail/retry-outbox! (.-id row))
+                                 nil))))
+      .onTap (fn []
+               (mail/open-message! (.-messageId row))
+               nil))))))
 
 (defn- make-scroll-resource []
   (let [ctrl (m/ScrollController.)
@@ -313,19 +348,28 @@
          (m/ListView.separated
           .controller scroll-ctrl
           .scrollDirection m.Axis/horizontal
-          .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 16.0)
+          .padding (m.EdgeInsets/symmetric .horizontal theme/space-lg .vertical theme/space-lg)
           .itemCount (if (and loading-more? (not outbox?))
                        (inc (count visual-items))
                        (count visual-items))
-          .separatorBuilder (fn [_ _] (m/SizedBox .width 12.0))
+          .separatorBuilder (fn [_ _] (m/SizedBox .width theme/space-sm))
           .itemBuilder (fn [_ idx]
                          (if (= idx (count visual-items))
                            (m/Container
                             .width 80.0
                             .alignment m.Alignment/center
-                            .child (m/CircularProgressIndicator.
-                                    .strokeWidth 2.0
-                                    .color (theme/sky)))
+                            .child 
+                            (m/Column
+                             .mainAxisSize m.MainAxisSize/min
+                             .children
+                             [(m/CircularProgressIndicator.
+                               .strokeWidth 2.5
+                               .color (theme/sky))
+                              (m/SizedBox .height theme/space-md)
+                              (m/Text "Loading..."
+                                      .style (m/TextStyle
+                                              .fontSize theme/text-xs
+                                              .color (theme/ink-muted)))]))
                            (if outbox?
                              (outbox-item (nth visual-items idx))
                              (let [{:keys [msg thread-count thread-key is-child? header?]}

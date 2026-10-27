@@ -22,9 +22,11 @@
     :focus-node focus-node
     :hint hint
     :max-lines nil
-    :style (m/TextStyle .fontSize 18.0
+    :style (m/TextStyle .fontSize theme/text-lg
                         .fontFamily font-family
-                        .color (theme/ink))
+                        .color (theme/ink)
+                        .height 1.5
+                        .letterSpacing 0.2)
     :decoration (m/InputDecoration .border m/InputBorder.none)}))
 
 (defn- unlisten-ac!
@@ -177,13 +179,13 @@
        .width width
        .child
        (m/Container
-        .margin (m.EdgeInsets/symmetric .vertical 12.0 .horizontal 4.0)
-        .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
+        .margin (m.EdgeInsets/symmetric .vertical theme/space-md .horizontal theme/space-xs)
+        .padding (m.EdgeInsets/symmetric .horizontal theme/space-sm .vertical theme/space-md)
         .alignment m.Alignment/topCenter
         .decoration (m/BoxDecoration
                      .color (theme/surface)
-                     .borderRadius (m/BorderRadius.circular theme/radius-sm)
-                     .border (m/Border.all .color (theme/divider) .width 0.5))
+                     .borderRadius (m/BorderRadius.circular theme/radius-md)
+                     .border (m/Border.all .color (theme/divider) .width 1.0))
         .child (mongol-field !ime controller focus-node hint))))))))
 
 (defn- field-column
@@ -198,13 +200,13 @@
      .child
     (m/Container
      .width width
-     .margin (m.EdgeInsets/symmetric .vertical 12.0 .horizontal 4.0)
-     .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
+     .margin (m.EdgeInsets/symmetric .vertical theme/space-md .horizontal theme/space-xs)
+     .padding (m.EdgeInsets/symmetric .horizontal theme/space-sm .vertical theme/space-md)
      .alignment m.Alignment/topCenter
      .decoration (m/BoxDecoration
                   .color (theme/surface)
-                  .borderRadius (m/BorderRadius.circular theme/radius-sm)
-                  .border (m/Border.all .color (theme/divider) .width 0.5))
+                  .borderRadius (m/BorderRadius.circular theme/radius-md)
+                  .border (m/Border.all .color (theme/divider) .width 1.0))
      .child (mongol-field !ime controller focus-node hint)))))
 
 (defn header-row

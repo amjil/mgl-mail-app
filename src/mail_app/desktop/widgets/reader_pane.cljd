@@ -31,14 +31,14 @@
   {:block-style
    (fn [b-type]
      (case b-type
-       :heading-1 (m/TextStyle .fontSize 28.0 .fontWeight m/FontWeight.bold
-                               .color (theme/ink) .fontFamily font-family)
-       :heading-2 (m/TextStyle .fontSize 22.0 .fontWeight m/FontWeight.bold
-                               .color (theme/ink) .fontFamily font-family)
-       :heading-3 (m/TextStyle .fontSize 18.0 .fontWeight m/FontWeight.w600
-                               .color (theme/ink) .fontFamily font-family)
-       (m/TextStyle .fontSize 16.0 .color (theme/ink)
-                    .fontFamily font-family .height 1.4)))
+       :heading-1 (m/TextStyle .fontSize theme/text-3xl .fontWeight m/FontWeight.bold
+                               .color (theme/ink) .fontFamily font-family .height 1.4 .letterSpacing 0.3)
+       :heading-2 (m/TextStyle .fontSize theme/text-xl .fontWeight m/FontWeight.bold
+                               .color (theme/ink) .fontFamily font-family .height 1.4 .letterSpacing 0.2)
+       :heading-3 (m/TextStyle .fontSize theme/text-lg .fontWeight m/FontWeight.w600
+                               .color (theme/ink) .fontFamily font-family .height 1.45 .letterSpacing 0.2)
+       (m/TextStyle .fontSize theme/text-md .color (theme/ink)
+                    .fontFamily font-family .height 1.5 .letterSpacing 0.1)))
    :block-plugins reader-plugins})
 
 (defn- state-reader
@@ -162,28 +162,33 @@
         size-label (att-utils/format-size (.-size att))
         is-img? (att-utils/image-attachment? att)]
     (m/Container
-     .margin (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 4.0)
+     .margin (m.EdgeInsets/symmetric .horizontal theme/space-md .vertical theme/space-xs)
      .decoration (m/BoxDecoration
                   .color (theme/surface)
-                  .borderRadius (m/BorderRadius.circular theme/radius-sm)
-                  .border (m/Border.all .color (theme/divider) .width 0.5))
+                  .borderRadius (m/BorderRadius.circular theme/radius-md)
+                  .border (m/Border.all .color (theme/divider) .width 1.0)
+                  .boxShadow (theme/hair-shadow))
      .child
      (m/ListTile
       .dense true
+      .contentPadding (m.EdgeInsets/symmetric .horizontal theme/space-md .vertical theme/space-sm)
       .leading (m/Container
-                .width 32.0
-                .height 32.0
+                .width 36.0
+                .height 36.0
                 .decoration (m/BoxDecoration
                              .color (theme/sky-light)
-                             .borderRadius (m/BorderRadius.circular 8.0))
+                             .borderRadius (m/BorderRadius.circular theme/radius-md))
                 .child (m/Icon (if is-img? m.Icons/image m.Icons/attach_file)
-                               .size 16.0 .color (theme/sky)))
+                               .size 18.0 .color (theme/sky)))
       .title (m/Text name
                      .overflow m.TextOverflow/ellipsis
-                     .style (m/TextStyle .fontSize 13.0 .color (theme/ink)))
+                     .style (m/TextStyle .fontSize theme/text-sm 
+                                         .color (theme/ink)
+                                         .fontWeight m/FontWeight.w500))
       .subtitle (when size-label
                   (m/Text size-label
-                          .style (m/TextStyle .fontSize 11.0 .color (theme/ink-muted))))
+                          .style (m/TextStyle .fontSize theme/text-xs 
+                                              .color (theme/ink-muted))))
       .trailing
       (cond
         downloading?
@@ -230,25 +235,28 @@
   (let [atts (vec (or (.-attachments ^mc/MailMessageWithBody detail) []))]
     (when (seq atts)
       (m/Container
-       .width 228.0
+       .width 240.0
        .decoration (m/BoxDecoration
                     .color (theme/paper)
                     .border (m/Border
-                             .left (m/BorderSide .color (theme/divider) .width 0.5)))
+                             .left (m/BorderSide .color (theme/divider) .width 1.0)))
        .child
        (m/Column
         .crossAxisAlignment m.CrossAxisAlignment/stretch
         .children
         [(m/Padding
-          .padding (m.EdgeInsets/fromLTRB 14.0 16.0 14.0 8.0)
+          .padding (m.EdgeInsets/fromLTRB theme/space-lg 
+                                          theme/space-xl 
+                                          theme/space-lg 
+                                          theme/space-md)
           .child
           (m/Row
            .children
-           [(m/Icon m.Icons/attach_file .size 16.0 .color (theme/ink-muted))
-            (m/SizedBox .width 6.0)
+           [(m/Icon m.Icons/attach_file .size 18.0 .color (theme/ink-muted))
+            (m/SizedBox .width theme/space-sm)
             (m/Text "Attachments"
                     .style (m/TextStyle .fontWeight m/FontWeight.w600
-                                        .fontSize 13.0
+                                        .fontSize theme/text-base
                                         .color (theme/ink)))]))
          (m/Expanded
           .child
@@ -262,7 +270,7 @@
 (defn- mongol-meta
   [text size color & {:keys [weight]}]
   (m/Padding
-   .padding (m.EdgeInsets/only .left 10.0)
+   .padding (m.EdgeInsets/only .left theme/space-md)
    .child
    (mgl/MongolText
     text
@@ -270,7 +278,8 @@
                         .fontFamily font-family
                         .fontWeight (or weight m/FontWeight.normal)
                         .color color
-                        .height 1.4))))
+                        .height 1.5
+                        .letterSpacing 0.1))))
 
 (defn- header-columns [^mc/MailMessageDto msg]
   (let [subject (let [s (.-subject msg)]
@@ -284,42 +293,46 @@
         date (fmt/format-date (.-date msg))
         avatar-src (if (seq name) name addr)]
     (m/Container
-     .padding (m.EdgeInsets/fromLTRB 16.0 20.0 12.0 20.0)
+     .padding (m.EdgeInsets/fromLTRB theme/space-xl 
+                                     theme/space-2xl 
+                                     theme/space-lg 
+                                     theme/space-2xl)
      .decoration (m/BoxDecoration
                   .color (theme/paper)
                   .border (m/Border
-                           .right (m/BorderSide .color (theme/divider) .width 0.5)))
+                           .right (m/BorderSide .color (theme/divider) .width 1.0)))
      .child
      (m/Row
       .crossAxisAlignment m.CrossAxisAlignment/start
       .children
       (cond->
         [(m/Padding
-          .padding (m.EdgeInsets/only .right 12.0 .top 4.0)
+          .padding (m.EdgeInsets/only .right theme/space-lg .top theme/space-xs)
           .child
           (m/CircleAvatar
-           .radius 16.0
+           .radius 20.0
            .backgroundColor (theme/sky-soft)
            .child
            (m/Text (sender-initial avatar-src)
                    .style (m/TextStyle .color (theme/sky-deep)
-                                       .fontSize 13.0
+                                       .fontSize theme/text-base
                                        .fontWeight m/FontWeight.w600
                                        .fontFamily font-family))))
          (mgl/MongolText
           subject
-          .style (m/TextStyle .fontSize 20.0
+          .style (m/TextStyle .fontSize theme/text-xl
                               .fontFamily font-family
                               .fontWeight m/FontWeight.bold
                               .color (theme/ink)
-                              .height 1.4))
-         (mongol-meta from-label 15.0 (theme/ink) :weight m/FontWeight.w600)]
+                              .height 1.5
+                              .letterSpacing 0.3))
+         (mongol-meta from-label theme/text-md (theme/ink) :weight m/FontWeight.w600)]
         (ident/name-and-addr-differ? name addr)
-        (conj (mongol-meta addr 12.0 (theme/ink-muted)))
+        (conj (mongol-meta addr theme/text-sm (theme/ink-muted)))
         (seq to)
-        (conj (mongol-meta (str "To: " to) 12.0 (theme/ink-muted)))
+        (conj (mongol-meta (str "To: " to) theme/text-sm (theme/ink-muted)))
         date
-        (conj (mongol-meta date 11.0 (theme/ink-muted))))))))
+        (conj (mongol-meta date theme/text-xs (theme/ink-muted))))))))
 
 (defn pane
   "Reading body: subject columns + mail body + attachments. No chrome."

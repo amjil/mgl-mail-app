@@ -62,58 +62,96 @@
 (def folder-pane-min-width 160.0)
 (def folder-pane-max-width 720.0)
 (def mail-list-min-width 200.0)
-(def folder-col-width 76.0)  ;; slightly wider so folders feel more spacious
-(def mail-col-width 130.0)   ;; slightly wider so mail titles and snippets breathe
-(def chrome-height 64.0)     ;; taller top bar for more breathing room
+(def folder-col-width 76.0)
+(def mail-col-width 130.0)
+(def chrome-height 64.0)
 (def radius-sm 8.0)
-(def radius-md 12.0)         ;; rounder modern card corners
+(def radius-md 12.0)
 (def radius-lg 20.0)
 (def pane-anim (dart:core/Duration. .milliseconds 250))
 
+;; --- Spacing scale ---
+(def space-xs 4.0)
+(def space-sm 8.0)
+(def space-md 12.0)
+(def space-lg 16.0)
+(def space-xl 24.0)
+(def space-2xl 32.0)
+
+;; --- Typography scale ---
+(def text-xs 11.0)
+(def text-sm 12.0)
+(def text-base 14.0)
+(def text-md 16.0)
+(def text-lg 18.0)
+(def text-xl 20.0)
+(def text-2xl 24.0)
+(def text-3xl 28.0)
+
 (defn empty-state
-  "Centered sky-circle icon + vertical Mongol label."
+  "Centered sky-circle icon + vertical Mongol label with refined spacing and typography."
   [icon label]
   (m/Center
    .child
    (m/Row
     .mainAxisSize m.MainAxisSize/min
+    .crossAxisAlignment m.CrossAxisAlignment/center
     .children
     [(m/Container
-      .width 80.0
-      .height 80.0
+      .width 96.0
+      .height 96.0
       .decoration (m/BoxDecoration
                    .color (sky-light)
-                   .shape m.BoxShape/circle)
+                   .shape m.BoxShape/circle
+                   .boxShadow [(m/BoxShadow
+                                .color (.withOpacity (sky) 0.08)
+                                .blurRadius 24.0
+                                .offset (m/Offset. 0.0 4.0))])
       .child (m/Center
-              .child (m/Icon icon .size 36.0 .color (sky))))
-     (m/SizedBox .width 24.0)
+              .child (m/Icon icon .size 44.0 .color (sky))))
+     (m/SizedBox .width space-2xl)
      (mgl/MongolText
       label
       .style (m/TextStyle .fontFamily font-family
                           .color (ink-muted)
-                          .fontSize 20.0
+                          .fontSize text-xl
                           .fontWeight m/FontWeight.w500
-                          .height 1.4))])))
+                          .height 1.5
+                          .letterSpacing 0.3))])))
 
 (defn card-shadow
-  "Soft elevation for dialogs / signup card. Projecting slightly right."
+  "Soft elevation for cards with subtle depth."
   []
   (if (:dark-mode? @store/app-state)
-    []
     [(m/BoxShadow
-      .color (.withOpacity (ink) 0.08)
-      .blurRadius 32.0
-      .offset (m/Offset. 4.0 12.0))]))
+      .color (.withOpacity m.Colors/black 0.2)
+      .blurRadius 16.0
+      .offset (m/Offset. 0.0 4.0))]
+    [(m/BoxShadow
+      .color (.withOpacity (ink) 0.06)
+      .blurRadius 24.0
+      .offset (m/Offset. 0.0 8.0))
+     (m/BoxShadow
+      .color (.withOpacity (ink) 0.04)
+      .blurRadius 8.0
+      .offset (m/Offset. 0.0 2.0))]))
 
 (defn hair-shadow
-  "1px-feel drop under chrome, tailored for HORIZONTAL layout."
+  "Subtle shadow for chrome and horizontal layouts."
   []
   (if (:dark-mode? @store/app-state)
-    []
+    [(m/BoxShadow
+      .color (.withOpacity m.Colors/black 0.15)
+      .blurRadius 8.0
+      .offset (m/Offset. 4.0 0.0))]
     [(m/BoxShadow
       .color (.withOpacity (ink) 0.04)
       .blurRadius 12.0
-      .offset (m/Offset. 6.0 0.0))])) ;; shadow projects right — for the horizontal scroll layout
+      .offset (m/Offset. 4.0 0.0))
+     (m/BoxShadow
+      .color (.withOpacity (ink) 0.02)
+      .blurRadius 4.0
+      .offset (m/Offset. 2.0 0.0))])) ;; shadow projects right — for the horizontal scroll layout
 
 (defn sky-theme []
   (m/ThemeData

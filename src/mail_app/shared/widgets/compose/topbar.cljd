@@ -111,19 +111,19 @@
          .height theme/chrome-height
          .child
          (m/Padding
-          .padding (m.EdgeInsets/symmetric .horizontal 10.0)
+          .padding (m.EdgeInsets/symmetric .horizontal theme/space-md)
           .child
           (m/Row
            .mainAxisAlignment m.MainAxisAlignment/spaceBetween
            .children
            [(m/IconButton
-             .padding (m.EdgeInsets/all 8.0)
-             .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+             .padding (m.EdgeInsets/all theme/space-md)
+             .constraints (m/BoxConstraints. .minWidth 44.0 .minHeight 44.0)
              .style (m/IconButton.styleFrom
                      .hoverColor (theme/sky-light)
                      .highlightColor (theme/sky-soft)
                      .shape (m/RoundedRectangleBorder
-                             .borderRadius (m/BorderRadius.circular theme/radius-sm)))
+                             .borderRadius (m/BorderRadius.circular theme/radius-md)))
              .tooltip "Back"
              .onPressed (fn [] (.pop navigator) nil)
              .icon (m/Icon m.Icons/arrow_back_ios_new .size 20.0 .color (theme/ink-muted)))
@@ -133,54 +133,64 @@
                .onPressed (fn [] (swap! !show-cc? not) nil)
                .style (m/TextButton.styleFrom
                        .foregroundColor (if show-cc? (theme/sky) (theme/ink-muted))
-                       .padding (m.EdgeInsets/symmetric .horizontal 10.0))
+                       .backgroundColor (when show-cc? (theme/sky-light))
+                       .padding (m.EdgeInsets/symmetric .horizontal theme/space-md .vertical theme/space-sm)
+                       .shape (m/RoundedRectangleBorder
+                               .borderRadius (m/BorderRadius.circular theme/radius-md)))
                .child (m/Text "Cc"
                               .style (m/TextStyle
+                                      .fontSize theme/text-base
                                       .fontWeight (if show-cc?
                                                     m/FontWeight.w600
-                                                    m/FontWeight.normal))))
+                                                    m/FontWeight.w500))))
+              (m/SizedBox .width theme/space-xs)
               (m/TextButton
                .onPressed (fn [] (swap! !show-bcc? not) nil)
                .style (m/TextButton.styleFrom
                        .foregroundColor (if show-bcc? (theme/sky) (theme/ink-muted))
-                       .padding (m.EdgeInsets/symmetric .horizontal 10.0))
+                       .backgroundColor (when show-bcc? (theme/sky-light))
+                       .padding (m.EdgeInsets/symmetric .horizontal theme/space-md .vertical theme/space-sm)
+                       .shape (m/RoundedRectangleBorder
+                               .borderRadius (m/BorderRadius.circular theme/radius-md)))
                .child (m/Text "Bcc"
                               .style (m/TextStyle
+                                      .fontSize theme/text-base
                                       .fontWeight (if show-bcc?
                                                     m/FontWeight.w600
-                                                    m/FontWeight.normal))))
+                                                    m/FontWeight.w500))))
+              (m/SizedBox .width theme/space-md)
               (m/IconButton
-               .padding (m.EdgeInsets/all 8.0)
-               .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+               .padding (m.EdgeInsets/all theme/space-md)
+               .constraints (m/BoxConstraints. .minWidth 44.0 .minHeight 44.0)
                .style (m/IconButton.styleFrom
                        .hoverColor (theme/sky-light)
                        .highlightColor (theme/sky-soft)
                        .shape (m/RoundedRectangleBorder
-                               .borderRadius (m/BorderRadius.circular theme/radius-sm)))
+                               .borderRadius (m/BorderRadius.circular theme/radius-md)))
                .tooltip "Attach"
                .onPressed (fn [] (pick-attachments! !attachment-paths) nil)
                .icon (m/Icon m.Icons/attach_file .size 20.0 .color (theme/ink-muted)))
               (m/IconButton
-               .padding (m.EdgeInsets/all 8.0)
-               .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+               .padding (m.EdgeInsets/all theme/space-md)
+               .constraints (m/BoxConstraints. .minWidth 44.0 .minHeight 44.0)
                .style (m/IconButton.styleFrom
                        .hoverColor (theme/sky-light)
                        .highlightColor (theme/sky-soft)
                        .shape (m/RoundedRectangleBorder
-                               .borderRadius (m/BorderRadius.circular theme/radius-sm)))
+                               .borderRadius (m/BorderRadius.circular theme/radius-md)))
                .tooltip "Insert Image"
                .onPressed (fn []
                             (when on-insert-image (on-insert-image))
                             nil)
                .icon (m/Icon m.Icons/insert_photo_outlined .size 20.0 .color (theme/ink-muted)))
               (m/IconButton
-               .padding (m.EdgeInsets/all 8.0)
-               .constraints (m/BoxConstraints. .minWidth 40.0 .minHeight 40.0)
+               .padding (m.EdgeInsets/all theme/space-md)
+               .constraints (m/BoxConstraints. .minWidth 44.0 .minHeight 44.0)
                .style (m/IconButton.styleFrom
                        .hoverColor (theme/sky-light)
                        .highlightColor (theme/sky-soft)
                        .shape (m/RoundedRectangleBorder
-                               .borderRadius (m/BorderRadius.circular theme/radius-sm)))
+                               .borderRadius (m/BorderRadius.circular theme/radius-md)))
                .tooltip "Save Draft"
                .onPressed (when-not send-blocked?
                             (fn []
@@ -190,7 +200,7 @@
                                                    current-account-id
                                                    attachment-paths @!draft-meta)))
                .icon (m/Icon m.Icons/drafts_outlined .size 20.0 .color (theme/ink-muted)))
-              (m/SizedBox .width 8.0)
+              (m/SizedBox .width theme/space-md)
               (m/FilledButton.icon
                .onPressed (when-not send-blocked?
                             (fn []
@@ -202,34 +212,45 @@
                .style (m/FilledButton.styleFrom
                        .backgroundColor (theme/sky)
                        .foregroundColor m.Colors/white
-                       .elevation 0.0
-                       .padding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 10.0)
+                       .elevation 2.0
+                       .shadowColor (.withOpacity (theme/sky) 0.3)
+                       .padding (m.EdgeInsets/symmetric .horizontal theme/space-xl .vertical theme/space-md)
                        .shape (m/RoundedRectangleBorder
                                .borderRadius (m/BorderRadius.circular theme/radius-md)))
                .icon (if sending?
                        (m/SizedBox
-                        .width 16.0
-                        .height 16.0
+                        .width 18.0
+                        .height 18.0
                         .child (m/CircularProgressIndicator.
-                                .strokeWidth 2.0
+                                .strokeWidth 2.5
                                 .color m.Colors/white))
-                       (m/Icon m.Icons/send .size 16.0))
-               .label (m/Text "Send"))])])))]
+                       (m/Icon m.Icons/send .size 18.0))
+               .label (m/Text "Send"
+                              .style (m/TextStyle
+                                      .fontSize theme/text-base
+                                      .fontWeight m/FontWeight.w600)))])])))]
        (seq attachment-paths)
        (conj
         (m/Padding
-         .padding (m.EdgeInsets/only .left 12.0 .right 12.0 .bottom 10.0)
+         .padding (m.EdgeInsets/only .left theme/space-md 
+                                     .right theme/space-md 
+                                     .bottom theme/space-md)
          .child
          (m/Wrap
-          .spacing 6.0
-          .runSpacing 4.0
+          .spacing theme/space-sm
+          .runSpacing theme/space-sm
           .children
           (mapv (fn [path]
                   (m/InputChip
                    .label (m/Text (basename path)
-                                  .style (m/TextStyle .fontSize 12.0 .color (theme/ink)))
+                                  .style (m/TextStyle 
+                                          .fontSize theme/text-sm 
+                                          .color (theme/ink)
+                                          .fontWeight m/FontWeight.w500))
                    .backgroundColor (theme/sky-light)
-                   .side (m/BorderSide .color (theme/sky-soft))
+                   .side (m/BorderSide .color (theme/sky-soft) .width 1.0)
+                   .padding (m.EdgeInsets/symmetric .horizontal theme/space-md .vertical theme/space-sm)
+                   .deleteIconColor (theme/sky-deep)
                    .onDeleted (fn []
                                 (swap! !attachment-paths
                                        #(vec (remove #{path} %)))
