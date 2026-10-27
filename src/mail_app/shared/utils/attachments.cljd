@@ -1,0 +1,36 @@
+(ns mail-app.shared.utils.attachments
+  "Shared attachment utilities."
+  (:require ["package:url_launcher/url_launcher.dart" :as ul]
+            ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            [clojure.string :as str]
+            [mail-app.shared.toast :as toast]))
+
+(defn format-size
+  "Format file size in human-readable format."
+  [n]
+  (cond
+    (nil? n) nil
+    (< n 1024) (str n " B")
+    (< n 1048576) (str (int (/ n 1024)) " KB")
+    :else (str (int (/ n 1048576)) " MB")))
+
+(defn image-attachment?
+  "Check if an attachment is an image based on MIME type or filename."
+  [^mc/MailAttachmentDto att]
+  (let [mime (str/lower-case (or (.-mimeType att) ""))
+        name (str/lower-case (or (.-filename att) ""))]
+    (or (str/starts-with? mime "image/")
+        (str/ends-with? name ".jpg")
+        (str/ends-with? name ".jpeg")
+        (str/ends-with? name ".png")
+        (str/ends-with? name ".gif")
+        (str/ends-with? name ".webp"))))
+
+(defn open-local-path!
+  "Open a local file path using the system launcher."
+  [ctx path]
+  (when (seq path)
+    (-> (ul/launchUrl (dart:core/Uri.file path))
+        (.catchError (fn [e]
+                       (toast/error! ctx (str "Cannot open: " e))
+                       nil)))))

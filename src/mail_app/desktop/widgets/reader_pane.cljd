@@ -13,6 +13,7 @@
             [mail-app.shared.toast :as toast]
             [mail-app.shared.widgets.compose.quote :as quote]
             [mail-app.shared.utils.format :as fmt]
+            [mail-app.shared.utils.attachments :as att-utils]
             [mail-app.services.compose-export :as export]
             [mail-app.services.compose-screen :as compose]
             [mail-app.services.mail-core :as mail]
@@ -147,40 +148,18 @@
       :else (body-reader ""))))
 
 
-(defn- format-size [n]
-  (cond
-    (nil? n) nil
-    (< n 1024) (str n " B")
-    (< n 1048576) (str (int (/ n 1024)) " KB")
-    :else (str (int (/ n 1048576)) " MB")))
 
 (defn- sender-initial [s]
   (if (and s (pos? (.-length s)))
     (.substring s 0 1)
     "?"))
 
-(defn- open-local-path! [ctx path]
-  (when (seq path)
-    (-> (ul/launchUrl (dart:core/Uri.file path))
-        (.catchError (fn [e]
-                       (toast/error! ctx (str "Cannot open: " e))
-                       nil)))))
-
-(defn- image-attachment? [^mc/MailAttachmentDto att]
-  (let [mime (str/lower-case (or (.-mimeType att) ""))
-        name (str/lower-case (or (.-filename att) ""))]
-    (or (str/starts-with? mime "image/")
-        (str/ends-with? name ".jpg")
-        (str/ends-with? name ".jpeg")
-        (str/ends-with? name ".png")
-        (str/ends-with? name ".gif")
-        (str/ends-with? name ".webp"))))
 
 (defn- attachment-row
   [ctx ^mc/MailMessageWithBody detail ^mc/MailAttachmentDto att downloading?]
   (let [name (or (.-filename att) "file")
         ready? (and (.-isDownloaded att) (seq (.-localPath att)))
-        size-label (format-size (.-size att))
+        size-label (att-utils/format-size (.-size att))
         is-img? (image-attachment? att)]
     (m/Container
      .margin (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 4.0)
@@ -225,7 +204,7 @@
                    urls (mapv #(.-localPath ^mc/MailAttachmentDto %) img-atts)
                    idx (.indexOf urls (.-localPath att))]
                (gallery/open! ctx urls (max 0 idx)))
-             (open-local-path! ctx (.-localPath att)))
+             (att-utils/open-local-path! ctx (.-localPath att)))
            nil))
 
         :else
@@ -240,7 +219,7 @@
                         (when (and dto (.-localPath dto))
                           (if (image-attachment? dto)
                             (gallery/open! ctx [(.-localPath dto)] 0)
-                            (open-local-path! ctx (.-localPath dto))))
+                            (att-utils/open-local-path! ctx (.-localPath dto))))
                         nil))
                (.catchError (fn [e]
                               (toast/error! ctx (str e))

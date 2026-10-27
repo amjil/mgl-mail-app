@@ -2,35 +2,17 @@
   "Attachment list tile and bottom sheet for mail detail."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
-            ["package:url_launcher/url_launcher.dart" :as ul]
-            [clojure.string :as str]
             [mail-app.shared.toast :as toast]
+            [mail-app.shared.utils.attachments :as att-utils]
             [mail-app.services.mail-core :as mail]
             [mail-app.theme :as theme]
             [mail-app.widgets.image-gallery :as gallery]))
-
-(defn- open-local-path! [ctx path]
-  (when (seq path)
-    (-> (ul/launchUrl (dart:core/Uri.file path))
-        (.catchError (fn [e]
-                       (toast/error! ctx (str "Cannot open: " e))
-                       nil)))))
-
-(defn- image-attachment? [^mc/MailAttachmentDto att]
-  (let [mime (str/lower-case (or (.-mimeType att) ""))
-        name (str/lower-case (or (.-filename att) ""))]
-    (or (str/starts-with? mime "image/")
-        (str/ends-with? name ".jpg")
-        (str/ends-with? name ".jpeg")
-        (str/ends-with? name ".png")
-        (str/ends-with? name ".gif")
-        (str/ends-with? name ".webp"))))
 
 (defn- attachment-tile
   [ctx ^mc/MailMessageWithBody detail ^mc/MailAttachmentDto att downloading?]
   (let [name (or (.-filename att) "file")
         ready? (and (.-isDownloaded att) (seq (.-localPath att)))
-        is-img? (image-attachment? att)]
+        is-img? (att-utils/image-attachment? att)]
     (m/ListTile
      .leading (m/Icon (if is-img? m.Icons/image m.Icons/attach_file)
                       .color (theme/ink-muted))
@@ -52,11 +34,11 @@
         (fn []
           (if is-img?
             (let [all-atts (vec (or (.-attachments detail) []))
-                  img-atts (filter image-attachment? all-atts)
+                  img-atts (filter att-utils/image-attachment? all-atts)
                   urls (mapv #(.-localPath ^mc/MailAttachmentDto %) img-atts)
                   idx (.indexOf urls (.-localPath att))]
               (gallery/open! ctx urls (max 0 idx)))
-            (open-local-path! ctx (.-localPath att)))
+            (att-utils/open-local-path! ctx (.-localPath att)))
           nil))
 
        :else
@@ -68,9 +50,9 @@
               (.then (fn [dto]
                        (toast/success! ctx "Downloaded")
                        (when (and dto (.-localPath dto))
-                         (if (image-attachment? dto)
+                         (if (att-utils/image-attachment? dto)
                            (gallery/open! ctx [(.-localPath dto)] 0)
-                           (open-local-path! ctx (.-localPath dto))))
+                           (att-utils/open-local-path! ctx (.-localPath dto))))
                        nil))
               (.catchError (fn [e]
                              (toast/error! ctx (str e))
