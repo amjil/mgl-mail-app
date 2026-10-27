@@ -32,7 +32,7 @@ dependencies:
     sdk: flutter
   http: ^1.6.0
   crypto: ^3.0.6
-  mongol: ^9.2.1
+  mongol: ^9.4.0
   mongol_code: ^1.0.5
   vibration: ^1.8.4
   enough_mail: ^2.1.7
