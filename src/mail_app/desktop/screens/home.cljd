@@ -12,6 +12,8 @@
             [mail-app.desktop.widgets.maillist :as maillist]
             [mail-app.desktop.widgets.reader-pane :as reader-pane]
             [mail-app.desktop.widgets.topbar :as topbar]
+            [mail-app.shared.actions.mail-actions :as mail-actions]
+            [mail-app.shared.utils.format :as fmt]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme]))
@@ -133,12 +135,12 @@
                (assoc (shortcuts/cmd-key s/LogicalKeyboardKey.keyR)
                       (fn []
                         (when (and message-detail (not draft?))
-                          (detail/start-reply! navigator message-detail))
+                          (mail-actions/start-reply! navigator message-detail fmt/format-date))
                         nil)
                       (shortcuts/cmd-shift-key s/LogicalKeyboardKey.keyR)
                       (fn []
                         (when (and message-detail (not draft?))
-                          (detail/start-reply-all! navigator message-detail))
+                          (mail-actions/start-reply-all! navigator message-detail fmt/format-date))
                         nil)
                       (shortcuts/raw-key s.LogicalKeyboardKey/delete)
                       (fn []
@@ -168,13 +170,13 @@
                :starred? starred?
                :read? read?
                :on-reply (when (and message-detail (not draft?))
-                           #(detail/start-reply! navigator message-detail))
+                           #(mail-actions/start-reply! navigator message-detail fmt/format-date))
                :on-reply-all (when (and message-detail (not draft?))
-                               #(detail/start-reply-all! navigator message-detail))
+                               #(mail-actions/start-reply-all! navigator message-detail fmt/format-date))
                :on-forward (when (and message-detail (not draft?))
-                             #(detail/start-forward! navigator message-detail))
+                             #(mail-actions/start-forward! navigator message-detail fmt/format-date))
                :on-edit-draft (when (and message-detail draft?)
-                                #(detail/start-edit-draft! navigator message-detail))
+                                #(mail-actions/start-edit-draft! navigator message-detail))
                :on-star (when msg
                           (fn []
                             (let [^mc/MailMessageDto m msg]

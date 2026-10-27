@@ -2,7 +2,8 @@
   "Shared compose actions: auto-save, send, and draft management."
   (:require [mail-app.services.compose-export :as export]
             [mail-app.services.mail-core :as mail]
-            [mail-app.state.store :as store]))
+            [mail-app.state.store :as store]
+            [clojure.string :as str]))
 
 (defn compose-body
   "Build compose payload from editor state and form fields."

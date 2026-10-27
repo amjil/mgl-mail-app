@@ -4,6 +4,7 @@
   (:require ["package:flutter/material.dart" :as m]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [clojure.string :as str]
+            [mail-app.shared.utils.format :as fmt]
             [mail-app.theme :as theme]))
 
 (defn from-name [^mc/MailMessageDto msg]

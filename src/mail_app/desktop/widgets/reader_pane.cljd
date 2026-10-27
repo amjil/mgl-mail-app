@@ -160,7 +160,7 @@
   (let [name (or (.-filename att) "file")
         ready? (and (.-isDownloaded att) (seq (.-localPath att)))
         size-label (att-utils/format-size (.-size att))
-        is-img? (image-attachment? att)]
+        is-img? (att-utils/image-attachment? att)]
     (m/Container
      .margin (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 4.0)
      .decoration (m/BoxDecoration
@@ -200,7 +200,7 @@
          (fn []
            (if is-img?
              (let [all-atts (vec (or (.-attachments detail) []))
-                   img-atts (filter image-attachment? all-atts)
+                   img-atts (filter att-utils/image-attachment? all-atts)
                    urls (mapv #(.-localPath ^mc/MailAttachmentDto %) img-atts)
                    idx (.indexOf urls (.-localPath att))]
                (gallery/open! ctx urls (max 0 idx)))
@@ -217,7 +217,7 @@
                (.then (fn [dto]
                         (toast/success! ctx "Downloaded")
                         (when (and dto (.-localPath dto))
-                          (if (image-attachment? dto)
+                          (if (att-utils/image-attachment? dto)
                             (gallery/open! ctx [(.-localPath dto)] 0)
                             (att-utils/open-local-path! ctx (.-localPath dto))))
                         nil))
