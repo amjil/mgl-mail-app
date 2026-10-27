@@ -5,15 +5,14 @@
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [cljd.flutter :as f]
             [components.slide :as slide]
-            [mail-app.desktop.toast :as toast]
+            [mail-app.shared.toast :as toast]
+            [mail-app.shared.utils.format :as fmt]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]))
 
-(defn- pad2 [n] (.padLeft (.toString n) 2 "0"))
-
 (defn- format-date [^DateTime d]
-  (when d (str (pad2 (.month d)) "/" (pad2 (.day d)))))
+  (when d (str (fmt/pad2 (.month d)) "/" (fmt/pad2 (.day d)))))
 
 (defn- subject-of [^mc/MailMessageDto msg]
   (let [s (.-subject msg)]

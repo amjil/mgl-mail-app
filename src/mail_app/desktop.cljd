@@ -5,7 +5,7 @@
             [cljd.flutter :as f]
             [mail-app.lifecycle :as life]
             [mail-app.desktop.shortcuts :as shortcuts]
-            [mail-app.desktop.toast :as toast]
+            [mail-app.shared.toast :as toast]
             [mail-app.desktop.screens.home :as home]
             [mail-app.desktop.screens.compose :as compose]
             [mail-app.desktop.screens.mail-list :as mail-list]

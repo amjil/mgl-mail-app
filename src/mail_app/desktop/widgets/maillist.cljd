@@ -4,6 +4,7 @@
             ["package:mongol/mongol.dart" :as mgl]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [cljd.flutter :as f]
+            [mail-app.shared.utils.format :as fmt]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]))
@@ -41,12 +42,9 @@
   (let [s (.-subject msg)]
     (if (or (nil? s) (empty? s)) "No Subject" s)))
 
-(defn- pad2 [n]
-  (.padLeft (.toString n) 2 "0"))
-
 (defn- format-date [^DateTime d]
   (when d
-    (str (pad2 (.month d)) "/" (pad2 (.day d)))))
+    (str (fmt/pad2 (.month d)) "/" (fmt/pad2 (.day d)))))
 
 (defn- sender-subtitle [^mc/MailMessageDto msg]
   (let [name (or (.-fromName msg) "")

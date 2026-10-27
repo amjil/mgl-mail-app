@@ -2,7 +2,7 @@
   (:require ["package:flutter/material.dart" :as m]
             ["package:flutter_styled_toast/flutter_styled_toast.dart" :as st]
             [cljd.flutter :as f]
-            [mail-app.desktop.toast :as toast]
+            [mail-app.shared.toast :as toast]
             [mail-app.lifecycle :as life]
             [mail-app.mobile.screens.home :as home]
             [mail-app.mobile.screens.compose :as compose]

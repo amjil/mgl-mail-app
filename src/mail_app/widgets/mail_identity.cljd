@@ -28,17 +28,6 @@
       (seq name) name
       :else addr)))
 
-(defn- pad2 [n]
-  (.padLeft (.toString n) 2 "0"))
-
-(defn- format-date [d]
-  (when d
-    (let [^DateTime dt d]
-      (str (.year dt) "-"
-           (pad2 (.month dt)) "-"
-           (pad2 (.day dt)) " "
-           (pad2 (.hour dt)) ":"
-           (pad2 (.minute dt))))))
 
 (defn- label-style []
   (m/TextStyle .fontSize 12.0
@@ -106,7 +95,7 @@
                   (if (or (nil? s) (empty? s)) "No Subject" s))
         to (str/trim (or (.-to msg) ""))
         cc (str/trim (or (.-cc msg) ""))
-        date (format-date (.-date msg))]
+        date (fmt/format-date (.-date msg))]
     (m/Container
      .padding (m.EdgeInsets/fromLTRB 20.0 16.0 20.0 12.0)
      .decoration (m/BoxDecoration

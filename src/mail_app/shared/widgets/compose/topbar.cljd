@@ -1,9 +1,9 @@
-(ns mail-app.desktop.widgets.compose-topbar
+(ns mail-app.shared.widgets.compose.topbar
   (:require ["package:flutter/material.dart" :as m]
             ["package:file_selector/file_selector.dart" :as fs]
             [cljd.flutter :as f]
             [clojure.string :as str]
-            [mail-app.desktop.toast :as toast]
+            [mail-app.shared.toast :as toast]
             [mail-app.services.compose-export :as export]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]

@@ -1,0 +1,100 @@
+(ns mail-app.shared.actions.mail-actions
+  "Shared mail actions: reply, reply-all, forward, edit-draft, and helpers."
+  (:require ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
+            [clojure.string :as str]
+            [mail-app.services.compose-export :as export]
+            [mail-app.services.mail-core :as mail]
+            [mail-app.state.store :as store]))
+
+(defn body-text
+  "Plain text for reply/forward quotes. Prefer text/plain; else strip HTML."
+  [^mc/MailMessageWithBody detail]
+  (let [body (.-body detail)]
+    (cond
+      (nil? body) ""
+      (seq (.-plainText body)) (.-plainText body)
+      (seq (.-html body)) (mail/html->plain (.-html body))
+      :else "")))
+
+(defn ensure-prefix
+  "Ensure subject has the given prefix (case-insensitive check)."
+  [subject prefix]
+  (let [s (or subject "")]
+    (if (str/starts-with? (str/lower-case s) (str/lower-case prefix))
+      s
+      (str prefix s))))
+
+(defn build-references
+  "Build References header from message's RFC Message-ID and References."
+  [^mc/MailMessageDto msg]
+  (let [mid (.-rfcMessageId msg)
+        prev (.-referencesHeader msg)]
+    (cond
+      (and (seq prev) (seq mid)) (str prev " " mid)
+      (seq mid) mid
+      (seq prev) prev
+      :else nil)))
+
+(defn start-reply!
+  "Start a reply to the given message."
+  [navigator ^mc/MailMessageWithBody detail format-date-fn]
+  (let [^mc/MailMessageDto msg (.-message detail)
+        from (or (.-from msg) "")
+        subject (ensure-prefix (.-subject msg) "Re: ")
+        text (body-text detail)
+        date (format-date-fn (.-date msg))
+        mid (.-rfcMessageId msg)]
+    (store/set-compose-draft!
+     {:to from
+      :subject subject
+      :in-reply-to mid
+      :references (build-references msg)
+      :quote-state (export/quote-toggle-state from date text)})
+    (.pushNamed navigator "/compose")
+    nil))
+
+(defn start-reply-all!
+  "Start a reply-all to the given message."
+  [navigator ^mc/MailMessageWithBody detail format-date-fn]
+  (let [^mc/MailMessageDto msg (.-message detail)
+        from (or (.-from msg) "")
+        subject (ensure-prefix (.-subject msg) "Re: ")
+        text (body-text detail)
+        date (format-date-fn (.-date msg))
+        mid (.-rfcMessageId msg)
+        {:keys [to cc]} (mail/reply-all-recipients msg)]
+    (store/set-compose-draft!
+     (cond-> {:to to
+              :subject subject
+              :in-reply-to mid
+              :references (build-references msg)
+              :quote-state (export/quote-toggle-state from date text)}
+       (seq cc) (assoc :cc cc)))
+    (.pushNamed navigator "/compose")
+    nil))
+
+(defn start-forward!
+  "Start forwarding the given message."
+  [navigator ^mc/MailMessageWithBody detail format-date-fn]
+  (let [^mc/MailMessageDto msg (.-message detail)
+        from (or (.-fromName msg) (.-from msg) "")
+        subject (ensure-prefix (.-subject msg) "Fwd: ")
+        text (body-text detail)
+        date (format-date-fn (.-date msg))]
+    (store/set-compose-draft!
+     {:to ""
+      :subject subject
+      :quote-state (export/quote-toggle-state from date text)})
+    (.pushNamed navigator "/compose")
+    nil))
+
+(defn start-edit-draft!
+  "Start editing a draft message."
+  [navigator ^mc/MailMessageWithBody detail]
+  (let [^mc/MailMessageDto msg (.-message detail)]
+    (-> (mail/edit-draft! (.-id msg))
+        (.then (fn [_]
+                 (.pushNamed navigator "/compose")
+                 nil))
+        (.catchError (fn [_] nil)))
+    nil))

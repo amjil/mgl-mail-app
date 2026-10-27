@@ -1,4 +1,4 @@
-(ns mail-app.desktop.widgets.compose-quote
+(ns mail-app.shared.widgets.compose.quote
   "Quoted original — collapse/uncollapse control; body as normal blocks."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]

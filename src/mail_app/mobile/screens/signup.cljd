@@ -4,7 +4,7 @@
             ["package:mongol/mongol.dart" :as mgl]
             [cljd.flutter :as f]
             [clojure.string :as str]
-            [mail-app.desktop.toast :as toast]
+            [mail-app.shared.toast :as toast]
             [mail-app.mobile.widgets.keyboard :as kb]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]

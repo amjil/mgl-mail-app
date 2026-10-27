@@ -4,7 +4,7 @@
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             ["package:url_launcher/url_launcher.dart" :as ul]
             [clojure.string :as str]
-            [mail-app.desktop.toast :as toast]
+            [mail-app.shared.toast :as toast]
             [mail-app.services.mail-core :as mail]
             [mail-app.theme :as theme]
             [mail-app.widgets.image-gallery :as gallery]))

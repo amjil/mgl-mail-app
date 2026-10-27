@@ -1,4 +1,4 @@
-(ns mail-app.desktop.toast
+(ns mail-app.shared.toast
   "App toast helpers on top of components.toast.
 
   Prefer the MaterialApp.builder / StyledToast host context (`!root-ctx`),

@@ -8,7 +8,7 @@
             [clojure.string :as str]
             [block-editor.utils.history :as history]
             [block-editor.widgets.toolbar :as toolbar]
-            [mail-app.desktop.widgets.compose-topbar :as topbar]
+            [mail-app.shared.widgets.compose.topbar :as topbar]
             [mail-app.services.compose-export :as export]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]

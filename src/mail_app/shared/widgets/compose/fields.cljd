@@ -1,4 +1,4 @@
-(ns mail-app.desktop.widgets.compose-fields
+(ns mail-app.shared.widgets.compose.fields
   "To / Cc / Bcc / Subject columns using rich-editor text-field + contact suggestions."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]

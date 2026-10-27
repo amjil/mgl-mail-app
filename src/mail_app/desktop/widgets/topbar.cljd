@@ -4,7 +4,7 @@
             [cljd.flutter :as f]
             [clojure.string :as str]
             [components.dialog :as dialog]
-            [mail-app.desktop.toast :as toast]
+            [mail-app.shared.toast :as toast]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
             [shared-ime.overlay-view :as overlay]

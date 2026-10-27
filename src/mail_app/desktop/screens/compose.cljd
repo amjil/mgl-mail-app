@@ -7,9 +7,9 @@
             [block-editor.widgets.editor :as editor]
             [shared-ime.overlay-view :as overlay]
             [mail-app.desktop.shortcuts :as shortcuts]
-            [mail-app.desktop.widgets.compose-fields :as fields]
-            [mail-app.desktop.widgets.compose-quote :as quote]
-            [mail-app.desktop.widgets.compose-topbar :as topbar]
+            [mail-app.shared.widgets.compose.fields :as fields]
+            [mail-app.shared.widgets.compose.quote :as quote]
+            [mail-app.shared.widgets.compose.topbar :as topbar]
             [mail-app.services.compose-screen :as compose]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme]))
