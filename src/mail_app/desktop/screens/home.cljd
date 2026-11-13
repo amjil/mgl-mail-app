@@ -18,7 +18,7 @@
             [mail-app.state.store :as store]
             [mail-app.theme :as theme]))
 
-(def ^:private split-handle-width 8.0)
+(def ^:private split-handle-width 14.0)
 
 (defn- clamp-folder-width [w max-w]
   (let [lo theme/folder-pane-min-width
@@ -27,42 +27,80 @@
         (max lo)
         (min hi))))
 
-(defn- folder-split-handle [max-w]
+(defn- folder-split-handle
+  "Interactive split-pane resizer between left mailbox list and right mail list.
+   Always shows a subtle grip handle; highlights on hover/drag; double-click resets width."
+  [max-w]
   (f/widget
-   :managed [!active? (atom false) :dispose nil]
-   :watch [active? !active?]
-   (m/MouseRegion
-    .cursor m.SystemMouseCursors/resizeColumn
-    .onEnter (fn [_] (reset! !active? true) nil)
-    .onExit (fn [_] (reset! !active? false) nil)
-    .child
-    (m/GestureDetector
-     .behavior m.HitTestBehavior/translucent
-     .onHorizontalDragUpdate
-     (fn [^m/DragUpdateDetails d]
-       (let [dx (.-dx ^m/Offset (.-delta d))
-             cur (or (:folder-pane-width @store/app-state)
-                     theme/folder-pane-width)]
-         (store/set-folder-pane-width! (clamp-folder-width (+ cur dx) max-w)))
-       nil)
-     .child
-     (m/Tooltip
-      .message "Drag to resize"
-      .waitDuration (dart:core/Duration. .milliseconds 800)
+   :managed [!hover? (atom false) :dispose nil
+             !dragging? (atom false) :dispose nil]
+   :watch [hover? !hover?
+           dragging? !dragging?]
+   (let [active? (or hover? dragging?)]
+     (m/MouseRegion
+      .cursor m.SystemMouseCursors/resizeColumn
+      .onEnter (fn [_] (reset! !hover? true) nil)
+      .onExit (fn [_] (reset! !hover? false) nil)
       .child
-      (m/Container
-       .width split-handle-width
-       .color m.Colors/transparent
+      (m/GestureDetector
+       .behavior m.HitTestBehavior/opaque
+       ;; Double-click to reset to default folder pane width (320.0)
+       .onDoubleTap
+       (fn []
+         (store/set-folder-pane-width! theme/folder-pane-width)
+         nil)
+       .onHorizontalDragStart (fn [_] (reset! !dragging? true) nil)
+       .onHorizontalDragEnd (fn [_] (reset! !dragging? false) nil)
+       .onHorizontalDragCancel (fn [] (reset! !dragging? false) nil)
+       .onHorizontalDragUpdate
+       (fn [^m/DragUpdateDetails d]
+         (let [dx (.-dx ^m/Offset (.-delta d))
+               cur (or (:folder-pane-width @store/app-state)
+                       theme/folder-pane-width)]
+           (store/set-folder-pane-width!
+            (clamp-folder-width (+ cur dx) max-w)))
+         nil)
        .child
-       (m/Center
+       (m/Tooltip
+        .message "Drag to resize · Double-click to reset"
+        .waitDuration (dart:core/Duration. .milliseconds 700)
         .child
         (m/AnimatedContainer
          .duration theme/pane-anim
-         .width (if active? 4.0 0.0)
-         .height (if active? 60.0 0.0)
+         .width split-handle-width
          .decoration (m/BoxDecoration
-                      .color (theme/sky)
-                      .borderRadius (m/BorderRadius.circular 2.0))))))))))
+                      .color (cond
+                               dragging? (.withOpacity (theme/sky) 0.14)
+                               hover? (.withOpacity (theme/sky) 0.07)
+                               :else (theme/paper-deep))
+                      .border (m/Border
+                               .left (m/BorderSide
+                                      .color (if active?
+                                               (.withOpacity (theme/sky) 0.45)
+                                               (theme/divider))
+                                      .width 0.8)
+                               .right (m/BorderSide
+                                       .color (if active?
+                                                (.withOpacity (theme/sky) 0.45)
+                                                (theme/divider))
+                                       .width 0.8)))
+         .child
+         (m/Center
+          .child
+          ;; Center pill grip with subtle dual vertical ridges
+          (m/AnimatedContainer
+           .duration theme/pane-anim
+           .width (if active? 6.0 4.0)
+           .height (if active? 64.0 40.0)
+           .decoration (m/BoxDecoration
+                        .color (if active?
+                                 (theme/sky)
+                                 (.withOpacity (theme/ink-muted) 0.45))
+                        .borderRadius (m/BorderRadius.circular 4.0)
+                        .boxShadow (when active?
+                                     [(m/BoxShadow
+                                       .color (.withOpacity (theme/sky) 0.35)
+                                       .blurRadius 8.0)])))))))))))
 
 (defn- folder-mail-split []
   (f/widget
@@ -71,8 +109,9 @@
     .builder
     (fn [_ctx ^m/BoxConstraints constraints]
       (let [avail (.-maxWidth constraints)
+            ;; Subtract split-handle-width so the Row never overflows on narrow windows
             max-folder (max theme/folder-pane-min-width
-                            (- avail theme/mail-list-min-width))
+                            (- avail theme/mail-list-min-width split-handle-width))
             folder-w (clamp-folder-width folder-pane-width max-folder)]
         (m/Row
          .crossAxisAlignment m.CrossAxisAlignment/stretch
