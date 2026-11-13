@@ -5,6 +5,7 @@
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [clojure.string :as str]
             [mail-app.shared.utils.format :as fmt]
+            [mail-app.shared.i18n :as i18n]
             [mail-app.theme :as theme]))
 
 (defn from-name [^mc/MailMessageDto msg]
@@ -93,7 +94,7 @@
   "Horizontal From / To / Date / Subject strip above a WebView body."
   [^mc/MailMessageDto msg]
   (let [subject (let [s (.-subject msg)]
-                  (if (or (nil? s) (empty? s)) "No Subject" s))
+                  (if (or (nil? s) (empty? s)) (i18n/t :no-subject) s))
         to (str/trim (or (.-to msg) ""))
         cc (str/trim (or (.-cc msg) ""))
         date (fmt/format-date (.-date msg))]

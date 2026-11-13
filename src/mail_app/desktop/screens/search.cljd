@@ -9,6 +9,7 @@
             [shared-ime.overlay-view :as overlay]
             [rich-editor.components.text-field :as custom-tf]
             [mail-app.services.mail-core :as mail]
+            [mail-app.shared.i18n :as i18n]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]))
 
@@ -97,7 +98,7 @@
              .child
              (mgl/MongolText
               (let [s (.-subject hit)]
-                (if (or (nil? s) (empty? s)) "ᠭᠠᠷᠴᠢᠭ ᠦᠭᠡᠢ" s)) ;; "No Subject"
+                (if (or (nil? s) (empty? s)) (i18n/t :no-subject) s))
               .style (m/TextStyle .fontSize 18.0
                                   .fontFamily font-family
                                   .fontWeight m/FontWeight.bold
@@ -122,8 +123,8 @@
     (theme/empty-state
      m.Icons/search
      (if (or (seq search-query) (some true? (vals filters)))
-       "ᠢᠯᠡᠷᠡᠴᠡ ᠣᠯᠳᠣᠭᠰᠠᠨ ᠦᠭᠡᠢ" ;; "No results found"
-       "ᠬᠠᠶᠢᠬᠤ ᠤᠳᠬ᠎ᠠ ᠪᠠᠨ ᠣᠷᠣᠭᠤᠯᠤᠨ᠎ᠠ ᠤᠤ")) ;; "Please enter search text"
+       (i18n/t :search-no-result)
+       (i18n/t :search-empty)))
 
     :else
     (m/ListView.separated
@@ -228,7 +229,7 @@
                                  .borderRadius (m/BorderRadius.circular theme/radius-sm)
                                  .border (m/Border.all .color (theme/divider) .width 0.5))
                     .child
-                    (mongol-field !ime query-ctrl query-focus "ᠬᠠᠶᠢᠬᠤ...")))) ;; "Search..."
+                    (mongol-field !ime query-ctrl query-focus (i18n/t :search-hint)))))
                  
                  ;; Bottom actions: Loading indicator or clear text button
                  (m/Padding
@@ -239,7 +240,7 @@
                                 .child (m/CircularProgressIndicator .strokeWidth 2.0 .color (theme/sky)))
                     (m/IconButton
                      .icon (m/Icon m.Icons/close .color (theme/ink-muted))
-                     .tooltip "Clear"
+                     .tooltip (i18n/t :dismiss)
                      .onPressed (fn []
                                   (.clear query-ctrl)
                                   (store/set-search-query! "")
@@ -253,10 +254,10 @@
                .child
                (m/Row
                 .children
-                [(vertical-filter-chip "ᠤᠩᠰᠢᠭᠠᠳᠦᠢ" m.Icons/mark_email_unread_outlined :unread filters query-ctrl) ;; Unread
-                 (vertical-filter-chip "ᠬᠠᠪᠰᠤᠷᠠᠯᠲᠠ" m.Icons/attach_file :attachment filters query-ctrl) ;; Attachment
-                 (vertical-filter-chip "ᠣᠳᠣ ᠲᠠᠢ" m.Icons/star_border :starred filters query-ctrl) ;; Starred
-                 (vertical-filter-chip "ᠡᠨᠡ ᠳᠣᠯᠣᠭ᠎ᠠ ᠬᠣᠨᠣᠭ" m.Icons/date_range :this-week filters query-ctrl)]))])) ;; This Week
+                [(vertical-filter-chip (i18n/t :filter-unread) m.Icons/mark_email_unread_outlined :unread filters query-ctrl)
+                 (vertical-filter-chip (i18n/t :filter-attachment) m.Icons/attach_file :attachment filters query-ctrl)
+                 (vertical-filter-chip (i18n/t :filter-starred) m.Icons/star_border :starred filters query-ctrl)
+                 (vertical-filter-chip (i18n/t :filter-week) m.Icons/date_range :this-week filters query-ctrl)]))]))
            
            ;; --- Right panel: Horizontal scrollable search results ---
            (m/Expanded

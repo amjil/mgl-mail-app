@@ -11,6 +11,7 @@
             [block-editor.plugins.core :as be-plugins]
             [block-editor.widgets.reader :as reader]
             [mail-app.shared.toast :as toast]
+            [mail-app.shared.i18n :as i18n]
             [mail-app.shared.widgets.compose.quote :as quote]
             [mail-app.shared.utils.format :as fmt]
             [mail-app.shared.utils.attachments :as att-utils]
@@ -42,33 +43,48 @@
    :block-plugins reader-plugins})
 
 (defn- state-reader
-  "Render editor state as horizontal Mongol block readers."
-  [state]
+  "Horizontal Mongol ListView: meta leading + body blocks + optional quote trailing."
+  [state leading trailing]
   (let [root (vec (or (:root state) []))
         blocks (or (:blocks state) {})
-        !state (atom state)]
-    (if (empty? root)
-      (state-reader (export/state-from-plain-text "(empty body)"))
+        !state (atom state)
+        leads (vec (or leading []))
+        n-lead (count leads)
+        trails (vec (or trailing []))
+        n-trail (count trails)
+        n-root (count root)
+        total (+ n-lead n-root n-trail)]
+    (if (zero? total)
+      (state-reader (export/state-from-plain-text "(empty body)") leading trailing)
       (m/ListView.builder
        .scrollDirection m.Axis/horizontal
        .padding (m.EdgeInsets/all 24.0)
-       .itemCount (count root)
+       .itemCount total
        .itemBuilder
        (fn [_ idx]
-         (let [id (nth root idx)
-               block (get blocks id)]
-           (m/Padding
-            .padding (m.EdgeInsets/only .right 24.0)
-            .child
-            (reader/block-reader-view block reader-plugins reader-cfg nil !state))))))))
+         (cond
+           (< idx n-lead)
+           (nth leads idx)
 
-(defn- body-reader [text]
+           (< idx (+ n-lead n-root))
+           (let [id (nth root (- idx n-lead))
+                 block (get blocks id)]
+             (m/Padding
+              .padding (m.EdgeInsets/only .right 24.0)
+              .child
+              (reader/block-reader-view block reader-plugins reader-cfg nil !state)))
+
+           :else
+           (nth trails (- idx n-lead n-root))))))))
+
+(defn- body-reader [text leading trailing]
   (state-reader (export/state-from-plain-text
-                 (if (empty? text) "(empty body)" text))))
+                 (if (empty? text) "(empty body)" text))
+                leading trailing))
 
 (defn- body-with-quote
-  "Show reply text + collapsible quoted original when body contains ---/From:."
-  [text]
+  "Reply + meta + body share one horizontal scroll; quote rides as trailing column."
+  [text leading]
   (let [parsed (export/parse-quoted-plain text)
         reply (or (:reply parsed) text)
         quote-body (:quote-body parsed)
@@ -80,40 +96,44 @@
                  (:quote-date parsed)
                  quote-body)))]
     (if-not has-quote?
-      (body-reader text)
-      (m/Row
-       .crossAxisAlignment m.CrossAxisAlignment/stretch
-       .children
-       [(m/Expanded
-         .flex 2
-         .child (body-reader (if (seq reply) reply "(empty body)")))
-        (m/Expanded
-         .flex 1
-         .child (quote/panel !quote-state))]))))
+      (body-reader text leading nil)
+      (body-reader (if (seq reply) reply "(empty body)")
+                   leading
+                   [(m/Container
+                     .width 320.0
+                     .padding (m.EdgeInsets/only .left 8.0)
+                     .child (quote/panel !quote-state))]))))
+
+(defn- external-reader [html ^mc/MailMessageDto msg]
+  (m/Column
+   .crossAxisAlignment m.CrossAxisAlignment/stretch
+   .children
+   [(ident/bar msg)
+    (m/Expanded .child (html-wv/view html))]))
 
 (defn- body-from-html
   "Dual-engine HTML:
    1. Native MGL mail (data-mgl-mail) → block-editor
    2. Ordinary HTML → WebView (top-to-bottom)
    3. Unsupported platform → plain-text fallback"
-  [html plain]
+  [html plain leading msg]
   (cond
     (export/mgl-mail-html? html)
     (let [state (be-html/import-from-html html)]
       (if (seq (:root state))
-        (state-reader state)
+        (state-reader state leading nil)
         (if (seq plain)
-          (body-with-quote plain)
-          (body-reader ""))))
+          (body-with-quote plain leading)
+          (body-reader "" leading nil))))
 
     (html-wv/supported?)
-    (html-wv/view html)
+    (external-reader html msg)
 
     :else
     (let [text (if (seq plain) plain (mail/html->plain html))]
       (if (seq text)
-        (body-with-quote text)
-        (body-reader "")))))
+        (body-with-quote text leading)
+        (body-reader "" leading nil)))))
 
 (defn- html-of [^mc/MailMessageWithBody detail]
   (when-let [body (.-body detail)]
@@ -126,26 +146,21 @@
        (not (export/mgl-mail-html? html))
        (html-wv/supported?)))
 
-(defn- external-reader [html ^mc/MailMessageDto msg]
-  (m/Column
-   .crossAxisAlignment m.CrossAxisAlignment/stretch
-   .children
-   [(ident/bar msg)
-    (m/Expanded .child (html-wv/view html))]))
-
 (defn- body-view
   "Dual-Engine Router:
    1. MGL Mail (Native Block Engine)
    2. External HTML (WebView, top-to-bottom)
-   3. Plain Text fallback."
-  [^mc/MailMessageWithBody detail]
+   3. Plain Text fallback.
+   `leading` (title/from/…) scrolls with the body in the Mongol engine."
+  [^mc/MailMessageWithBody detail leading]
   (let [body (.-body detail)
         html (when body (.-html body))
-        plain (when body (.-plainText body))]
+        plain (when body (.-plainText body))
+        msg (.-message detail)]
     (cond
-      (seq html) (body-from-html html plain)
-      (seq plain) (body-with-quote plain)
-      :else (body-reader ""))))
+      (seq html) (body-from-html html plain leading msg)
+      (seq plain) (body-with-quote plain leading)
+      :else (body-reader "" leading nil))))
 
 
 
@@ -270,7 +285,7 @@
 (defn- mongol-meta
   [text size color & {:keys [weight]}]
   (m/Padding
-   .padding (m.EdgeInsets/only .left theme/space-md)
+   .padding (m.EdgeInsets/only .right theme/space-lg)
    .child
    (mgl/MongolText
     text
@@ -281,9 +296,11 @@
                         .height 1.5
                         .letterSpacing 0.1))))
 
-(defn- header-columns [^mc/MailMessageDto msg]
+(defn- meta-leading
+  "Title / from / to / date as horizontal ListView leading items (scroll with body)."
+  [^mc/MailMessageDto msg]
   (let [subject (let [s (.-subject msg)]
-                  (if (or (nil? s) (empty? s)) "No Subject" s))
+                  (if (or (nil? s) (empty? s)) (i18n/t :no-subject) s))
         name (ident/from-name msg)
         addr (ident/from-addr msg)
         from-label (if (seq name)
@@ -292,50 +309,40 @@
         to (or (.-to msg) "")
         date (fmt/format-date (.-date msg))
         avatar-src (if (seq name) name addr)]
-    (m/Container
-     .padding (m.EdgeInsets/fromLTRB theme/space-xl 
-                                     theme/space-2xl 
-                                     theme/space-lg 
-                                     theme/space-2xl)
-     .decoration (m/BoxDecoration
-                  .color (theme/paper)
-                  .border (m/Border
-                           .right (m/BorderSide .color (theme/divider) .width 1.0)))
-     .child
-     (m/Row
-      .crossAxisAlignment m.CrossAxisAlignment/start
-      .children
-      (cond->
-        [(m/Padding
-          .padding (m.EdgeInsets/only .right theme/space-lg .top theme/space-xs)
-          .child
-          (m/CircleAvatar
-           .radius 20.0
-           .backgroundColor (theme/sky-soft)
-           .child
-           (m/Text (sender-initial avatar-src)
-                   .style (m/TextStyle .color (theme/sky-deep)
-                                       .fontSize theme/text-base
-                                       .fontWeight m/FontWeight.w600
-                                       .fontFamily font-family))))
-         (mgl/MongolText
-          subject
-          .style (m/TextStyle .fontSize theme/text-xl
-                              .fontFamily font-family
-                              .fontWeight m/FontWeight.bold
-                              .color (theme/ink)
-                              .height 1.5
-                              .letterSpacing 0.3))
-         (mongol-meta from-label theme/text-md (theme/ink) :weight m/FontWeight.w600)]
-        (ident/name-and-addr-differ? name addr)
-        (conj (mongol-meta addr theme/text-sm (theme/ink-muted)))
-        (seq to)
-        (conj (mongol-meta (str "To: " to) theme/text-sm (theme/ink-muted)))
-        date
-        (conj (mongol-meta date theme/text-xs (theme/ink-muted))))))))
+    (cond->
+      [(m/Padding
+        .padding (m.EdgeInsets/only .right theme/space-lg .top theme/space-xs)
+        .child
+        (m/CircleAvatar
+         .radius 20.0
+         .backgroundColor (theme/sky-soft)
+         .child
+         (m/Text (sender-initial avatar-src)
+                 .style (m/TextStyle .color (theme/sky-deep)
+                                     .fontSize theme/text-base
+                                     .fontWeight m/FontWeight.w600
+                                     .fontFamily font-family))))
+       (m/Padding
+        .padding (m.EdgeInsets/only .right theme/space-lg)
+        .child
+        (mgl/MongolText
+         subject
+         .style (m/TextStyle .fontSize theme/text-xl
+                             .fontFamily font-family
+                             .fontWeight m/FontWeight.bold
+                             .color (theme/ink)
+                             .height 1.5
+                             .letterSpacing 0.3)))
+       (mongol-meta from-label theme/text-md (theme/ink) :weight m/FontWeight.w600)]
+      (ident/name-and-addr-differ? name addr)
+      (conj (mongol-meta addr theme/text-sm (theme/ink-muted)))
+      (seq to)
+      (conj (mongol-meta (str "To: " to) theme/text-sm (theme/ink-muted)))
+      date
+      (conj (mongol-meta date theme/text-xs (theme/ink-muted))))))
 
 (defn pane
-  "Reading body: subject columns + mail body + attachments. No chrome."
+  "Reading body: title + sender + mail body share one scroll; attachments aside."
   []
   (f/widget
    :context ctx
@@ -369,44 +376,46 @@
             loading-body? (not (.-hasBody msg))
             html (html-of detail)
             webview? (and (not loading-body?) (external-html? html))
+            leading (when-not webview? (meta-leading msg))
             att-panel (attachments-panel ctx detail downloading-attachment-ids)]
         (m/Row
          .crossAxisAlignment m.CrossAxisAlignment/stretch
          .children
-         (cond-> []
-           (not webview?)
-           (conj (header-columns msg))
+         [(m/Expanded
+           .child
+           (cond
+             loading-body?
+             (m/Padding
+              .padding (m.EdgeInsets/all 24.0)
+              .child
+              (m/Row
+               .crossAxisAlignment m.CrossAxisAlignment/start
+               .children
+               (conj (vec leading)
+                     (m/Expanded
+                      .child
+                      (m/Center
+                       .child
+                       (if (seq last-error)
+                         (m/Padding
+                          .padding (m.EdgeInsets/all 24.0)
+                          .child
+                          (m/Text (str "Failed to load body:\n" last-error)
+                                  .textAlign m.TextAlign/center
+                                  .style (m/TextStyle .color (theme/danger)
+                                                      .fontSize 13.0)))
+                         (m/Column
+                          .mainAxisSize m.MainAxisSize/min
+                          .children
+                          [(m/CircularProgressIndicator. .color (theme/sky))
+                           (m/SizedBox .height 12.0)
+                           (m/Text "Loading body..."
+                                   .style (m/TextStyle .color (theme/ink-muted)
+                                                       .fontSize 12.0))])))))))
 
-           true
-           (conj
-            (m/Expanded
-             .child
-             (cond
-               loading-body?
-               (m/Center
-                .child
-                (if (seq last-error)
-                  (m/Padding
-                   .padding (m.EdgeInsets/all 24.0)
-                   .child
-                   (m/Text (str "Failed to load body:\n" last-error)
-                           .textAlign m.TextAlign/center
-                           .style (m/TextStyle .color (theme/danger)
-                                               .fontSize 13.0)))
-                  (m/Column
-                   .mainAxisSize m.MainAxisSize/min
-                   .children
-                   [(m/CircularProgressIndicator. .color (theme/sky))
-                    (m/SizedBox .height 12.0)
-                    (m/Text "Loading body..."
-                            .style (m/TextStyle .color (theme/ink-muted)
-                                                .fontSize 12.0))])))
+             webview?
+             (external-reader html msg)
 
-               webview?
-               (external-reader html msg)
-
-               :else
-               (body-view detail))))
-
-           true
-           (conj (if att-panel att-panel (m/SizedBox.shrink))))))))))
+             :else
+             (body-view detail leading)))
+          (if att-panel att-panel (m/SizedBox.shrink))]))))))

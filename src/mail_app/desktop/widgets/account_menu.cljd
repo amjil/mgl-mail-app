@@ -7,6 +7,7 @@
             [clojure.string :as str]
             [components.dialog :as dialog]
             [components.menu :as menu]
+            [mail-app.shared.i18n :as i18n]
             [mail-app.shared.toast :as toast]
             [mail-app.services.mail-core :as mail]
             [mail-app.state.store :as store]
@@ -223,12 +224,15 @@
            {:keys [accounts current-account-id]} store/app-state]
    (let [current (some #(when (= (.-id ^mc/MailAccountDto %) current-account-id) %)
                        accounts)
+         raw-name (when current (.-displayName ^mc/MailAccountDto current))
+         email (when current (.-email ^mc/MailAccountDto current))
+         ;; If displayName is identical to email, extract the local username part before '@'
          label (cond
-                 (nil? current-account-id) "All accounts"
-                 current (or (.-displayName ^mc/MailAccountDto current)
-                             (.-email ^mc/MailAccountDto current))
+                 (nil? current-account-id) (i18n/t :all-accounts)
+                 (and (seq raw-name) (not= raw-name email)) raw-name
+                 (seq email) (first (str/split email #"@"))
                  :else "Account")
-         sub-label (if current (.-email ^mc/MailAccountDto current) "Unified Inbox")]
+         sub-label (if current email "Unified Inbox")]
      (menu/custom-popup-menu
       {:offset-y 8.0
        :menu-width 280.0

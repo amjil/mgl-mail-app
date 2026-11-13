@@ -1,0 +1,90 @@
+(ns mail-app.shared.i18n
+  "100% Pure Traditional Mongolian (mn-Mong) UI dictionary. Zero Cyrillic.")
+
+(def labels
+  {;; Brand & General
+   :app-name          "ᠮᠣᠩᠭᠣᠯ ᠰᠢᠦᠳᠠᠨ"
+   :app-title         "ᠮᠣᠩᠭᠣᠯ ᠢᠮᠡᠢᠯ"
+   :empty             "ᠬᠣᠭᠣᠰᠣᠨ ᠪᠠᠶᠢᠨ᠎ᠠ"
+   :loading           "ᠠᠴᠢᠶᠠᠯᠠᠵᠤ ᠪᠠᠶᠢᠨ᠎ᠠ..."
+   :moving            "ᠰᠢᠯᠵᠢᠭᠦᠯᠵᠦ ᠪᠠᠶᠢᠨ᠎ᠠ..."
+   :no-subject        "ᠭᠠᠷᠴᠢᠭ ᠦᠭᠡᠢ"
+   :cancel            "ᠪᠣᠯᠢᠬᠤ"
+   :cancel-mgl        "ᠪᠣᠯᠢᠬᠤ"
+   :save              "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ"
+   :delete            "ᠤᠰᠠᠳᠬᠠᠬᠤ"
+   :create            "ᠡᠭᠦᠰᠭᠡᠬᠦ"
+   :rename            "ᠨᠡᠷ᠎ᠡ ᠰᠣᠯᠢᠬᠤ"
+   :retry             "ᠳᠠᠬᠢᠨ ᠣᠷᠣᠯᠳᠣᠬᠤ"
+   :dismiss           "ᠬᠠᠭᠠᠬᠤ"
+
+   ;; Mailboxes (100% Traditional Mongolian Unicode)
+   :inbox             "ᠢᠷᠡᠭᠰᠡᠨ"       ;; Inbox
+   :sent              "ᠢᠯᠡᠭᠡᠭᠰᠡᠨ"     ;; Sent
+   :draft             "ᠨᠣᠭᠣᠷᠠᠭ"       ;; Drafts (Replaced Cyrillic ноорог)
+   :outbox            "ᠭᠠᠷᠴᠤ ᠪᠤᠢ"     ;; Outbox
+   :archive           "ᠠᠷᠬᠢᠪ"         ;; Archive (Fixed Cyrillic в tofu box)
+   :junk              "ᠬᠣᠭ"           ;; Junk
+   :trash             "ᠤᠰᠠᠳᠬᠠᠭᠰᠠᠨ"    ;; Trash
+   :custom-folders    "ᠪᠤᠰᠠᠳ ᠬᠠᠪᠳᠠᠰᠤ" ;; Custom Folders
+   :all-accounts      "ᠪᠦᠬᠦ ᠳᠠᠩᠰᠠ"    ;; All Accounts
+
+   ;; Actions & Compose
+   :compose           "ᠪᠢᠴᠢᠬᠦ"
+   :send              "ᠢᠯᠡᠭᠡᠬᠦ"
+   :save-draft        "ᠨᠣᠭᠣᠷᠠᠭ ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ"
+   :reply             "ᠬᠠᠷᠢᠭᠤ"
+   :reply-all         "ᠪᠦᠭᠦᠳᠡ ᠳᠦ ᠬᠠᠷᠢᠭᠤ"
+   :forward           "ᠳᠠᠮᠵᠢᠭᠤᠯᠬᠤ"
+   :attachments       "ᠬᠠᠪᠰᠤᠷᠠᠯᠲᠠ"
+   :to                "ᠬᠦᠯᠢᠶᠡᠨ ᠠᠪᠤᠭᠴᠢ"
+   :cc                "ᠬᠠᠮᠲᠤ ᠢᠯᠡᠭᠡᠬᠦ"
+   :bcc               "ᠨᠢᠭᠤᠴᠠ ᠢᠯᠡᠭᠡᠬᠦ"
+   :subject           "ᠭᠠᠷᠴᠢᠭ"
+   :from              "ᠢᠯᠡᠭᠡᠭᠴᠢ"
+   :date              "ᠡᠳᠦᠷ ᠬᠤᠭᠤᠴᠠᠭ᠎ᠠ"
+   :collapse          "ᠬᠤᠷᠢᠶᠠᠬᠤ"
+   :uncollapse        "ᠳᠡᠯᠭᠡᠬᠦ"
+
+   ;; Search & Filters
+   :search-hint       "ᠬᠠᠶᠢᠬᠤ..."
+   :search-empty      "ᠬᠠᠶᠢᠬᠤ ᠤᠳᠬ᠎ᠠ ᠪᠠᠨ ᠣᠷᠣᠭᠤᠯᠤᠨ᠎ᠠ ᠤᠤ"
+   :search-no-result  "ᠢᠯᠡᠷᠡᠴᠡ ᠣᠯᠳᠣᠭᠰᠠᠨ ᠦᠭᠡᠢ"
+   :filter-unread     "ᠤᠩᠰᠢᠭᠠᠳᠦᠢ"
+   :filter-attachment "ᠬᠠᠪᠰᠤᠷᠠᠯᠲᠠ"
+   :filter-starred    "ᠣᠳᠣ ᠲᠠᠢ"
+   :filter-week       "ᠡᠨᠡ ᠳᠣᠯᠣᠭ᠎ᠠ ᠬᠣᠨᠣᠭ"
+
+   ;; Pull to refresh
+   :pull-swipe        "ᠲᠠᠲᠠᠵᠤ ᠰᠢᠨᠡᠴᠢᠯᠡᠬᠦ"
+   :pull-release      "ᠲᠠᠯᠪᠢᠵᠤ ᠰᠢᠨᠡᠴᠢᠯᠡᠬᠦ"
+   :pull-loading      "ᠰᠢᠨᠡᠴᠢᠯᠡᠵᠦ ᠪᠠᠶᠢᠨ᠎ᠠ..."
+
+   ;; Settings & Auth
+   :settings          "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠭ᠎ᠠ"
+   :accounts          "ᠳᠠᠩᠰᠠ"
+   :add-account       "ᠳᠠᠩᠰᠠ ᠨᠡᠮᠡᠬᠦ"
+   :remove-account    "ᠳᠠᠩᠰᠠ ᠤᠰᠠᠳᠬᠠᠬᠤ"
+   :signature         "ᠭᠠᠷ ᠤᠨ ᠦᠰᠦᠭ"
+   :dark-mode         "ᠰᠦᠨᠢ ᠶᠢᠨ ᠭᠣᠷᠢᠮ"
+   :auto-sync         "ᠠᠦ᠋ᠲ᠋ᠣ᠋ ᠢᠵᠢᠯᠡᠰᠦᠯ"
+   :notifications     "ᠮᠡᠳᠡᠭᠳᠡᠯ"
+   :welcome           "ᠲᠠᠪᠠᠲᠠᠢ ᠮᠣᠷᠢᠯᠠᠨ᠎ᠠ ᠤᠤ"
+   :connect-email     "ᠢᠮᠡᠢᠯ ᠬᠠᠶᠢᠭ ᠢᠶᠠᠨ ᠬᠣᠯᠪᠣᠨ᠎ᠠ ᠤᠤ"
+   :email-label       "ᠢᠮᠡᠢᠯ"
+   :password-label    "ᠨᠢᠭᠤᠴᠠ ᠦᠭᠡ"
+   :sign-in           "ᠨᠡᠪᠲᠡᠷᠡᠬᠦ"})
+
+(defn t [k]
+  (get labels k (name k)))
+
+(defn mailbox-label [role-or-key fallback]
+  (case (keyword role-or-key)
+    :inbox   (t :inbox)
+    :sent    (t :sent)
+    :draft   (t :draft)
+    :outbox  (t :outbox)
+    :archive (t :archive)
+    :junk    (t :junk)
+    :trash   (t :trash)
+    (or fallback (t :inbox))))

@@ -10,6 +10,7 @@
             [block-editor.widgets.reader :as reader]
             [mail-app.shared.widgets.compose.quote :as quote]
             [mail-app.shared.utils.format :as fmt]
+            [mail-app.shared.i18n :as i18n]
             [mail-app.services.compose-export :as export]
             [mail-app.services.compose-screen :as compose]
             [mail-app.services.mail-core :as mail]
@@ -119,7 +120,7 @@
 (defn meta-leading
   [^mc/MailMessageDto msg {:keys [on-surface on-surface-variant]}]
   (let [subject (let [s (.-subject msg)]
-                  (if (or (nil? s) (empty? s)) "No Subject" s))
+                  (if (or (nil? s) (empty? s)) (i18n/t :no-subject) s))
         name (ident/from-name msg)
         addr (ident/from-addr msg)
         from-label (if (seq name)

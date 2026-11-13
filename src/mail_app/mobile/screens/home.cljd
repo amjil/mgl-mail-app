@@ -1,8 +1,10 @@
 (ns mail-app.mobile.screens.home
   (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
             ["dart:async" :as async]
             [cljd.flutter :as f]
             [mail-app.shared.toast :as toast]
+            [mail-app.shared.i18n :as i18n]
             [mail-app.mobile.screens.signup :as signup]
             [mail-app.mobile.widgets.drawer :as drawer]
             [mail-app.mobile.widgets.error-banner :as err]
@@ -35,16 +37,7 @@
                   (nil? selected-mailbox))
          (async/Future.microtask
           #(mail/select-mailbox! :inbox)))
-       (let [title (case selected-mailbox
-                     :inbox "Inbox"
-                     :sent "Sent"
-                     :draft "Drafts"
-                     :outbox "Outbox"
-                     :archive "Archive"
-                     :junk "Junk"
-                     :trash "Trash"
-                     "MGL Mail")
-             in-selection-mode? (seq selected-message-ids)
+       (let [in-selection-mode? (seq selected-message-ids)
              sync-action
              (if syncing?
                (m/Padding
@@ -58,7 +51,7 @@
                          .color (theme/sky))))
                (m/IconButton
                 .icon (m/Icon m.Icons/sync)
-                .tooltip "Sync"
+                .tooltip (i18n/t :auto-sync)
                 .onPressed #(mail/sync!)))]
          (m/Scaffold
           .backgroundColor (theme/paper)
@@ -75,31 +68,29 @@
                        .onPressed (fn []
                                     (store/clear-message-selection!)
                                     nil))
-             .title (m/Text (str (count selected-message-ids) " сонгосон")
+             .title (m/Text (str (count selected-message-ids))
                             .style (m/TextStyle .fontFamily font-family
                                                 .fontWeight m/FontWeight.w600
                                                 .color (theme/sky-deep)))
              .actions
              [(m/IconButton
                .icon (m/Icon m.Icons/archive_outlined .color (theme/sky-deep))
-               .tooltip "Archive All"
+               .tooltip (i18n/t :archive)
                .onPressed (fn []
-                            (bulk-then! ctx mail/bulk-archive! "Бүгдийг архивлалаа")
+                            (bulk-then! ctx mail/bulk-archive! (i18n/t :archive))
                             nil))
               (m/IconButton
                .icon (m/Icon m.Icons/delete_outline .color (theme/danger))
-               .tooltip "Delete All"
+               .tooltip (i18n/t :delete)
                .onPressed (fn []
-                            (bulk-then! ctx mail/bulk-delete! "Бүгдийг устгалаа")
+                            (bulk-then! ctx mail/bulk-delete! (i18n/t :delete))
                             nil))])
             (m/AppBar
-             .title (m/Text title .style (m/TextStyle .fontFamily font-family
-                                                     .fontWeight m/FontWeight.w600
-                                                     .color (theme/ink)))
+             .title (m/SizedBox.shrink)
              .actions
              [(m/IconButton
                .icon (m/Icon m.Icons/search)
-               .tooltip "Search"
+               .tooltip (i18n/t :search-hint)
                .onPressed (fn []
                             (.pushNamed (m/Navigator.of ctx) "/search")
                             nil))
@@ -108,11 +99,40 @@
                  .crossAxisAlignment m.CrossAxisAlignment/stretch
                  .children
                  [(err/banner)
-                  (m/Expanded .child (mobile-list/list-view))])
+                  (m/Expanded
+                   .child
+                   (m/Row
+                    .crossAxisAlignment m.CrossAxisAlignment/stretch
+                    .children
+                    [;; Left: vertical Mongolian mailbox label
+                     (m/Container
+                      .width 42.0
+                      .padding (m.EdgeInsets/symmetric .vertical 16.0)
+                      .decoration (m/BoxDecoration
+                                   .color (theme/paper-deep)
+                                   .border (m/Border
+                                            .right (m/BorderSide .color (theme/divider) .width 0.8)))
+                      .child
+                      (m/Column
+                       .children
+                       [(m/Container
+                         .width 6.0 .height 6.0
+                         .decoration (m/BoxDecoration .color (theme/sky) .shape m.BoxShape/circle))
+                        (m/SizedBox .height 12.0)
+                        (m/Expanded
+                         .child
+                         (mgl/MongolText
+                          (i18n/mailbox-label selected-mailbox (i18n/t :app-title))
+                          .style (m/TextStyle .fontFamily font-family
+                                              .fontSize 18.0
+                                              .fontWeight m/FontWeight.w700
+                                              .color (theme/ink))))]))
+                     ;; Right: infinite-scroll mail list with swipe-to-refresh
+                     (m/Expanded .child (mobile-list/list-view))]))])
           .floatingActionButton
           (when-not in-selection-mode?
             (m/FloatingActionButton
-             .tooltip "Compose"
+             .tooltip (i18n/t :compose)
              .child (m/Icon m.Icons/edit_outlined)
              .onPressed (fn []
                           (store/clear-compose-draft!)

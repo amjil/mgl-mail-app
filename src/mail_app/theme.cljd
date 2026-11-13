@@ -1,46 +1,48 @@
 (ns mail-app.theme
-  "Shared UI constants — Eternal Sky palette for mobile and desktop."
+  "Shared UI constants — Eternal Sky & Parchment Scroll palette."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
             [mail-app.state.store :as store]))
 
 (def font-family "OyunQaganTig")
 
-;; --- Light and dark color tokens ---
+;; --- Dual Palettes: Warm Parchment (Light) & Midnight Steppe (Dark) ---
 (def ^:private light-palette
-  {:sky (m/Color 0xFF1A6FA8)
-   :sky-deep (m/Color 0xFF145A8A)
-   :sky-light (m/Color 0xFFF0F6FA)
-   :sky-soft (m/Color 0xFFDCEAF5)
-   :paper (m/Color 0xFFF8F9FA)
-   :paper-deep (m/Color 0xFFF0F2F5)
-   :surface (m/Color 0xFFFFFFFF)
-   :ink (m/Color 0xFF1C222B)
-   :ink-muted (m/Color 0xFF7A8494)
-   :gold (m/Color 0xFFD4AF37)
-   :danger (m/Color 0xFFD32F2F)
-   :danger-soft (m/Color 0xFFFDECEA)
-   :divider (m/Color 0xFFE4E7EB)
-   :hover (m/Color 0xFFF4F6F8)})
+  {:sky         (m/Color 0xFF166496)
+   :sky-deep    (m/Color 0xFF0E486E)
+   :sky-light   (m/Color 0xFFEBF3F9)
+   :sky-soft    (m/Color 0xFFD2E5F3)
+   :paper       (m/Color 0xFFF6F4EE) ;; Warm parchment base
+   :paper-deep  (m/Color 0xFFEDEAE2) ;; Deeper parchment for sidebar
+   :surface     (m/Color 0xFFFFFFFF)
+   :ink         (m/Color 0xFF1A212B)
+   :ink-muted   (m/Color 0xFF6E7785)
+   :gold        (m/Color 0xFFC89D28)
+   :danger      (m/Color 0xFFC93535)
+   :danger-soft (m/Color 0xFFFCEAEA)
+   :divider     (m/Color 0xFFE2DFD7)
+   :hover       (m/Color 0xFFF1EFE9)})
 
 (def ^:private dark-palette
-  {:sky (m/Color 0xFF38BDF8)
-   :sky-deep (m/Color 0xFF0284C7)
-   :sky-light (m/Color 0xFF0F2942)
-   :sky-soft (m/Color 0xFF164E63)
-   :paper (m/Color 0xFF0F172A)
-   :paper-deep (m/Color 0xFF020617)
-   :surface (m/Color 0xFF1E293B)
-   :ink (m/Color 0xFFF8FAFC)
-   :ink-muted (m/Color 0xFF94A3B8)
-   :gold (m/Color 0xFFEAB308)
-   :danger (m/Color 0xFFEF4444)
-   :danger-soft (m/Color 0xFF451A1A)
-   :divider (m/Color 0xFF334155)
-   :hover (m/Color 0xFF334155)})
+  {:sky         (m/Color 0xFF38BDF8)
+   :sky-deep    (m/Color 0xFF0284C7)
+   :sky-light   (m/Color 0xFF11263C)
+   :sky-soft    (m/Color 0xFF193B5A)
+   :paper       (m/Color 0xFF0B111E) ;; Deep night-sky background
+   :paper-deep  (m/Color 0xFF070B14) ;; Near-black sidebar
+   :surface     (m/Color 0xFF151F32) ;; Floating card surface
+   :ink         (m/Color 0xFFF1F5F9)
+   :ink-muted   (m/Color 0xFF8B9BB4)
+   :gold        (m/Color 0xFFEAB308)
+   :danger      (m/Color 0xFFF87171)
+   :danger-soft (m/Color 0xFF3B1818)
+   :divider     (m/Color 0xFF233047)
+   :hover       (m/Color 0xFF1E2B42)})
 
 (defn- c [key]
-  (get (if (:dark-mode? @store/app-state) dark-palette light-palette) key))
+  (if (:dark-mode? @store/app-state)
+    (get dark-palette key)
+    (get light-palette key)))
 
 (defn sky [] (c :sky))
 (defn sky-deep [] (c :sky-deep))
@@ -57,18 +59,18 @@
 (defn divider [] (c :divider))
 (defn hover [] (c :hover))
 
-;; --- Layout ---
+;; --- Layout Tokens ---
 (def folder-pane-width 320.0)
-(def folder-pane-min-width 160.0)
-(def folder-pane-max-width 720.0)
-(def mail-list-min-width 200.0)
-(def folder-col-width 76.0)
-(def mail-col-width 130.0)
-(def chrome-height 64.0)
+(def folder-pane-min-width 180.0)
+(def folder-pane-max-width 680.0)
+(def mail-list-min-width 240.0)
+(def folder-col-width 74.0)
+(def mail-col-width 132.0)
+(def chrome-height 60.0)
 (def radius-sm 8.0)
-(def radius-md 12.0)
+(def radius-md 14.0)
 (def radius-lg 20.0)
-(def pane-anim (dart:core/Duration. .milliseconds 250))
+(def pane-anim (dart:core/Duration. .milliseconds 220))
 
 ;; --- Spacing scale ---
 (def space-xs 4.0)
@@ -88,137 +90,117 @@
 (def text-2xl 24.0)
 (def text-3xl 28.0)
 
+(defn card-shadow []
+  (if (:dark-mode? @store/app-state)
+    []
+    [(m/BoxShadow
+      .color (.withOpacity (ink) 0.07)
+      .blurRadius 24.0
+      .offset (m/Offset. 6.0 8.0))]))
+
+(defn hair-shadow []
+  (if (:dark-mode? @store/app-state)
+    []
+    [(m/BoxShadow
+      .color (.withOpacity (ink) 0.035)
+      .blurRadius 10.0
+      .offset (m/Offset. 4.0 2.0))]))
+
 (defn empty-state
-  "Centered sky-circle icon + vertical Mongol label with refined spacing and typography."
+  "Elegant vertical scroll empty state with double-ring emblem."
   [icon label]
   (m/Center
    .child
-   (m/Row
-    .mainAxisSize m.MainAxisSize/min
-    .crossAxisAlignment m.CrossAxisAlignment/center
-    .children
-    [(m/Container
-      .width 96.0
-      .height 96.0
-      .decoration (m/BoxDecoration
-                   .color (sky-light)
-                   .shape m.BoxShape/circle
-                   .boxShadow [(m/BoxShadow
-                                .color (.withOpacity (sky) 0.08)
-                                .blurRadius 24.0
-                                .offset (m/Offset. 0.0 4.0))])
-      .child (m/Center
-              .child (m/Icon icon .size 44.0 .color (sky))))
-     (m/SizedBox .width space-2xl)
-     (mgl/MongolText
-      label
-      .style (m/TextStyle .fontFamily font-family
-                          .color (ink-muted)
-                          .fontSize text-xl
-                          .fontWeight m/FontWeight.w500
-                          .height 1.5
-                          .letterSpacing 0.3))])))
-
-(defn card-shadow
-  "Soft elevation for cards with subtle depth."
-  []
-  (if (:dark-mode? @store/app-state)
-    [(m/BoxShadow
-      .color (.withOpacity m.Colors/black 0.2)
-      .blurRadius 16.0
-      .offset (m/Offset. 0.0 4.0))]
-    [(m/BoxShadow
-      .color (.withOpacity (ink) 0.06)
-      .blurRadius 24.0
-      .offset (m/Offset. 0.0 8.0))
-     (m/BoxShadow
-      .color (.withOpacity (ink) 0.04)
-      .blurRadius 8.0
-      .offset (m/Offset. 0.0 2.0))]))
-
-(defn hair-shadow
-  "Subtle shadow for chrome and horizontal layouts."
-  []
-  (if (:dark-mode? @store/app-state)
-    [(m/BoxShadow
-      .color (.withOpacity m.Colors/black 0.15)
-      .blurRadius 8.0
-      .offset (m/Offset. 4.0 0.0))]
-    [(m/BoxShadow
-      .color (.withOpacity (ink) 0.04)
-      .blurRadius 12.0
-      .offset (m/Offset. 4.0 0.0))
-     (m/BoxShadow
-      .color (.withOpacity (ink) 0.02)
-      .blurRadius 4.0
-      .offset (m/Offset. 2.0 0.0))])) ;; shadow projects right — for the horizontal scroll layout
+   (m/Container
+    .padding (m.EdgeInsets/symmetric .horizontal 28.0 .vertical 32.0)
+    .decoration (m/BoxDecoration
+                 .color (.withOpacity (surface) 0.6)
+                 .borderRadius (m/BorderRadius.circular radius-lg)
+                 .border (m/Border.all .color (divider) .width 0.5))
+    .child
+    (m/Row
+     .mainAxisSize m.MainAxisSize/min
+     .children
+     [(m/Container
+       .width 76.0
+       .height 76.0
+       .decoration (m/BoxDecoration
+                    .color (sky-light)
+                    .shape m.BoxShape/circle
+                    .border (m/Border.all .color (sky-soft) .width 1.5))
+       .child (m/Center
+               .child (m/Icon icon .size 34.0 .color (sky))))
+      (m/SizedBox .width 22.0)
+      (mgl/MongolText
+       label
+       .style (m/TextStyle .fontFamily font-family
+                           .color (ink-muted)
+                           .fontSize 20.0
+                           .height 1.45))]))))
 
 (defn sky-theme []
-  (m/ThemeData
-   .useMaterial3 true
-   .fontFamily font-family
-   .colorScheme (m.ColorScheme/fromSeed
-                 .seedColor (sky)
-                 .brightness (if (:dark-mode? @store/app-state)
-                               m.Brightness/dark
-                               m.Brightness/light)
-                 .primary (sky)
-                 .onPrimary (if (:dark-mode? @store/app-state)
-                              m.Colors/black
-                              m.Colors/white)
-                 .surface (surface))
-   .scaffoldBackgroundColor (paper)
-   .dividerColor (divider)
-   .iconTheme (m/IconThemeData .color (ink-muted) .size 20.0)
-   .appBarTheme (m/AppBarTheme
-                 .elevation 0.0
-                 .scrolledUnderElevation 0.0
-                 .backgroundColor (surface)
-                 .foregroundColor (ink)
-                 .iconTheme (m/IconThemeData .color (ink-muted) .size 22.0)
-                 .actionsIconTheme (m/IconThemeData .color (ink-muted) .size 22.0)
-                 .titleTextStyle (m/TextStyle
-                                  .fontFamily font-family
-                                  .fontSize 18.0
-                                  .fontWeight m/FontWeight.w600
-                                  .color (ink)))
-   .floatingActionButtonTheme
-   (m/FloatingActionButtonThemeData
-    .backgroundColor (sky)
-    .foregroundColor m.Colors/white
-    .elevation 4.0
-    .shape (m/RoundedRectangleBorder
-            .borderRadius (m/BorderRadius.circular radius-lg)))
-   .dialogTheme
-   (m/DialogThemeData
-    .backgroundColor (surface)
-    .elevation 24.0
-    .shape (m/RoundedRectangleBorder
-            .borderRadius (m/BorderRadius.circular radius-lg)))
-   .bottomSheetTheme
-   (m/BottomSheetThemeData
-    .backgroundColor (surface)
-    .shape (m/RoundedRectangleBorder
-            .borderRadius (m/BorderRadius.vertical
-                           .top (m.Radius/circular radius-lg))))
-   .dividerTheme (m/DividerThemeData
-                  .color (divider)
-                  .space 1.0
-                  .thickness 1.0)
-   .tooltipTheme (m/TooltipThemeData
-                  .waitDuration (dart:core/Duration. .milliseconds 600))
-   .inputDecorationTheme
-   (m/InputDecorationTheme
-    .filled true
-    .fillColor (paper)
-    .contentPadding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 16.0)
-    .hintStyle (m/TextStyle .color (ink-muted) .fontSize 14.0)
-    .border (m/OutlineInputBorder
-             .borderRadius (m/BorderRadius.circular radius-md)
-             .borderSide m.BorderSide/none)
-    .enabledBorder (m/OutlineInputBorder
-                    .borderRadius (m/BorderRadius.circular radius-md)
-                    .borderSide m.BorderSide/none)
-    .focusedBorder (m/OutlineInputBorder
-                    .borderRadius (m/BorderRadius.circular radius-md)
-                    .borderSide (m/BorderSide .color (sky) .width 2.0)))))
+  (let [dark? (:dark-mode? @store/app-state)]
+    (m/ThemeData
+     .useMaterial3 true
+     .fontFamily font-family
+     .colorScheme (m.ColorScheme/fromSeed
+                   .seedColor (sky)
+                   .brightness (if dark? m.Brightness/dark m.Brightness/light)
+                   .primary (sky)
+                   .onPrimary m.Colors/white
+                   .surface (surface))
+     .scaffoldBackgroundColor (paper)
+     .dividerColor (divider)
+     .iconTheme (m/IconThemeData .color (ink-muted) .size 20.0)
+     .appBarTheme (m/AppBarTheme
+                   .elevation 0.0
+                   .scrolledUnderElevation 0.0
+                   .backgroundColor (surface)
+                   .foregroundColor (ink)
+                   .iconTheme (m/IconThemeData .color (ink-muted) .size 22.0)
+                   .actionsIconTheme (m/IconThemeData .color (ink-muted) .size 22.0)
+                   .titleTextStyle (m/TextStyle
+                                    .fontFamily font-family
+                                    .fontSize 18.0
+                                    .fontWeight m/FontWeight.w600
+                                    .color (ink)))
+     .floatingActionButtonTheme
+     (m/FloatingActionButtonThemeData
+      .backgroundColor (sky)
+      .foregroundColor m.Colors/white
+      .elevation 3.0
+      .shape (m/RoundedRectangleBorder
+              .borderRadius (m/BorderRadius.circular radius-lg)))
+     .dialogTheme
+     (m/DialogThemeData
+      .backgroundColor (surface)
+      .elevation 16.0
+      .shape (m/RoundedRectangleBorder
+              .borderRadius (m/BorderRadius.circular radius-lg)))
+     .bottomSheetTheme
+     (m/BottomSheetThemeData
+      .backgroundColor (surface)
+      .shape (m/RoundedRectangleBorder
+              .borderRadius (m/BorderRadius.vertical
+                             .top (m.Radius/circular radius-lg))))
+     .dividerTheme (m/DividerThemeData
+                    .color (divider)
+                    .space 1.0
+                    .thickness 0.5)
+     .tooltipTheme (m/TooltipThemeData
+                    .waitDuration (dart:core/Duration. .milliseconds 600))
+     .inputDecorationTheme
+     (m/InputDecorationTheme
+      .filled true
+      .fillColor (paper)
+      .contentPadding (m.EdgeInsets/symmetric .horizontal 16.0 .vertical 16.0)
+      .hintStyle (m/TextStyle .color (ink-muted) .fontSize 14.0)
+      .border (m/OutlineInputBorder
+               .borderRadius (m/BorderRadius.circular radius-md)
+               .borderSide m.BorderSide/none)
+      .enabledBorder (m/OutlineInputBorder
+                      .borderRadius (m/BorderRadius.circular radius-md)
+                      .borderSide m.BorderSide/none)
+      .focusedBorder (m/OutlineInputBorder
+                      .borderRadius (m/BorderRadius.circular radius-md)
+                      .borderSide (m/BorderSide .color (sky) .width 2.0))))))
