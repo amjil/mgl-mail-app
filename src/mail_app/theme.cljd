@@ -64,8 +64,8 @@
 (def folder-pane-min-width 180.0)
 (def folder-pane-max-width 680.0)
 (def mail-list-min-width 240.0)
-(def folder-col-width 74.0)
-(def mail-col-width 132.0)
+(def folder-col-width 68.0)  ;; Compact, balanced folder column width
+(def mail-col-width 100.0)   ;; Sleek bamboo-slip width (down from 130.0/132.0)
 (def chrome-height 60.0)
 (def radius-sm 8.0)
 (def radius-md 14.0)
