@@ -193,6 +193,7 @@
           .padding (m.EdgeInsets/fromLTRB 6.0 (if is-child? 24.0 14.0) 6.0 12.0)
           .child
           (m/Column
+           .mainAxisAlignment m.MainAxisAlignment/start
            .crossAxisAlignment m.CrossAxisAlignment/center
            .children
            [;; 1. Top Centered Sender Avatar
@@ -215,16 +216,17 @@
 
             (m/SizedBox .height 12.0)
 
-            ;; 2. Middle Centered Vertical Text Columns (Subject + Sender/Date)
+            ;; 2. Middle Vertical Text Columns: Horizontally centered, Vertically TOP-aligned!
             (m/Expanded
              .child
-             (m/Center
+             (m/Align
+              .alignment m.Alignment/topCenter
               .child
               (m/Row
                .mainAxisSize m.MainAxisSize/min
                .crossAxisAlignment m.CrossAxisAlignment/start
                .children
-               [;; Left vertical line: Subject
+               [;; Left vertical column: Subject (starts right at the top)
                 (mgl/MongolText
                  display-subject
                  .maxLines 2
@@ -238,25 +240,28 @@
                                        m/FontWeight.w700
                                        m/FontWeight.normal)))
                 (m/SizedBox .width 8.0)
-                ;; Right vertical line: Sender + Date
+                ;; Right vertical column: Sender + Date (also starts right at the top)
                 (m/Column
-                 .crossAxisAlignment m.CrossAxisAlignment/center
+                 .mainAxisAlignment m.MainAxisAlignment/start
+                 .crossAxisAlignment m.CrossAxisAlignment/start
                  .mainAxisSize m.MainAxisSize/min
                  .children
-                 [(mgl/MongolText
-                   (sender-subtitle msg)
-                   .maxLines 1
-                   .overflow m.TextOverflow/ellipsis
-                   .style (m/TextStyle .fontSize 12.5
-                                       .fontFamily font-family
-                                       .color subtitle-color
-                                       .height 1.3))
+                 [(m/Flexible
+                   .child
+                   (mgl/MongolText
+                    (sender-subtitle msg)
+                    .maxLines 1
+                    .overflow m.TextOverflow/ellipsis
+                    .style (m/TextStyle .fontSize 12.5
+                                        .fontFamily font-family
+                                        .color subtitle-color
+                                        .height 1.3)))
                   (m/SizedBox .height 8.0)
                   (mgl/MongolText (or (format-date (.-date msg)) "")
                                   .style (m/TextStyle .fontSize 11.0
                                                       .color (theme/ink-muted)))])])))
 
-            ;; 3. Bottom Centered Status Icons (Unread dot, Thread expand, Star, Attachment)
+            ;; 3. Bottom Centered Status Icons
             (if has-footer?
               (m/Padding
                .padding (m.EdgeInsets/only .top 8.0)
@@ -318,11 +323,13 @@
         .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 14.0)
         .child
         (m/Column
+         .mainAxisAlignment m.MainAxisAlignment/start
          .crossAxisAlignment m.CrossAxisAlignment/center
          .children
          [(m/Expanded
            .child
-           (m/Center
+           (m/Align
+            .alignment m.Alignment/topCenter
             .child
             (m/Row
              .mainAxisSize m.MainAxisSize/min
