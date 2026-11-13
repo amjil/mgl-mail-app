@@ -1,141 +1,194 @@
 (ns mail-app.mobile.screens.settings
-  "Mobile settings screen built on components.setting design system."
+  "Mobile settings screen: Pure vertical Traditional Mongolian layout."
   (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
             ["package:mgl_mail_app/mail_core/mail_core.dart" :as mc]
             [cljd.flutter :as f]
+            [components.dialog :as dialog]
             [components.setting :as cs]
-            [mail-app.shared.toast :as toast]
             [mail-app.mobile.widgets.signature :as signature]
             [mail-app.services.mail-core :as mail]
+            [mail-app.shared.toast :as toast]
             [mail-app.state.store :as store]
             [mail-app.theme :as theme :refer [font-family]]))
+
+(defn- confirm-remove-account! [ctx account-id email]
+  (m/showDialog
+   .context ctx
+   .builder
+   (fn [d-ctx]
+     (dialog/vertical-custom-dialog
+      {:title "ᠳᠠᠩᠰᠠ ᠤᠰᠠᠳᠬᠠᠬᠤ"
+       :width-factor 0.75
+       :height-factor 0.5
+       :body (mgl/MongolText
+              (str (or email "") "\nᠲᠠ ᠡᠨᠡ ᠳᠠᠩᠰᠠ ᠶᠢ ᠤᠰᠠᠳᠬᠠᠬᠤ ᠳᠠᠭᠠᠨ ᠢᠲᠡᠭᠡᠯᠲᠡᠢ ᠪᠠᠶᠢᠨ᠎ᠠ ᠤᠤ?")
+              .style (m/TextStyle .fontFamily font-family
+                                  .fontSize 18.0
+                                  .color (theme/ink)
+                                  .height 1.4))
+       :actions
+       [(mgl/MongolTextButton
+         .onPressed (fn [] (.pop (m/Navigator.of d-ctx)) nil)
+         .child (mgl/MongolText "ᠪᠣᠯᠢᠬᠤ"
+                                .style (m/TextStyle .fontFamily font-family
+                                                    .color (theme/ink-muted))))
+        (mgl/MongolTextButton
+         .onPressed (fn []
+                      (.pop (m/Navigator.of d-ctx))
+                      (-> (mail/remove-account! account-id)
+                          (.then (fn [_]
+                                   (toast/success! ctx "ᠳᠠᠩᠰᠠ ᠤᠰᠠᠳᠬᠠᠭᠳᠠᠪᠠ")
+                                   nil))
+                          (.catchError (fn [e]
+                                         (toast/error! ctx (str e))
+                                         nil)))
+                      nil)
+         .child (mgl/MongolText "ᠤᠰᠠᠳᠬᠠᠬᠤ"
+                                .style (m/TextStyle .fontFamily font-family
+                                                    .color (theme/danger))))]}))))
 
 (defn screen []
   (f/widget
    :context ctx
    :get [m/Navigator]
-   :watch [{:keys [current-account-id accounts dark-mode?]} store/app-state]
-   (let [current-sig (or (store/get-signature current-account-id) "")
-         !auto-sync? (atom true)
-         !notify? (atom true)
+   :watch [{:keys [current-account-id accounts dark-mode?
+                   auto-sync? notify? use-builtin-ime?]}
+           store/app-state]
+   (let [current (some #(when (= (.-id ^mc/MailAccountDto %) current-account-id) %)
+                       accounts)
+         current-email (when current (.-email ^mc/MailAccountDto current))
+         current-sig (or (store/get-signature current-account-id) "")
          acc-items (mapv
                     (fn [^mc/MailAccountDto acc]
                       (let [aid (.-id acc)
                             email (.-email acc)
                             active? (= aid current-account-id)]
-                        {:leading (if active? m.Icons/check_circle m.Icons/account_circle_outlined)
+                        {:leading (if active?
+                                    m.Icons/check_circle
+                                    m.Icons/account_circle_outlined)
                          :title email
-                         :subtitle (if active? "Идэвхтэй (Active)" "Сонгох (Switch)")
+                         :subtitle (if active? "ᠢᠳᠡᠪᠬᠢᠲᠡᠢ" "ᠰᠣᠯᠢᠬᠤ")
                          :show-arrow? false
                          :on-tap (fn []
                                    (if active?
-                                     (toast/info! ctx "Already active")
+                                     (toast/info! ctx "ᠢᠳᠡᠪᠬᠢᠲᠡᠢ ᠪᠠᠶᠢᠨ᠎ᠠ")
                                      (do
                                        (mail/set-current-account! aid)
                                        (mail/select-mailbox! :inbox)
-                                       (toast/success! ctx (str "Switched to " email))))
+                                       (toast/success! ctx (str email))))
                                    nil)}))
                     (or accounts []))
          add-item {:leading m.Icons/add_circle_outline
-                   :title "Данс нэмэх"
-                   :subtitle "Шинэ хаяг холбох"
+                   :title "ᠳᠠᠩᠰᠠ ᠨᠡᠮᠡᠬᠦ"
+                   :subtitle "ᠰᠢᠨ᠎ᠡ ᠢᠮᠡᠢᠯ ᠬᠣᠯᠪᠣᠬᠤ"
                    :show-arrow? true
                    :on-tap (fn []
                              (.pushNamed navigator "/signup")
                              nil)}
          remove-item {:leading m.Icons/delete_outline_rounded
-                      :title "Данс устгах"
-                      :subtitle "Идэвхтэй дансыг устгах"
+                      :title "ᠳᠠᠩᠰᠠ ᠤᠰᠠᠳᠬᠠᠬᠤ"
+                      :subtitle "ᠢᠳᠡᠪᠬᠢᠲᠡᠢ ᠳᠠᠩᠰᠠ ᠶᠢ ᠤᠰᠠᠳᠬᠠᠬᠤ"
                       :show-arrow? false
                       :on-tap (fn []
                                 (when current-account-id
-                                  (m/showDialog
-                                   .context ctx
-                                   .builder (fn [^m/BuildContext dialog-ctx]
-                                              (m/AlertDialog
-                                               .backgroundColor (theme/surface)
-                                               .title (m/Text "Данс устгах"
-                                                              .style (m/TextStyle .fontFamily font-family
-                                                                                  .color (theme/ink)))
-                                               .content (m/Text "Энэ дансыг устгахдаа итгэлтэй байна уу?"
-                                                                .style (m/TextStyle .color (theme/ink-muted)))
-                                               .actions
-                                               [(m/TextButton
-                                                 .onPressed (fn [] (.pop (m/Navigator.of dialog-ctx)) nil)
-                                                 .child (m/Text "Цуцлах"
-                                                               .style (m/TextStyle .color (theme/ink-muted))))
-                                                (m/TextButton
-                                                 .onPressed (fn []
-                                                              (.pop (m/Navigator.of dialog-ctx))
-                                                              (-> (mail/remove-account! current-account-id)
-                                                                  (.then (fn [_] (toast/success! ctx "Данс устгагдлаа") nil))
-                                                                  (.catchError (fn [e]
-                                                                                 (toast/error! ctx (str e))
-                                                                                 nil)))
-                                                              nil)
-                                                 .child (m/Text "Устгах"
-                                                               .style (m/TextStyle .color (theme/danger))))]))))
+                                  (confirm-remove-account! ctx current-account-id current-email))
                                 nil)}]
      (m/Scaffold
       .backgroundColor (theme/paper)
-      .appBar (m/AppBar
-               .title (m/Text "Settings" .style (m/TextStyle .fontFamily font-family
-                                                            .fontWeight m/FontWeight.w600
-                                                            .color (theme/ink))))
       .body
       (m/SafeArea
        .child
-       (m/SingleChildScrollView
-        .scrollDirection m.Axis/horizontal
-        .padding (m.EdgeInsets/symmetric .vertical 12.0 .horizontal 8.0)
-        .child
-        (m/Row
-         .crossAxisAlignment m.CrossAxisAlignment/start
-         .children
-         [(cs/settings-section
-           "Данс (Accounts)"
-           (conj acc-items add-item remove-item))
-          (cs/settings-section
-           "Гарын үсэг (Signature)"
-           [{:leading m.Icons/edit_note_rounded
-             :title "Гарын үсэг"
-             :subtitle (if (seq current-sig) "Configured" "Empty")
-             :show-arrow? true
-             :on-tap (fn []
-                       (signature/open-dialog! ctx current-account-id current-sig)
-                       nil)}])
-          (f/widget
-           :watch [auto-sync? !auto-sync?
-                   notify? !notify?]
-           (cs/settings-section
-            "Network & Notifications"
-            [{:leading m.Icons/sync_rounded
-              :title "Auto Sync"
-              :subtitle "Every 5 minutes"
-              :value auto-sync?
-              :on-changed (fn [v] (reset! !auto-sync? v))}
-             {:leading m.Icons/notifications_none_rounded
-              :title "Notifications"
-              :subtitle "When new mail arrives"
-              :value notify?
-              :on-changed (fn [v] (reset! !notify? v))}]))
-          (cs/settings-section
-           "Appearance"
-           [{:leading m.Icons/dark_mode_outlined
-             :title "Dark Mode"
-             :subtitle "Toggle dark appearance"
-             :value dark-mode?
-             :on-changed (fn [_] (store/toggle-dark-mode!))}])
-          (cs/settings-section
-           "Other"
-           [{:leading m.Icons/cleaning_services_rounded
-             :title "Clear Cache"
-             :subtitle "Temporary data"
-             :show-arrow? true
-             :on-tap (fn []
-                       (toast/success! ctx "Cache cleared")
-                       nil)}
-            {:leading m.Icons/info_outline_rounded
-             :title "Version"
-             :subtitle "v1.0.0 (Alpha)"
-             :show-arrow? false}])])))))))
+       (m/Row
+        .crossAxisAlignment m.CrossAxisAlignment/stretch
+        .children
+        [;; Left Vertical Header Strip
+         (m/Container
+          .width 60.0
+          .decoration (m/BoxDecoration
+                       .color (theme/paper-deep)
+                       .border (m/Border
+                                .right (m/BorderSide .color (theme/divider) .width 0.8)))
+          .child
+          (m/Column
+           .children
+           [(m/Padding
+             .padding (m.EdgeInsets/only .top 12.0 .bottom 8.0)
+             .child
+             (m/IconButton
+              .icon (m/Icon m.Icons/arrow_back_ios_new .size 18.0 .color (theme/ink-muted))
+              .onPressed (fn []
+                           (when (.canPop navigator)
+                             (.pop navigator))
+                           nil)))
+            (m/Divider .height 1.0 .thickness 0.5 .color (theme/divider))
+            (m/Expanded
+             .child
+             (m/Center
+              .child
+              (mgl/MongolText
+               "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠭ᠎ᠠ"
+               .style (m/TextStyle .fontFamily font-family
+                                   .fontSize 20.0
+                                   .fontWeight m/FontWeight.bold
+                                   .color (theme/ink)))))]))
+
+         ;; Right Horizontal Scrollable Sections
+         (m/Expanded
+          .child
+          (m/SingleChildScrollView
+           .scrollDirection m.Axis/horizontal
+           .padding (m.EdgeInsets/symmetric .vertical 12.0 .horizontal 10.0)
+           .child
+           (m/Row
+            .crossAxisAlignment m.CrossAxisAlignment/start
+            .children
+            [(cs/settings-section
+              "ᠳᠠᠩᠰᠠ"
+              (conj acc-items add-item remove-item))
+             (cs/settings-section
+              "ᠭᠠᠷ ᠤᠨ ᠦᠰᠦᠭ"
+              [{:leading m.Icons/edit_note_rounded
+                :title "ᠭᠠᠷ ᠤᠨ ᠦᠰᠦᠭ"
+                :subtitle (if (seq current-sig) "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠤᠭᠰᠠᠨ" "ᠬᠣᠭᠣᠰᠣᠨ")
+                :show-arrow? true
+                :on-tap (fn []
+                          (signature/open-dialog! ctx current-account-id current-sig)
+                          nil)}])
+             (cs/settings-section
+              "ᠦᠵᠡᠭᠳᠡᠬᠦ ᠪᠠᠶᠢᠳᠠᠯ ᠪᠠ ᠦᠰᠦᠭ"
+              [{:leading m.Icons/dark_mode_outlined
+                :title "ᠰᠦᠨᠢ ᠶᠢᠨ ᠭᠣᠷᠢᠮ"
+                :subtitle "ᠬᠠᠷᠠᠩᠭᠤᠢ ᠳᠡᠪᠰᠢᠭᠦᠷ ᠥᠩᠭᠡ"
+                :value (boolean dark-mode?)
+                :on-changed (fn [_] (store/toggle-dark-mode!))}
+               {:leading m.Icons/keyboard_alt_outlined
+                :title "ᠳᠣᠲᠣᠭᠠᠳᠤ ᠮᠣᠩᠭᠣᠯ ᠭᠠᠷ"
+                :subtitle "ᠰᠢᠰᠲᠡᠮ ᠦᠨ ᠭᠠᠷ ᠲᠠᠢ ᠰᠣᠯᠢᠬᠤ"
+                :value (boolean use-builtin-ime?)
+                :on-changed (fn [_] (store/toggle-builtin-ime!))}])
+             (cs/settings-section
+              "ᠰᠦᠯᠵᠢᠶ᠎ᠡ ᠪᠠ ᠮᠡᠳᠡᠭᠳᠡᠯ"
+              [{:leading m.Icons/sync_rounded
+                :title "ᠠᠦ᠋ᠲ᠋ᠣ᠋ ᠢᠵᠢᠯᠡᠰᠦᠯ"
+                :subtitle "5 ᠮᠢᠨᠦ᠋ᠲ ᠲᠤᠲᠤᠮ"
+                :value (boolean auto-sync?)
+                :on-changed (fn [_] (store/toggle-auto-sync!))}
+               {:leading m.Icons/notifications_none_rounded
+                :title "ᠮᠡᠳᠡᠭᠳᠡᠯ"
+                :subtitle "ᠰᠢᠨ᠎ᠡ ᠵᠠᠬᠢᠳᠠᠯ ᠢᠷᠡᠬᠦ ᠦᠶ᠎ᠡ ᠳᠦ"
+                :value (boolean notify?)
+                :on-changed (fn [_] (store/toggle-notify!))}])
+             (cs/settings-section
+              "ᠪᠤᠰᠠᠳ"
+              [{:leading m.Icons/cleaning_services_rounded
+                :title "ᠴᠡᠪᠡᠷᠯᠡᠬᠦ"
+                :subtitle "ᠲᠦᠷ ᠬᠠᠳᠠᠭᠠᠯᠠᠭᠰᠠᠨ"
+                :show-arrow? true
+                :on-tap (fn []
+                          (toast/success! ctx "ᠴᠡᠪᠡᠷᠯᠡᠭᠳᠡᠪᠡ")
+                          nil)}
+               {:leading m.Icons/info_outline_rounded
+                :title "ᠬᠡᠪᠯᠡᠯ"
+                :subtitle "v1.0.0"
+                :show-arrow? false}])])))]))))))
