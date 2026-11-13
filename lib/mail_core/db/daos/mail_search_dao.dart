@@ -130,27 +130,26 @@ WHERE m.deleted = 0
     bool thisWeekOnly = false,
   }) async {
     final trimmed = query.trim();
-    if (trimmed.isEmpty &&
-        !unreadOnly &&
-        !attachmentOnly &&
-        !starredOnly &&
-        !thisWeekOnly) {
-      return [];
-    }
-
+    final hasFilters =
+        unreadOnly || attachmentOnly || starredOnly || thisWeekOnly;
+    if (trimmed.isEmpty && !hasFilters) return [];
     await ensureTable();
 
-    var rows = <QueryRow>[];
-    var extraWhere = '';
-    if (unreadOnly) extraWhere += ' AND m.is_read = 0';
-    if (attachmentOnly) extraWhere += ' AND m.has_attachment = 1';
-    if (starredOnly) extraWhere += ' AND m.is_starred = 1';
+    final extraPredicates = <String>[];
+    final extraVars = <Variable>[];
+    if (unreadOnly) extraPredicates.add('m.is_read = 0');
+    if (attachmentOnly) extraPredicates.add('m.has_attachment = 1');
+    if (starredOnly) extraPredicates.add('m.is_starred = 1');
     if (thisWeekOnly) {
-      // Drift stores DateTime columns as Unix timestamps by default.
-      extraWhere +=
-          " AND m.date >= CAST(strftime('%s', 'now', '-7 days') AS INTEGER)";
+      final cutoff = DateTime.now().subtract(const Duration(days: 7));
+      extraPredicates.add('m.date >= ?');
+      extraVars.add(Variable.withDateTime(cutoff));
     }
+    final extraWhere = extraPredicates.isEmpty
+        ? ''
+        : 'AND ${extraPredicates.join(' AND ')}';
 
+    var rows = <QueryRow>[];
     final match = _ftsMatchQuery(trimmed);
     if (match != null) {
       try {
@@ -160,8 +159,8 @@ WHERE m.deleted = 0
                  m.account_id AS account_id,
                  COALESCE(m.subject, '') AS subject,
                  COALESCE(
-                   NULLIF(snippet(fts_messages, 1, '[', ']', '…', 12), ''),
-                   NULLIF(snippet(fts_messages, 0, '[', ']', '…', 12), ''),
+                   NULLIF(snippet(fts_messages, 1, '[', ']', ' … ', 12), ''),
+                   NULLIF(snippet(fts_messages, 0, '[', ']', ' … ', 12), ''),
                    COALESCE(m.subject, '')
                  ) AS snip
           FROM fts_messages
@@ -176,6 +175,7 @@ WHERE m.deleted = 0
           variables: [
             Variable.withString(match),
             if (accountId != null) Variable.withString(accountId),
+            ...extraVars,
             Variable.withInt(limit),
           ],
           readsFrom: {messages},
@@ -184,16 +184,15 @@ WHERE m.deleted = 0
         rows = [];
       }
     }
-
     if (rows.isEmpty) {
       rows = await _likeFallback(
         trimmed,
         accountId: accountId,
         limit: limit,
         extraWhere: extraWhere,
+        extraVars: extraVars,
       );
     }
-
     return rows
         .map(
           (r) => MailSearchHit(
@@ -219,7 +218,9 @@ WHERE m.deleted = 0
     String? accountId,
     required int limit,
     String extraWhere = '',
+    List<Variable> extraVars = const [],
   }) {
+    final hasQuery = query.isNotEmpty;
     final pattern = '%${_escapeLike(query)}%';
     return customSelect(
       '''
@@ -229,24 +230,26 @@ WHERE m.deleted = 0
              COALESCE(m.subject, m.from_addr, '') AS snip
       FROM messages m
       WHERE m.deleted = 0
-        AND (
+        ${hasQuery ? '''AND (
           IFNULL(m.subject, '') LIKE ? ESCAPE '!'
           OR IFNULL(m.from_addr, '') LIKE ? ESCAPE '!'
           OR IFNULL(m.to_addr, '') LIKE ? ESCAPE '!'
           OR IFNULL(m.from_name, '') LIKE ? ESCAPE '!'
-          ${query.isEmpty ? 'OR 1 = 1' : ''}
-        )
+        )''' : ''}
         ${accountId != null ? 'AND m.account_id = ?' : ''}
         $extraWhere
       ORDER BY m.date DESC
       LIMIT ?
       ''',
       variables: [
-        Variable.withString(pattern),
-        Variable.withString(pattern),
-        Variable.withString(pattern),
-        Variable.withString(pattern),
+        if (hasQuery) ...[
+          Variable.withString(pattern),
+          Variable.withString(pattern),
+          Variable.withString(pattern),
+          Variable.withString(pattern),
+        ],
         if (accountId != null) Variable.withString(accountId),
+        ...extraVars,
         Variable.withInt(limit),
       ],
       readsFrom: {messages},

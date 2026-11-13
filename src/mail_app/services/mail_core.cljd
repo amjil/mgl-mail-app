@@ -418,17 +418,17 @@
 
 (defn search!
   ([query]
-   (search! query {}))
+   (search! query (:search-filters @store/app-state)))
   ([query filters]
    (let [q (str/trim (or query ""))
          filters (or filters {})
-         generation (swap! !search-generation inc)
-         filtered? (or (:unread filters)
-                       (:attachment filters)
-                       (:starred filters)
-                       (:this-week filters))]
+         generation (swap! !search-generation inc)]
      (store/set-search-query! q)
-     (if (and (empty? q) (not filtered?))
+     (if (and (empty? q)
+              (not (:unread filters))
+              (not (:attachment filters))
+              (not (:starred filters))
+              (not (:this-week filters)))
        (do
          (store/set-search-results! [])
          (store/set-searching! false)
