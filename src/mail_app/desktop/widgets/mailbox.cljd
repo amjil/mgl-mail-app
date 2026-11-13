@@ -206,46 +206,56 @@
    (let [display-label (if (keyword? key)
                          (i18n/mailbox-label key label)
                          label)
-         ;; MongolListTile is layout-only — no .selected / .onTap (prevents narrow ink strip)
-         tile (mgl/MongolListTile
-               .leading (m/Container
-                         .width 36.0
-                         .height 36.0
-                         .decoration (m/BoxDecoration
-                                      .color (if selected?
-                                               (.withOpacity (theme/sky) 0.18)
-                                               (.withOpacity (theme/ink-muted) 0.08))
-                                      .shape m.BoxShape/circle)
-                         .child (m/Icon (folder-icon key)
-                                        .size 19.0
-                                        .color (if selected? (theme/sky) (theme/ink-muted))))
-               .title (m/Padding
-                       .padding (m.EdgeInsets/only .top 10.0)
-                       .child
-                       (mgl/MongolText
-                        display-label
-                        .style (m/TextStyle
-                                .fontSize 18.0
-                                .fontFamily font-family
-                                .height 1.4
-                                .color (if selected? (theme/ink) (theme/ink-muted))
-                                .fontWeight (if selected?
-                                              m/FontWeight.w700
-                                              m/FontWeight.normal)))))
-         ink-tile (m/Material
-                   .color m.Colors/transparent
+         ;; Use a centered Column inside SizedBox.expand instead of MongolListTile
+         ;; so both the icon and vertical Mongolian text stay dead-center horizontally.
+         content (m/Material
+                  .color m.Colors/transparent
+                  .child
+                  (m/InkWell
+                   .hoverColor m.Colors/transparent
+                   .borderRadius (m/BorderRadius.circular theme/radius-md)
+                   .onTap (fn []
+                            (mail/select-mailbox! key)
+                            nil)
                    .child
-                   (m/InkWell
-                    .hoverColor (theme/hover)
-                    .borderRadius (m/BorderRadius.circular theme/radius-md)
-                    .onTap (fn []
-                             (mail/select-mailbox! key)
-                             nil)
+                   (m/SizedBox.expand
                     .child
-                    (m/SizedBox
-                     .width double/infinity
-                     .child tile)))
-         children (cond-> [ink-tile]
+                    (m/Padding
+                     .padding (m.EdgeInsets/symmetric .vertical 14.0 .horizontal 4.0)
+                     .child
+                     (m/Column
+                      .mainAxisAlignment m.MainAxisAlignment/start
+                      .crossAxisAlignment m.CrossAxisAlignment/center
+                      .children
+                      [(m/Container
+                        .width 36.0
+                        .height 36.0
+                        .alignment m.Alignment/center
+                        .decoration (m/BoxDecoration
+                                     .color (if selected?
+                                              (.withOpacity (theme/sky) 0.18)
+                                              (.withOpacity (theme/ink-muted) 0.08))
+                                     .shape m.BoxShape/circle)
+                        .child (m/Icon (folder-icon key)
+                                       .size 19.0
+                                       .color (if selected? (theme/sky) (theme/ink-muted))))
+                       (m/SizedBox .height 12.0)
+                       (m/Expanded
+                        .child
+                        (m/Align
+                         .alignment m.Alignment/topCenter
+                         .child
+                         (mgl/MongolText
+                          display-label
+                          .style (m/TextStyle
+                                  .fontSize 18.0
+                                  .fontFamily font-family
+                                  .height 1.35
+                                  .color (if selected? (theme/ink) (theme/ink-muted))
+                                  .fontWeight (if selected?
+                                                m/FontWeight.w700
+                                                m/FontWeight.normal)))))])))))
+         children (cond-> [content]
                     (and badge-count (> badge-count 0))
                     (conj (unread-badge badge-count))
 
@@ -253,32 +263,35 @@
                     (conj
                      (m/Positioned
                       .bottom 6.0
-                      .right 4.0
+                      .left 0.0
+                      .right 0.0
                       .child
-                      (menu/custom-popup-menu
-                       {:offset-y 4.0
-                        :menu-width 160.0
-                        :bg-color (theme/surface)
-                        :trigger-builder
-                        (fn [show-menu]
-                          (m/IconButton
-                           .icon (m/Icon m.Icons/more_horiz
-                                         .size 16.0
-                                         .color (theme/ink-muted))
-                           .padding (m.EdgeInsets/all 2.0)
-                           .constraints (m/BoxConstraints .minWidth 24.0 .minHeight 24.0)
-                           .onPressed show-menu))
-                        :items [{:type :item
-                                 :title (i18n/t :rename)
-                                 :on-tap (fn []
-                                           (rename-folder-dialog! ctx folder-path label)
-                                           nil)}
-                                {:type :item
-                                 :title (i18n/t :delete)
-                                 :title-style (m/TextStyle .color (theme/danger))
-                                 :on-tap (fn []
-                                           (confirm-delete-folder! ctx folder-path key label)
-                                           nil)}]}))))]
+                      (m/Center
+                       .child
+                       (menu/custom-popup-menu
+                        {:offset-y 4.0
+                         :menu-width 160.0
+                         :bg-color (theme/surface)
+                         :trigger-builder
+                         (fn [show-menu]
+                           (m/IconButton
+                            .icon (m/Icon m.Icons/more_horiz
+                                          .size 16.0
+                                          .color (theme/ink-muted))
+                            .padding (m.EdgeInsets/all 2.0)
+                            .constraints (m/BoxConstraints .minWidth 24.0 .minHeight 24.0)
+                            .onPressed show-menu))
+                         :items [{:type :item
+                                  :title (i18n/t :rename)
+                                  :on-tap (fn []
+                                            (rename-folder-dialog! ctx folder-path label)
+                                            nil)}
+                                 {:type :item
+                                  :title (i18n/t :delete)
+                                  :title-style (m/TextStyle .color (theme/danger))
+                                  :on-tap (fn []
+                                            (confirm-delete-folder! ctx folder-path key label)
+                                            nil)}]})))))]
      (m/MouseRegion
       .onEnter (fn [_] (reset! !hover? true) nil)
       .onExit (fn [_] (reset! !hover? false) nil)
@@ -286,7 +299,7 @@
       .child
       (m/AnimatedContainer
        .duration theme/pane-anim
-       .width 68.0
+       .width theme/folder-col-width
        .margin (m.EdgeInsets/symmetric .horizontal 5.0 .vertical 6.0)
        .decoration (m/BoxDecoration
                     .color (cond
